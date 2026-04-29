@@ -1,6 +1,6 @@
 .build/
 .swiftpm/
 Package.resolved
-audiotap
+/audiotap
 *.xcodeproj
 DerivedData/
