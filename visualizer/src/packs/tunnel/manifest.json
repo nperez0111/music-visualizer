@@ -1,0 +1,47 @@
+{
+	"schemaVersion": 1,
+	"id": "tunnel",
+	"name": "Tunnel",
+	"version": "1.1.0",
+	"author": "music-visualizer",
+	"description": "Endless textured tunnel rushing inward. Bass throws you forward, mid widens the bore, treble shimmers the walls.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "flight speed",
+			"min": 0.2,
+			"max": 4.0,
+			"default": 1.0
+		},
+		{
+			"type": "color",
+			"name": "tint",
+			"label": "wall tint",
+			"default": [1.0, 1.0, 1.0]
+		},
+		{
+			"type": "float",
+			"name": "divisions",
+			"label": "wall divisions",
+			"min": 6.0,
+			"max": 32.0,
+			"default": 16.0
+		}
+	],
+	"presets": [
+		{
+			"name": "Warp",
+			"values": { "speed": 3.2, "tint": [1.0, 0.9, 0.7], "divisions": 12.0 }
+		},
+		{
+			"name": "Subway",
+			"values": { "speed": 0.8, "tint": [0.6, 0.8, 1.0], "divisions": 24.0 }
+		},
+		{
+			"name": "Vaporwave",
+			"values": { "speed": 1.4, "tint": [1.0, 0.5, 0.9], "divisions": 16.0 }
+		}
+	]
+}

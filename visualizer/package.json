@@ -1,0 +1,24 @@
+{
+	"name": "music-visualizer",
+	"version": "0.0.1",
+	"type": "module",
+	"description": "WinAMP-spirited music visualizer on Electrobun + WebGPU",
+	"scripts": {
+		"start": "electrobun dev",
+		"dev": "electrobun dev --watch",
+		"build:canary": "electrobun build --env=canary",
+		"build:audiotap": "cd src/native/audiotap && swift build -c release --arch arm64 --arch x86_64 && cp .build/apple/Products/Release/audiotap ./audiotap",
+		"build:packs": "bun run scripts/build-packs.ts",
+		"test": "bun test",
+		"test:gpu": "bun run scripts/test-packs-gpu.ts"
+	},
+	"dependencies": {
+		"electrobun": "1.16.0",
+		"fflate": "0.8.2"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"assemblyscript": "0.28.16",
+		"typescript": "^5.7.2"
+	}
+}

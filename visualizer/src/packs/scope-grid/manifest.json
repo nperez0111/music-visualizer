@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"id": "scope-grid",
+	"name": "Scope Grid",
+	"version": "1.1.0",
+	"author": "music-visualizer",
+	"description": "Lissajous-style XY oscilloscope painted on a dotted CRT graticule. Bands drive the X/Y frequencies, beats throw the trace.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "color",
+			"name": "traceColor",
+			"label": "phosphor",
+			"default": [0.55, 1.0, 0.7]
+		},
+		{
+			"type": "color",
+			"name": "gridColor",
+			"label": "graticule",
+			"default": [0.1, 0.4, 0.2]
+		},
+		{
+			"type": "float",
+			"name": "thickness",
+			"label": "trace thickness",
+			"min": 0.3,
+			"max": 3.0,
+			"default": 1.0
+		}
+	]
+}

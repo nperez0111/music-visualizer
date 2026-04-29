@@ -1,0 +1,55 @@
+{
+	"schemaVersion": 1,
+	"id": "mandelbox",
+	"name": "Mandelbox",
+	"version": "1.1.0",
+	"author": "music-visualizer",
+	"description": "3D folding-space fractal raymarched live. Bass swells the fold scale, mid drives palette, beats flash.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "speed",
+			"min": 0.0,
+			"max": 3.0,
+			"default": 1.0
+		},
+		{
+			"type": "float",
+			"name": "foldScale",
+			"label": "fold scale",
+			"min": 1.5,
+			"max": 3.5,
+			"default": 2.4
+		},
+		{
+			"type": "color",
+			"name": "tint",
+			"label": "tint",
+			"default": [1.0, 1.0, 1.0]
+		},
+		{
+			"type": "float",
+			"name": "bassFold",
+			"label": "bass fold",
+			"min": 0.0,
+			"max": 0.5,
+			"default": 0.18
+		}
+	],
+	"presets": [
+		{
+			"name": "Default",
+			"values": { "speed": 1.0, "foldScale": 2.4, "tint": [1.0, 1.0, 1.0], "bassFold": 0.18 }
+		},
+		{
+			"name": "Tight Folds",
+			"values": { "speed": 1.0, "foldScale": 3.1, "tint": [1.0, 0.85, 0.7], "bassFold": 0.1 }
+		},
+		{
+			"name": "Loose Drift",
+			"values": { "speed": 0.6, "foldScale": 1.9, "tint": [0.8, 0.95, 1.0], "bassFold": 0.3 }
+		}
+	]
+}

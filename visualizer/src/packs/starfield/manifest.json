@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"id": "starfield",
+	"name": "Starfield",
+	"version": "1.1.0",
+	"author": "music-visualizer",
+	"description": "Warp-speed starfield rushing past the camera. Bass accelerates the warp, beats blow stars into streaks.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "warpBase",
+			"label": "warp base speed",
+			"min": 0.0,
+			"max": 2.0,
+			"default": 0.3
+		},
+		{
+			"type": "color",
+			"name": "nearTint",
+			"label": "near star tint",
+			"default": [0.85, 0.92, 1.0]
+		},
+		{
+			"type": "color",
+			"name": "farTint",
+			"label": "far star tint",
+			"default": [1.0, 0.6, 0.8]
+		}
+	]
+}

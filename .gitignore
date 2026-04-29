@@ -1,0 +1,18 @@
+# Local working notes — not for the public repo
+FUTURE.md
+
+# OS
+.DS_Store
+
+# Node / Bun
+node_modules/
+
+# Electrobun build outputs
+visualizer/build/
+visualizer/artifacts/
+
+# Generated pack artifacts (built by `bun run build:packs`)
+visualizer/src/packs/*/pack.wasm
+
+# Local Claude Code state
+.claude/settings.local.json

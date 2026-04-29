@@ -1,0 +1,45 @@
+{
+	"schemaVersion": 1,
+	"id": "fire",
+	"name": "Fire",
+	"version": "1.1.0",
+	"author": "music-visualizer",
+	"description": "Doom-style flame licking up from the bottom of the screen. Bass fans the flames, beats throw embers.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "height",
+			"label": "flame height",
+			"min": 0.2,
+			"max": 1.0,
+			"default": 0.55
+		},
+		{
+			"type": "color",
+			"name": "hotColor",
+			"label": "peak tint",
+			"default": [1.0, 0.85, 0.4]
+		},
+		{
+			"type": "bool",
+			"name": "embers",
+			"label": "embers",
+			"default": true
+		}
+	],
+	"presets": [
+		{
+			"name": "Inferno",
+			"values": { "height": 0.85, "hotColor": [1.0, 0.55, 0.15], "embers": true }
+		},
+		{
+			"name": "Cool Embers",
+			"values": { "height": 0.40, "hotColor": [0.4, 0.6, 1.0], "embers": true }
+		},
+		{
+			"name": "Calm Hearth",
+			"values": { "height": 0.30, "hotColor": [1.0, 0.85, 0.4], "embers": false }
+		}
+	]
+}

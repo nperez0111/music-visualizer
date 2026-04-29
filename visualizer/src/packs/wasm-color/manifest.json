@@ -1,0 +1,10 @@
+{
+	"schemaVersion": 1,
+	"id": "wasm-color",
+	"name": "WASM Color Cells",
+	"version": "1.0.0",
+	"author": "music-visualizer",
+	"description": "Tier 2 sample. WASM produces RGB + accumulated bass energy each frame; the shader paints a cell grid with those values.",
+	"shader": "shader.wgsl",
+	"wasm": "pack.wasm"
+}

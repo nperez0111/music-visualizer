@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"id": "ascii-rain",
+	"name": "ASCII Rain",
+	"version": "1.1.0",
+	"author": "music-visualizer",
+	"description": "Matrix-style falling glyph columns. Treble speeds the fall, bass thickens the head, each column tints from its spectrum bin.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "color",
+			"name": "headColor",
+			"label": "head color",
+			"default": [1.0, 1.0, 1.0]
+		},
+		{
+			"type": "color",
+			"name": "trailColor",
+			"label": "trail color",
+			"default": [0.2, 1.0, 0.35]
+		},
+		{
+			"type": "float",
+			"name": "fall",
+			"label": "fall speed",
+			"min": 0.3,
+			"max": 3.0,
+			"default": 1.0
+		}
+	]
+}

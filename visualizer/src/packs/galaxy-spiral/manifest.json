@@ -1,0 +1,39 @@
+{
+	"schemaVersion": 1,
+	"id": "galaxy-spiral",
+	"name": "Galaxy Spiral",
+	"version": "0.1.0",
+	"author": "music-visualizer",
+	"description": "Polar-warped spiral galaxy with FBM dust and a glowing core. Bass swells the core, mid rotates the arms, treble adds star sparkle.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "speed",
+			"min": 0.0,
+			"max": 4.0,
+			"default": 1.0
+		},
+		{
+			"type": "int",
+			"name": "arms",
+			"label": "arms",
+			"min": 2,
+			"max": 6,
+			"default": 3
+		},
+		{
+			"type": "color",
+			"name": "core",
+			"label": "core",
+			"default": [1.0, 0.85, 0.5]
+		},
+		{
+			"type": "color",
+			"name": "dust",
+			"label": "dust",
+			"default": [0.4, 0.5, 1.0]
+		}
+	]
+}

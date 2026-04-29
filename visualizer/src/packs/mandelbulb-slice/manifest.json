@@ -1,0 +1,55 @@
+{
+	"schemaVersion": 1,
+	"id": "mandelbulb-slice",
+	"name": "Mandelbulb Slice",
+	"version": "1.1.0",
+	"author": "music-visualizer",
+	"description": "Mandelbrot deep-zoom via perturbation theory. f64 reference orbit on CPU + f32 delta iteration on GPU lifts the precision wall from depth ~10 to ~30. Mid drives palette, beats sparkle.",
+	"shader": "shader.wgsl",
+	"wasm": "pack.wasm",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "speed",
+			"min": 0.0,
+			"max": 3.0,
+			"default": 1.0
+		},
+		{
+			"type": "enum",
+			"name": "target",
+			"label": "target",
+			"options": ["cycle", "seahorse", "misiurewicz", "tante-renate", "bourke"],
+			"default": "cycle"
+		},
+		{
+			"type": "color",
+			"name": "tint",
+			"label": "tint",
+			"default": [1.0, 1.0, 1.0]
+		},
+		{
+			"type": "float",
+			"name": "bassDepth",
+			"label": "bass depth",
+			"min": 0.0,
+			"max": 0.5,
+			"default": 0.15
+		}
+	],
+	"presets": [
+		{
+			"name": "Seahorse Drift",
+			"values": { "speed": 1.0, "target": "seahorse", "tint": [1.0, 0.95, 0.85], "bassDepth": 0.15 }
+		},
+		{
+			"name": "Cool Spirals",
+			"values": { "speed": 1.4, "target": "misiurewicz", "tint": [0.7, 0.85, 1.0], "bassDepth": 0.2 }
+		},
+		{
+			"name": "Slow Tour",
+			"values": { "speed": 0.5, "target": "cycle", "tint": [1.0, 1.0, 1.0], "bassDepth": 0.1 }
+		}
+	]
+}

@@ -1,0 +1,41 @@
+{
+	"schemaVersion": 1,
+	"id": "truchet-flow",
+	"name": "Truchet Flow",
+	"version": "0.1.0",
+	"author": "music-visualizer",
+	"description": "Quarter-arc Truchet tile maze that scrolls. Mid drives line thickness, bass shifts hue, beats brighten the path.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "speed",
+			"min": 0.0,
+			"max": 4.0,
+			"default": 1.0
+		},
+		{
+			"type": "float",
+			"name": "scale",
+			"label": "tile scale",
+			"min": 3.0,
+			"max": 16.0,
+			"default": 7.0
+		},
+		{
+			"type": "color",
+			"name": "tint",
+			"label": "tint",
+			"default": [1.0, 0.5, 0.9]
+		},
+		{
+			"type": "float",
+			"name": "thickness",
+			"label": "line",
+			"min": 0.05,
+			"max": 0.4,
+			"default": 0.18
+		}
+	]
+}

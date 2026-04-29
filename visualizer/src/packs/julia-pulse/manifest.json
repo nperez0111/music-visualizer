@@ -1,0 +1,41 @@
+{
+	"schemaVersion": 1,
+	"id": "julia-pulse",
+	"name": "Julia Pulse",
+	"version": "0.1.0",
+	"author": "music-visualizer",
+	"description": "Animated Julia set. The constant c orbits a circle (phase locked to the beat); RMS pumps the radius; treble shifts colors.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "orbit speed",
+			"min": 0.0,
+			"max": 4.0,
+			"default": 1.0
+		},
+		{
+			"type": "float",
+			"name": "zoom",
+			"label": "zoom",
+			"min": 0.5,
+			"max": 2.5,
+			"default": 1.3
+		},
+		{
+			"type": "float",
+			"name": "radius",
+			"label": "c radius",
+			"min": 0.55,
+			"max": 0.85,
+			"default": 0.74
+		},
+		{
+			"type": "color",
+			"name": "tint",
+			"label": "tint",
+			"default": [0.7, 0.4, 1.0]
+		}
+	]
+}

@@ -1,0 +1,33 @@
+{
+	"schemaVersion": 1,
+	"id": "lightning",
+	"name": "Lightning",
+	"version": "1.1.0",
+	"author": "music-visualizer",
+	"description": "Branching electric bolts that fire on each beat and decay between them. Bass hits forge brighter strikes.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "bolts",
+			"label": "bolts per strike",
+			"min": 1.0,
+			"max": 6.0,
+			"default": 3.0
+		},
+		{
+			"type": "color",
+			"name": "boltColor",
+			"label": "bolt color",
+			"default": [0.7, 0.85, 1.0]
+		},
+		{
+			"type": "float",
+			"name": "flashAmt",
+			"label": "sky flash",
+			"min": 0.0,
+			"max": 1.0,
+			"default": 0.3
+		}
+	]
+}

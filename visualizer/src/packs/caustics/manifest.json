@@ -1,0 +1,41 @@
+{
+	"schemaVersion": 1,
+	"id": "caustics",
+	"name": "Underwater Caustics",
+	"version": "0.1.0",
+	"author": "music-visualizer",
+	"description": "Iterative caustic shimmer (port of the classic Shadertoy MdlXz8). Treble drives shimmer speed, bass deepens contrast.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "speed",
+			"min": 0.0,
+			"max": 4.0,
+			"default": 1.0
+		},
+		{
+			"type": "int",
+			"name": "iterations",
+			"label": "iterations",
+			"min": 3,
+			"max": 8,
+			"default": 5
+		},
+		{
+			"type": "color",
+			"name": "tint",
+			"label": "water",
+			"default": [0.0, 0.4, 0.6]
+		},
+		{
+			"type": "float",
+			"name": "intensity",
+			"label": "intensity",
+			"min": 0.001,
+			"max": 0.02,
+			"default": 0.005
+		}
+	]
+}

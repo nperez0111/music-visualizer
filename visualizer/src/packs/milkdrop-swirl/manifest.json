@@ -1,0 +1,33 @@
+{
+	"schemaVersion": 1,
+	"id": "milkdrop-swirl",
+	"name": "Milkdrop Swirl",
+	"version": "1.1.0",
+	"author": "music-visualizer",
+	"description": "Geiss-flavored fluid swirl — domain-warped FBM with palette cycling. Bass kicks up vorticity, treble adds glitter.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "paletteShift",
+			"label": "palette offset",
+			"min": 0.0,
+			"max": 1.0,
+			"default": 0.0
+		},
+		{
+			"type": "float",
+			"name": "warpAmount",
+			"label": "warp amount",
+			"min": 0.0,
+			"max": 2.0,
+			"default": 1.0
+		},
+		{
+			"type": "bool",
+			"name": "glitter",
+			"label": "treble glitter",
+			"default": true
+		}
+	]
+}

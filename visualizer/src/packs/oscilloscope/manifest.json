@@ -1,0 +1,33 @@
+{
+	"schemaVersion": 1,
+	"id": "oscilloscope",
+	"name": "Oscilloscope",
+	"version": "1.1.0",
+	"author": "music-visualizer",
+	"description": "Classic CRT-style waveform line synthesized from FFT bins. Bass thickens the trace, treble adds high-frequency wobble.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "color",
+			"name": "phosphor",
+			"label": "phosphor color",
+			"default": [0.55, 1.0, 0.55]
+		},
+		{
+			"type": "float",
+			"name": "thickness",
+			"label": "trace thickness",
+			"min": 0.3,
+			"max": 3.0,
+			"default": 1.0
+		},
+		{
+			"type": "float",
+			"name": "glow",
+			"label": "bloom",
+			"min": 0.0,
+			"max": 2.0,
+			"default": 1.0
+		}
+	]
+}

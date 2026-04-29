@@ -1,0 +1,25 @@
+{
+	"schemaVersion": 1,
+	"id": "gradient",
+	"name": "Gradient Rings",
+	"version": "1.0.0",
+	"author": "music-visualizer",
+	"description": "Concentric rings + radial swirl. Bass drives ring frequency, mid biases the swirl, beats flash brighter.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "speed",
+			"min": 0.0,
+			"max": 4.0,
+			"default": 1.0
+		},
+		{
+			"type": "color",
+			"name": "warmth",
+			"label": "tint",
+			"default": [1.0, 0.9, 0.8]
+		}
+	]
+}

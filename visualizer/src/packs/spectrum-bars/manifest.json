@@ -1,0 +1,9 @@
+{
+	"schemaVersion": 1,
+	"id": "spectrum-bars",
+	"name": "Spectrum Bars",
+	"version": "1.0.0",
+	"author": "music-visualizer",
+	"description": "Classic 32-band spectrum analyzer. Vertical bars rise with each frequency bin; tops glow on peaks.",
+	"shader": "shader.wgsl"
+}

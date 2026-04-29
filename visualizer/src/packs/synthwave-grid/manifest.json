@@ -1,0 +1,39 @@
+{
+	"schemaVersion": 1,
+	"id": "synthwave-grid",
+	"name": "Synthwave Grid",
+	"version": "0.1.0",
+	"author": "music-visualizer",
+	"description": "Outrun perspective grid + neon sun with horizontal cut bars. Bass drives sun glow, mid speeds the grid scroll, treble brightens lines.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "scroll",
+			"min": 0.0,
+			"max": 4.0,
+			"default": 1.0
+		},
+		{
+			"type": "color",
+			"name": "grid",
+			"label": "grid color",
+			"default": [1.0, 0.2, 0.6]
+		},
+		{
+			"type": "color",
+			"name": "sun",
+			"label": "sun color",
+			"default": [1.0, 0.7, 0.2]
+		},
+		{
+			"type": "float",
+			"name": "horizon",
+			"label": "horizon",
+			"min": 0.2,
+			"max": 0.7,
+			"default": 0.45
+		}
+	]
+}

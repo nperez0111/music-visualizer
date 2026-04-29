@@ -1,0 +1,9 @@
+{
+	"schemaVersion": 1,
+	"id": "plasma",
+	"name": "Plasma",
+	"version": "1.0.0",
+	"author": "music-visualizer",
+	"description": "Demoscene-flavored plasma. Sums of sines that drift with the music. Bass shifts hue, mids tint, beats punch.",
+	"shader": "shader.wgsl"
+}

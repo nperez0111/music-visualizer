@@ -1,0 +1,35 @@
+{
+	"schemaVersion": 1,
+	"id": "kaleidoscope",
+	"name": "Kaleidoscope",
+	"version": "1.1.0",
+	"author": "music-visualizer",
+	"description": "N-fold mirror symmetry over a roaming plasma. Bass spins the petals, mid morphs them, beats flash the seam.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "petals",
+			"label": "petal count",
+			"min": 3.0,
+			"max": 16.0,
+			"default": 6.0
+		},
+		{
+			"type": "float",
+			"name": "spin",
+			"label": "spin speed",
+			"min": -2.0,
+			"max": 2.0,
+			"default": 1.0
+		},
+		{
+			"type": "float",
+			"name": "softness",
+			"label": "second tap blend",
+			"min": 0.0,
+			"max": 1.0,
+			"default": 0.35
+		}
+	]
+}

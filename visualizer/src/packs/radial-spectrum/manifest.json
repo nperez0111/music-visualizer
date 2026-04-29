@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"id": "radial-spectrum",
+	"name": "Radial Spectrum",
+	"version": "1.1.0",
+	"author": "music-visualizer",
+	"description": "Circular spectrum analyzer — 32 bars radiating from a glowing core. Bass swells the core, treble lights the outer rim.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "coreSize",
+			"label": "core radius",
+			"min": 0.05,
+			"max": 0.4,
+			"default": 0.18
+		},
+		{
+			"type": "color",
+			"name": "coreColor",
+			"label": "core color",
+			"default": [1.0, 0.7, 0.4]
+		},
+		{
+			"type": "color",
+			"name": "rimColor",
+			"label": "rim color",
+			"default": [0.4, 0.7, 1.0]
+		}
+	]
+}

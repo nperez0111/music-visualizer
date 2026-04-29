@@ -1,0 +1,46 @@
+{
+	"schemaVersion": 1,
+	"id": "bloom-pulse",
+	"name": "Bloom Pulse",
+	"version": "1.0.0",
+	"author": "music-visualizer",
+	"description": "Concentric color rings pulsing with the beat, smeared by a multi-tap bloom pass. Demonstrates pack post-FX chains.",
+	"shader": "shader.wgsl",
+	"passes": [
+		{ "shader": "bloom.wgsl" }
+	],
+	"parameters": [
+		{
+			"type": "float",
+			"name": "rings",
+			"label": "ring count",
+			"min": 4.0,
+			"max": 24.0,
+			"default": 12.0
+		},
+		{
+			"type": "float",
+			"name": "bloomAmt",
+			"label": "bloom amount",
+			"min": 0.0,
+			"max": 1.5,
+			"default": 0.7
+		},
+		{
+			"type": "color",
+			"name": "tint",
+			"label": "core tint",
+			"default": [1.0, 0.6, 0.9]
+		}
+	],
+	"presets": [
+		{
+			"name": "Soft",
+			"values": { "rings": 8.0, "bloomAmt": 0.4, "tint": [0.7, 0.9, 1.0] }
+		},
+		{
+			"name": "Inferno",
+			"values": { "rings": 18.0, "bloomAmt": 1.2, "tint": [1.0, 0.3, 0.1] }
+		}
+	]
+}

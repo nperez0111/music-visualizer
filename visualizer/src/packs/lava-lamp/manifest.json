@@ -1,0 +1,31 @@
+{
+	"schemaVersion": 1,
+	"id": "lava-lamp",
+	"name": "Lava Lamp",
+	"version": "1.1.0",
+	"author": "music-visualizer",
+	"description": "Eight metaball blobs floating in warm goo. Bass swells the blobs, beats pinch them apart and back together.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "blobSize",
+			"label": "blob size",
+			"min": 0.4,
+			"max": 2.0,
+			"default": 1.0
+		},
+		{
+			"type": "color",
+			"name": "lavaColor",
+			"label": "lava tint",
+			"default": [1.0, 0.5, 0.15]
+		},
+		{
+			"type": "color",
+			"name": "bgColor",
+			"label": "glass color",
+			"default": [0.18, 0.04, 0.02]
+		}
+	]
+}

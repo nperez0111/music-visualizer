@@ -1,0 +1,41 @@
+{
+	"schemaVersion": 1,
+	"id": "voronoi-cells",
+	"name": "Voronoi Cells",
+	"version": "0.1.0",
+	"author": "music-visualizer",
+	"description": "Worley cellular noise. Bass jitters cell points; treble glows the edges; mid scrolls the field.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "speed",
+			"min": 0.0,
+			"max": 4.0,
+			"default": 1.0
+		},
+		{
+			"type": "float",
+			"name": "density",
+			"label": "density",
+			"min": 2.0,
+			"max": 14.0,
+			"default": 6.0
+		},
+		{
+			"type": "color",
+			"name": "tint",
+			"label": "tint",
+			"default": [0.4, 0.9, 1.0]
+		},
+		{
+			"type": "float",
+			"name": "edge",
+			"label": "edge glow",
+			"min": 0.0,
+			"max": 1.5,
+			"default": 0.7
+		}
+	]
+}
