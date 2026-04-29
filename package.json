@@ -3,6 +3,7 @@
 	"version": "0.0.1",
 	"type": "module",
 	"description": "WinAMP-spirited music visualizer on Electrobun + WebGPU",
+	"license": "MIT",
 	"scripts": {
 		"start": "electrobun dev",
 		"dev": "electrobun dev --watch",

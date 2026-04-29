@@ -5,10 +5,9 @@ description: Scaffold a new visualizer pack for the music-visualizer project. Us
 
 # Create a new visualizer pack
 
-This skill scaffolds a new pack inside `visualizer/src/packs/<id>/`. Packs
-are the unit of visualizer extensibility in this project. See
-`ARCHITECTURE.md` (sibling of this skill in the repo) for the full
-contract.
+This skill scaffolds a new pack inside `src/packs/<id>/`. Packs are the
+unit of visualizer extensibility in this project. See `ARCHITECTURE.md`
+(sibling of this skill in the repo) for the full contract.
 
 ## Step 1 — clarify with the user
 
@@ -37,10 +36,8 @@ If any of those are obvious from the conversation, skip asking.
 
 ## Step 2 — confirm the working directory
 
-The packs directory lives at
-`<repo>/visualizer/src/packs/`. Verify it exists with `ls`. If the user
-is operating from the repo root (not `visualizer/`), prefix paths with
-`visualizer/`.
+The packs directory lives at `<repo>/src/packs/`. Verify it exists with
+`ls`.
 
 ## Step 3 — scaffold files
 
@@ -322,7 +319,7 @@ If the chain gets long, refactor to a loop:
 "build:packs": "for d in src/packs/*/; do test -f \"$d/pack.ts\" && bunx asc \"$d/pack.ts\" --target release --runtime stub --exportRuntime -o \"$d/pack.wasm\"; done"
 ```
 
-Run `bun run build:packs` from `visualizer/` to compile.
+Run `bun run build:packs` from the repo root to compile.
 
 ## Step 4 — extend the WGSL struct for Tier 2
 

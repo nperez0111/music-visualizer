@@ -33,7 +33,6 @@ immediately.
 ## Quick start
 
 ```bash
-cd visualizer
 bun install
 bun run build:audiotap   # builds the Swift system-audio helper (one-time)
 bun run build:packs      # compiles the AssemblyScript sample pack (one-time)
@@ -91,14 +90,13 @@ or run `/new-pack` in Claude Code if you have the project's skill installed.
 ## What's where
 
 ```
-visualizer/
-├── src/
-│   ├── bun/             # main process (Bun): rendering, audio, packs, IPC
-│   ├── mainview/        # controls panel HTML/CSS/JS
-│   ├── native/audiotap/ # Swift CLI that streams system audio
-│   └── packs/           # built-in visualizer packs
-├── electrobun.config.ts
-└── package.json
+src/
+├── bun/             # main process (Bun): rendering, audio, packs, IPC
+├── mainview/        # controls panel HTML/CSS/JS
+├── native/audiotap/ # Swift CLI that streams system audio
+└── packs/           # built-in visualizer packs
+electrobun.config.ts
+package.json
 ```
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for how the pieces fit together.
@@ -115,4 +113,4 @@ the app.
 
 ## License
 
-TBD by project owner.
+MIT — see [LICENSE](./LICENSE).

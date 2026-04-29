@@ -8,11 +8,11 @@ FUTURE.md
 node_modules/
 
 # Electrobun build outputs
-visualizer/build/
-visualizer/artifacts/
+build/
+artifacts/
 
 # Generated pack artifacts (built by `bun run build:packs`)
-visualizer/src/packs/*/pack.wasm
+src/packs/*/pack.wasm
 
 # Local Claude Code state
 .claude/settings.local.json

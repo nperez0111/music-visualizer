@@ -72,7 +72,7 @@ audio capture, GPU work, pack loading, and persistence happens in Bun.
 ## File layout
 
 ```
-visualizer/src/
+src/
 ├── bun/                      # main process
 │   ├── index.ts              # entry point: windows, frame loop, RPC
 │   ├── gpu/
