@@ -8,7 +8,7 @@
 		"start": "electrobun dev",
 		"dev": "electrobun dev --watch",
 		"build:canary": "electrobun build --env=canary",
-		"build:audiotap": "cd src/native/audiotap && swift build -c release --arch arm64 --arch x86_64 && cp .build/apple/Products/Release/audiotap ./audiotap",
+		"build:audiocap": "bun run scripts/build-audiocap.ts",
 		"build:packs": "bun run scripts/build-packs.ts",
 		"test": "bun test",
 		"test:gpu": "bun run scripts/test-packs-gpu.ts"

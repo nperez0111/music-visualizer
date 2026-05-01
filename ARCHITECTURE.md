@@ -10,9 +10,9 @@ first if you just want to use the app.
 +--------------------- Bun main process (src/bun/index.ts) ------------------+
 |                                                                            |
 |  +------------------+   +-------------------+   +----------------------+   |
-|  | audiotap         |   | wgpu-native FFI   |   | pack registry        |   |
-|  | (Swift child)    |---> ring buffer       |   | - load from disk     |   |
-|  | system audio     |   | + FFT analyzer    |   | - WASM runtime       |   |
+|  | audiocap         |   | wgpu-native FFI   |   | pack registry        |   |
+|  | (Rust child,     |---> ring buffer       |   | - load from disk     |   |
+|  |  cpal loopback)  |   | + FFT analyzer    |   | - WASM runtime       |   |
 |  | -> framed PCM    |   | features+spectrum |   | - import .viz        |   |
 |  +------------------+   +---------+---------+   +----------+-----------+   |
 |                                   |                        |               |
@@ -81,7 +81,7 @@ src/
 │   │   ├── pipeline.ts       # createPackPipeline (one per pack)
 │   │   └── transition.ts     # A/B render targets + composite shader
 │   ├── audio/
-│   │   ├── capture.ts        # spawns audiotap, parses framed PCM
+│   │   ├── capture.ts        # spawns audiocap, parses framed PCM
 │   │   ├── ring-buffer.ts    # mono Float32 circular buffer
 │   │   └── analysis.ts       # Hann FFT, energy bands, simple BPM
 │   ├── packs/
@@ -96,9 +96,9 @@ src/
 │   ├── index.css
 │   └── index.ts              # RPC, dropdown, drag, meter
 │
-├── native/audiotap/          # Swift CLI: ScreenCaptureKit -> framed PCM
-│   ├── Package.swift
-│   └── Sources/audiotap/...
+├── native/audiocap/          # Rust CLI: cpal loopback -> framed PCM
+│   ├── Cargo.toml
+│   └── src/main.rs
 │
 └── packs/                    # built-in packs
     ├── gradient/{manifest.json, shader.wgsl}
@@ -165,28 +165,50 @@ ignores any bytes the struct doesn't reach.
 
 ## Audio path
 
-### Capture (`src/native/audiotap/`)
+### Capture (`src/native/audiocap/`)
 
-A small Swift CLI that uses ScreenCaptureKit:
+A small Rust CLI built on [cpal](https://github.com/RustAudio/cpal) that
+opens the platform-appropriate loopback stream:
 
-1. Requests a single-display `SCContentFilter`.
-2. Opens an `SCStream` with `capturesAudio = true` and a tiny 2×2 video
-   output (SCKit refuses audio-only streams).
-3. On each `CMSampleBuffer`, writes a binary frame to **stdout**:
-   ```
-   u32 LE  magic = 0xA1D10A1D
-   u32 LE  channels
-   u32 LE  sampleRate
-   u32 LE  frameCount
-   f32 LE * channels * frameCount   (interleaved if stereo)
-   ```
-4. Emits newline-delimited JSON status events on **stderr**:
-   `{"type":"ready"}`, `{"type":"started",...}`, `{"type":"stopped"}`,
-   `{"type":"permission-denied"}`, `{"type":"error", "message":"..."}`.
+| Platform | Backend                    | Notes |
+|----------|----------------------------|-------|
+| macOS    | CoreAudio process tap      | Requires macOS 14.2+ and the "System Audio" TCC permission. cpal auto-creates an aggregate device + tap on the default output. |
+| Windows  | WASAPI loopback            | No permission prompt. |
+| Linux    | PulseAudio/PipeWire monitor | First `*.monitor` source on the input list. Requires cpal's `pulseaudio` or `pipewire` feature at build time. |
+
+Selection is made by `select_loopback_device()` in `src/main.rs`. On
+macOS and Windows the entry point is `host.default_output_device()`
+followed by `device.build_input_stream(...)`; cpal handles the loopback
+plumbing internally.
+
+Each PCM callback writes one binary frame to **stdout**:
+
+```
+u32 LE  magic = 0xA1D10A1D
+u32 LE  channels
+u32 LE  sampleRate
+u32 LE  frameCount
+f32 LE * channels * frameCount   (interleaved if stereo)
+```
+
+Sample formats other than F32 (I16/I32/U16) are converted to F32 via
+`cpal::FromSample` before framing, so the wire format is uniform.
+
+Status events on **stderr** (one JSON object per line):
+`{"type":"ready"}`, `{"type":"started","sampleRate":N,"channels":N}`,
+`{"type":"stopped"}`, `{"type":"permission-denied"}`,
+`{"type":"error","message":"..."}`. Permission errors are detected via
+`cpal::ErrorKind::PermissionDenied` rather than string matching. Note
+that on macOS, granting only legacy "Screen Recording" permission causes
+*silent* recording of zeros — the new "System Audio Only" toggle is
+required.
+
+SIGINT/SIGTERM trigger a clean shutdown via `ctrlc::set_handler`,
+emitting `{"type":"stopped"}` before exiting 0.
 
 ### Bun-side reader (`bun/audio/capture.ts`)
 
-`Bun.spawn(["./audiotap"])`. Two readers run concurrently:
+`Bun.spawn(["./audiocap"])`. Two readers run concurrently:
 
 - **stdout**: streaming binary parser. Carries pending bytes between
   reads; emits frames as they complete; resyncs on a one-byte slip if the
@@ -362,17 +384,17 @@ encode call.
 | Command                  | What it does                                      |
 |--------------------------|---------------------------------------------------|
 | `bun install`            | Pulls Electrobun + AssemblyScript + fflate.       |
-| `bun run build:audiotap` | Builds the Swift system-audio helper (universal). |
+| `bun run build:audiocap` | Builds the Rust+cpal system-audio helper.         |
 | `bun run build:packs`    | Compiles the AssemblyScript sample to `pack.wasm`.|
 | `bun run dev`            | Electrobun dev mode — bundles + opens windows.    |
 
 The `electrobun.config.ts` `copy` block ships:
 - `views/mainview/{index.html,index.css}` (controls UI)
-- `audiotap` (Swift binary) → `Resources/app/audiotap`
+- `audiocap` (Rust binary) → `Resources/app/audiocap`
 - `packs/` → `Resources/app/packs/`
 
-The audiotap binary is located at runtime by checking
-`<cwd>/../Resources/app/audiotap` (production), `<bundled>/audiotap` (dev),
+The audiocap binary is located at runtime by checking
+`<cwd>/../Resources/app/audiocap` (production), `<bundled>/audiocap` (dev),
 and a repo-relative fallback. Built-in packs have analogous candidate paths
 (see `loader.ts:findBuiltinPacksDir`).
 
@@ -381,9 +403,17 @@ and a repo-relative fallback. Built-in packs have analogous candidate paths
 - **Tier-2 → Tier-2 crossfade** writes only one pack's custom uniforms per
   frame (currently the "from" pack). The "to" pack reads stale `packData`
   for the duration. Acceptable v1 artifact; per-pack uniform buffers fix it.
-- **Single-display SCKit filter.** The audio capture uses the first display
-  only. On multi-display setups, audio mix is whatever that one display's
-  context is — usually fine, but worth knowing.
+- **macOS audio floor at 14.2.** CoreAudio process taps require Sonoma
+  14.2+. Older macOS would need a fallback (ScreenCaptureKit or BlackHole)
+  that we don't currently ship.
+- **macOS silent-failure mode.** If the user has only the legacy "Screen
+  Recording" permission, the loopback opens successfully but records
+  zeros. The new "System Audio" toggle (System Settings → Privacy) is the
+  one that matters.
+- **rustup required on macOS.** `build:audiocap` produces a universal
+  (arm64+x86_64) binary by invoking rustup's cargo with both targets
+  and lipo'ing the results. Homebrew rust alone won't work — see the
+  README for setup. Windows/Linux fall back to a host-arch build.
 - **Spectrum strip duplication.** Each built-in pack ships its own copy of
   the bottom-strip bars. A host overlay pass would centralize this.
 

@@ -12,8 +12,8 @@ const STATUS_TEXT: Record<CaptureStatus, string> = {
 	idle: "idle",
 	starting: "starting…",
 	capturing: "capturing system audio",
-	"permission-denied": "screen recording permission required",
-	"binary-missing": "audiotap binary missing — run build:audiotap",
+	"permission-denied": "system audio permission required",
+	"binary-missing": "audiocap binary missing — run build:audiocap",
 	error: "capture error",
 };
 

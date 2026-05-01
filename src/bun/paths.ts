@@ -2,9 +2,9 @@ import { existsSync } from "fs";
 import { homedir } from "os";
 import { join, resolve } from "path";
 
-// Centralized filesystem layout. Today this is macOS-only; when cross-platform
-// audio lands the per-platform branches live here so the rest of the codebase
-// keeps using the same accessors.
+// Centralized filesystem layout. APP_DATA_DIR is currently macOS-only; when
+// Windows/Linux land the per-platform branches live here so the rest of the
+// codebase keeps using the same accessors.
 
 const BUNDLE_ID = "music-visualizer.electrobun.dev";
 
@@ -23,14 +23,14 @@ export const USER_PACKS_DIR = join(APP_DATA_DIR, "packs");
 export const DB_PATH = join(APP_DATA_DIR, "visualizer.db");
 
 /**
- * Resolve the audiotap helper binary. Production lives next to the bundle
+ * Resolve the audiocap helper binary. Production lives next to the bundle
  * resources; dev runs from the repo. Returns null if no candidate exists.
  */
-export function findAudiotapBinary(): string | null {
+export function findAudiocapBinary(): string | null {
 	const candidates = [
-		resolve(process.cwd(), "..", "Resources", "app", "audiotap"),
-		resolve(import.meta.dir, "..", "audiotap"),
-		resolve(process.cwd(), "src", "native", "audiotap", "audiotap"),
+		resolve(process.cwd(), "..", "Resources", "app", "audiocap"),
+		resolve(import.meta.dir, "..", "audiocap"),
+		resolve(process.cwd(), "src", "native", "audiocap", "audiocap"),
 	];
 	for (const path of candidates) {
 		if (existsSync(path)) return path;

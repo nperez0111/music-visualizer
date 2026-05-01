@@ -1,0 +1,26 @@
+[package]
+name = "audiocap"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+publish = false
+description = "Cross-platform system-audio loopback helper for music-visualizer"
+license = "MIT"
+
+[[bin]]
+name = "audiocap"
+path = "src/main.rs"
+
+# cpal master is required: macOS CoreAudio Tap loopback (PR #1003) is not yet
+# in any crates.io release. Pin to a specific revision so builds are
+# reproducible — bump deliberately.
+[dependencies]
+cpal = { git = "https://github.com/RustAudio/cpal.git", rev = "f938e338c9811fbe4d428517acf1d15cc6d694d4" }
+ctrlc = { version = "3", features = ["termination"] }
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = true
+panic = "abort"

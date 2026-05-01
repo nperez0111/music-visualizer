@@ -1,7 +1,7 @@
-import { findAudiotapBinary } from "../paths";
+import { findAudiocapBinary } from "../paths";
 import type { RingBuffer } from "./ring-buffer";
 
-// Protocol constants (must match audiotap):
+// Protocol constants (must match audiocap):
 //   stdout: framed binary
 //     u32 magic = 0xA1D10A1D
 //     u32 channels
@@ -51,11 +51,11 @@ export class AudioCapture {
 
 	async start(): Promise<void> {
 		if (this.status === "starting" || this.status === "capturing") return;
-		const binary = findAudiotapBinary();
+		const binary = findAudiocapBinary();
 		if (!binary) {
 			this.setStatus(
 				"binary-missing",
-				"audiotap binary not found; run `bun run build:audiotap`",
+				"audiocap binary not found; run `bun run build:audiocap`",
 			);
 			return;
 		}
@@ -76,7 +76,7 @@ export class AudioCapture {
 
 		this.proc.exited.then((code) => {
 			if (this.status === "capturing" || this.status === "starting") {
-				this.setStatus(code === 0 ? "idle" : "error", `audiotap exited with code ${code}`);
+				this.setStatus(code === 0 ? "idle" : "error", `audiocap exited with code ${code}`);
 			}
 			this.proc = null;
 		});
@@ -134,12 +134,12 @@ export class AudioCapture {
 		try {
 			evt = JSON.parse(line) as CaptureEvent;
 		} catch {
-			console.warn("[audio] non-JSON stderr from audiotap:", line);
+			console.warn("[audio] non-JSON stderr from audiocap:", line);
 			return;
 		}
 		switch (evt.type) {
 			case "ready":
-				// audiotap is alive; "started" follows once SCKit finishes setup.
+				// audiocap is alive; "started" follows once the loopback stream is built.
 				break;
 			case "started":
 				this.sampleRate = evt.sampleRate;

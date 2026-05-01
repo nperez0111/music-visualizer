@@ -19,11 +19,11 @@ export default {
 		copy: {
 			"src/mainview/index.html": "views/mainview/index.html",
 			"src/mainview/index.css": "views/mainview/index.css",
-			"src/native/audiotap/audiotap": "audiotap",
+			"src/native/audiocap/audiocap": "audiocap",
 			"src/packs": "packs",
 		},
 		watchIgnore: [
-			"src/native/audiotap/**",
+			"src/native/audiocap/**",
 		],
 		mac: {
 			bundleCEF: false,

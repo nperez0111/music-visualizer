@@ -1,21 +1,21 @@
 # music-visualizer
 
-A WinAMP-spirited desktop music visualizer for macOS, built on
+A WinAMP-spirited desktop music visualizer, built on
 [Electrobun](https://blackboard.sh/electrobun/) and WebGPU. It captures the
 audio playing on your system (Spotify, browser, anything that makes sound)
 and renders shader-based visuals that react in real time. Visualizers are
 hot-swappable "packs" — drop in someone else's `.viz` file and use it
 immediately.
 
-> **Status:** macOS-only for now. The audio capture path is built on
-> ScreenCaptureKit (macOS 13+). The render and pack systems are
-> cross-platform; Linux/Windows audio is on the roadmap.
+> **Status:** macOS 14.2+ today; Windows and Linux ride the same audio
+> helper (cpal-based). Render and pack systems are cross-platform.
 
 ## Features
 
-- **Captures system audio** with no virtual driver — uses
-  ScreenCaptureKit's loopback. The first run prompts for Screen Recording
-  permission (macOS gates audio behind it).
+- **Captures system audio** with no virtual driver. macOS uses CoreAudio
+  process taps (14.2+); Windows uses WASAPI loopback; Linux uses the
+  PulseAudio/PipeWire monitor source. First run on macOS prompts for the
+  "System Audio" privacy permission.
 - **Hot-swappable visualizer packs.** Switch between bundled visualizers
   from a dropdown; transitions crossfade smoothly.
 - **Two pack tiers:**
@@ -34,14 +34,27 @@ immediately.
 
 ```bash
 bun install
-bun run build:audiotap   # builds the Swift system-audio helper (one-time)
+bun run build:audiocap   # builds the cpal-based system-audio helper (one-time)
 bun run build:packs      # compiles the AssemblyScript sample pack (one-time)
 bun run dev
 ```
 
-The first time the app starts, macOS will ask for **Screen Recording**
-permission. Grant it — without it, system audio capture cannot start. The
-visualizer falls back to synthesized features so you'll still see motion.
+`build:audiocap` requires [`rustup`](https://rustup.rs) with both
+`aarch64-apple-darwin` and `x86_64-apple-darwin` targets installed
+(it produces a universal binary). One-time setup:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+~/.cargo/bin/rustup target add x86_64-apple-darwin
+```
+
+On Windows and Linux, the script falls back to a host-architecture build
+and only requires `cargo` on PATH.
+
+The first time the app starts on macOS 14.2+, the system will prompt for
+**System Audio** permission. Grant it — without it, the loopback stream
+silently records zero. The visualizer falls back to synthesized features
+so you'll still see motion.
 
 ## Using it
 
@@ -93,7 +106,7 @@ or run `/new-pack` in Claude Code if you have the project's skill installed.
 src/
 ├── bun/             # main process (Bun): rendering, audio, packs, IPC
 ├── mainview/        # controls panel HTML/CSS/JS
-├── native/audiotap/ # Swift CLI that streams system audio
+├── native/audiocap/ # Rust CLI: cross-platform system-audio loopback (cpal)
 └── packs/           # built-in visualizer packs
 electrobun.config.ts
 package.json
@@ -103,13 +116,17 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for how the pieces fit together.
 
 ## Permissions
 
-| Permission         | Why                                          |
-|--------------------|----------------------------------------------|
-| Screen Recording   | ScreenCaptureKit gates loopback audio behind it. |
+| Platform | Permission        | Why                                              |
+|----------|-------------------|--------------------------------------------------|
+| macOS    | System Audio      | CoreAudio process taps gate loopback behind it.  |
+| Windows  | (none)            | WASAPI loopback needs no privilege.              |
+| Linux    | (none)            | PulseAudio/PipeWire monitor source is open.      |
 
-If you deny it, you can re-enable it from
-**System Settings → Privacy & Security → Screen Recording**, then restart
-the app.
+On macOS, if you deny the permission, re-enable it at **System Settings →
+Privacy & Security → System Audio Recording** (the new "System Audio
+Only" entry, not the legacy "Screen Recording") and restart the app.
+A common gotcha: granting *only* "Screen Recording" causes a silent
+record of zeros — make sure the System-Audio toggle is on.
 
 ## License
 
