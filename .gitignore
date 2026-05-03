@@ -17,5 +17,8 @@ src/packs/*/pack.wasm
 # Headless render snapshots (produced by `src/packs/render.test.ts` and `scripts/render-pack.ts`)
 tests/snapshots/
 
+# Bind-mount target for `docker run -v $PWD/docker-out:/out music-visualizer-headless ...`
+docker-out/
+
 # Local Claude Code state
 .claude/settings.local.json

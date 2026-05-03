@@ -1,0 +1,120 @@
+name: render-packs
+
+# Headlessly renders every visualizer pack to a PNG using Mesa lavapipe
+# (CPU Vulkan) on an Ubuntu runner, asserts the output isn't trivially empty,
+# and uploads the gallery as a workflow artifact you can browse from the run
+# page. Pure software rendering — no GPU passthrough required.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "src/packs/**"
+      - "src/bun/packs/**"
+      - "src/bun/engine/**"
+      - "src/bun/gpu/**"
+      - "src/shared/rpc-types.ts"
+      - "electrobun.config.ts"
+      - "package.json"
+      - "bun.lock"
+      - ".github/workflows/render-packs.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/packs/**"
+      - "src/bun/packs/**"
+      - "src/bun/engine/**"
+      - "src/bun/gpu/**"
+      - "package.json"
+      - "bun.lock"
+
+jobs:
+  render:
+    name: Render every pack to PNG (Linux / lavapipe)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install bun (host)
+        # Used to drive `bun install` and `bunx electrobun build`. The actual
+        # render runs under the bundled bun that electrobun ships with the
+        # `dist-linux-x64/` payload, since that's what's linked against
+        # libNativeWrapper.so.
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+
+      - name: Install Mesa lavapipe + GTK/WebKit runtime deps
+        # libNativeWrapper.so is electrobun's GTK-only flavor, so even though
+        # we never instantiate any windows or web views, the dynamic loader
+        # eagerly resolves DT_NEEDED entries for GTK + WebKit at dlopen time.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            mesa-vulkan-drivers libvulkan1 \
+            libgtk-3-0 libwebkit2gtk-4.1-0 libsoup-3.0-0 \
+            libjavascriptcoregtk-4.1-0 libayatana-appindicator3-1 \
+            libxkbcommon0 libgl1 libegl1 \
+            libwayland-client0 libwayland-server0 \
+            libxcb1 libx11-6 libxext6
+
+      - name: Stub the macOS-only audiocap binary
+        # `electrobun.config.ts` declares `src/native/audiocap/audiocap` as a
+        # bundled resource. The headless render path never invokes it; this
+        # stub lets `bunx electrobun build` succeed on Linux.
+        run: |
+          mkdir -p src/native/audiocap
+          printf '#!/bin/sh\nexit 1\n' > src/native/audiocap/audiocap
+          chmod +x src/native/audiocap/audiocap
+
+      - name: bun install
+        run: bun install --frozen-lockfile
+
+      - name: Fetch electrobun's Linux runtime libs
+        # We don't actually use the build output (it's a self-extracting
+        # installer that's the wrong shape for direct invocation). The build
+        # step's only purpose here is to populate
+        # `node_modules/electrobun/dist-linux-x64/` with bun + libwebgpu_dawn.so
+        # + libNativeWrapper.so + their dependencies.
+        run: |
+          bunx electrobun build --env=canary
+          rm -rf build
+
+      - name: Shim Resources/version.json
+        # electrobun's BrowserView import does
+        # `Bun.file('../Resources/version.json').json()` at module load and
+        # crashes on ENOENT. The render test chdir's into the dist-linux-x64
+        # dir before importing electrobun, so a shim at its parent satisfies
+        # the lookup.
+        run: |
+          mkdir -p node_modules/electrobun/Resources
+          cat > node_modules/electrobun/Resources/version.json <<'EOF'
+          {"version":"0.0.1","hash":"ci","channel":"canary","baseUrl":"","name":"music-visualizer","identifier":"music-visualizer.electrobun.dev"}
+          EOF
+
+      - name: Render every pack
+        # We invoke the test runner via the bundled bun (not the host bun) so
+        # the dynamic loader's resolution of dlopen'd .so files matches the
+        # `bun` binary's RUNPATH. LD_LIBRARY_PATH covers the same need for
+        # libasar.so etc., which don't have $ORIGIN in their own RUNPATH.
+        env:
+          VIZ_PACKS_RENDER_TEST: "1"
+          VK_ICD_FILENAMES: /usr/share/vulkan/icd.d/lvp_icd.json
+          LD_LIBRARY_PATH: ${{ github.workspace }}/node_modules/electrobun/dist-linux-x64
+          VIZ_BUNDLE_NATIVE_DIR: ${{ github.workspace }}/node_modules/electrobun/dist-linux-x64
+        run: |
+          BUN=node_modules/electrobun/dist-linux-x64/bun
+          $BUN test src/packs/render.test.ts
+
+      - name: Upload pack snapshots
+        # Always upload, even on test failure — a failed pack with a corrupt
+        # PNG is exactly the kind of thing reviewers will want to look at.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pack-snapshots
+          path: tests/snapshots/packs/*.png
+          retention-days: 14
+          if-no-files-found: warn
