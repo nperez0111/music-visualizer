@@ -3,7 +3,7 @@
 	"id": "voronoi-cells",
 	"name": "Voronoi Cells",
 	"version": "0.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Worley cellular noise. Bass jitters cell points; treble glows the edges; mid scrolls the field.",
 	"tags": ["geometric", "generative", "colorful"],
 	"shader": "shader.wgsl",

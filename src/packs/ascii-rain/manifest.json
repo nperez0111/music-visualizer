@@ -3,7 +3,7 @@
 	"id": "ascii-rain",
 	"name": "ASCII Rain",
 	"version": "1.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Matrix-style falling glyph columns. Treble speeds the fall, bass thickens the head, each column tints from its spectrum bin.",
 	"tags": ["retro", "dark", "minimal"],
 	"shader": "shader.wgsl",

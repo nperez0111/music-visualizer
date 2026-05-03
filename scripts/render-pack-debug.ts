@@ -47,8 +47,8 @@ function findBundleNativeDir(): string | null {
 	if (override && existsSync(override)) return override;
 
 	for (const c of [
-		resolve(REPO_ROOT, "build/dev-macos-arm64/music-visualizer-dev.app/Contents/MacOS"),
-		resolve(REPO_ROOT, "build/canary-macos-arm64/music-visualizer.app/Contents/MacOS"),
+		resolve(REPO_ROOT, "build/dev-macos-arm64/cat-nip-dev.app/Contents/MacOS"),
+		resolve(REPO_ROOT, "build/canary-macos-arm64/cat-nip.app/Contents/MacOS"),
 		resolve(REPO_ROOT, "node_modules/electrobun/dist-linux-arm64"),
 		resolve(REPO_ROOT, "node_modules/electrobun/dist-linux-x64"),
 	]) {

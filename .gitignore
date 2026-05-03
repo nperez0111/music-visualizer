@@ -17,7 +17,7 @@ src/packs/*/pack.wasm
 # Headless render snapshots (produced by `src/packs/render.test.ts` and `scripts/render-pack.ts`)
 tests/snapshots/
 
-# Bind-mount target for `docker run -v $PWD/docker-out:/out music-visualizer-headless ...`
+# Bind-mount target for `docker run -v $PWD/docker-out:/out cat-nip-headless ...`
 docker-out/
 
 # Gallery build output (produced by `bun run build:gallery`)

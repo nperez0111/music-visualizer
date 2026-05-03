@@ -3,7 +3,7 @@
 	"id": "flappy",
 	"name": "Flappy Beat",
 	"version": "0.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Flappy-bird scene: bird hops on every beat, pipes scroll across the sky, scroll speed and gap drift react to bass.",
 	"tags": ["game", "retro", "colorful"],
 	"shader": "shader.wgsl"

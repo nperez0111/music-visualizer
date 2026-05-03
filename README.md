@@ -1,6 +1,6 @@
-# music-visualizer
+# Cat Nip
 
-A WinAMP-spirited desktop music visualizer, built on
+Your music on catnip. A desktop music visualizer built on
 [Electrobun](https://blackboard.sh/electrobun/) and WebGPU. It captures the
 audio playing on your system (Spotify, browser, anything that makes sound)
 and renders shader-based visuals that react in real time. Visualizers are
@@ -61,7 +61,7 @@ so you'll still see motion.
 - **Switch packs:** pick one from the **pack** dropdown. Crossfades over
   ~1.5 seconds.
 - **Import a .viz:** click the **+** button next to the dropdown. Pick a
-  `.viz` file. It's extracted into `~/Library/Application Support/music-visualizer.electrobun.dev/packs/<id>/`
+  `.viz` file. It's extracted into `~/Library/Application Support/cat-nip.nickthesick.com/packs/<id>/`
   and added to the dropdown.
 - **Drag the panel:** click and hold anywhere on the panel header.
 - **Collapse the panel:** click **▾** to shrink to a pill, **▸** to expand.

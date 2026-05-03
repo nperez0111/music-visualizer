@@ -3,7 +3,7 @@
 	"id": "particle-fountain",
 	"name": "Particle Fountain",
 	"version": "1.0.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Tier 2. WASM Verlet particles spawned on beats. Treble blows them sideways, gravity pulls them back.",
 	"tags": ["particle", "colorful", "generative"],
 	"shader": "shader.wgsl",

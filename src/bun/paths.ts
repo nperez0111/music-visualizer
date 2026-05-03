@@ -6,7 +6,7 @@ import { join, resolve } from "path";
 // Windows/Linux land the per-platform branches live here so the rest of the
 // codebase keeps using the same accessors.
 
-const BUNDLE_ID = "music-visualizer.electrobun.dev";
+const BUNDLE_ID = "cat-nip.nickthesick.com";
 
 /** Per-user data directory (DB + extracted user packs). */
 export const APP_DATA_DIR = join(

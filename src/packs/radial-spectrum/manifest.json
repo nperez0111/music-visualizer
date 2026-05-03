@@ -3,7 +3,7 @@
 	"id": "radial-spectrum",
 	"name": "Radial Spectrum",
 	"version": "1.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Circular spectrum analyzer — 32 bars radiating from a glowing core. Bass swells the core, treble lights the outer rim.",
 	"tags": ["spectrum", "geometric", "colorful"],
 	"shader": "shader.wgsl",

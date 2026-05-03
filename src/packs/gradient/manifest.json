@@ -3,7 +3,7 @@
 	"id": "gradient",
 	"name": "Gradient Rings",
 	"version": "1.0.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Concentric rings + radial swirl. Bass drives ring frequency, mid biases the swirl, beats flash brighter.",
 	"tags": ["geometric", "colorful", "minimal"],
 	"shader": "shader.wgsl",

@@ -1,4 +1,4 @@
-# music-visualizer architecture
+# Cat Nip architecture
 
 This document explains how the project is structured, how a frame gets
 rendered, and the contracts between subsystems. Read [README.md](./README.md)
@@ -313,7 +313,7 @@ copies those bytes into the GPU-bound uniform buffer at offset 176.
 ## Persistence
 
 A single SQLite file at
-`~/Library/Application Support/music-visualizer.electrobun.dev/visualizer.db`,
+`~/Library/Application Support/cat-nip.nickthesick.com/visualizer.db`,
 managed by `bun:sqlite` with `journal_mode = WAL`.
 
 Schema (current):

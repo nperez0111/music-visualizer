@@ -3,7 +3,7 @@
 	"id": "fire",
 	"name": "Fire",
 	"version": "1.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Doom-style flame licking up from the bottom of the screen. Bass fans the flames, beats throw embers.",
 	"tags": ["nature", "particle", "dark"],
 	"shader": "shader.wgsl",

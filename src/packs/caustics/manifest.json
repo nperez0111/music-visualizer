@@ -3,7 +3,7 @@
 	"id": "caustics",
 	"name": "Underwater Caustics",
 	"version": "0.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Iterative caustic shimmer (port of the classic Shadertoy MdlXz8). Treble drives shimmer speed, bass deepens contrast.",
 	"tags": ["fluid", "nature", "colorful"],
 	"shader": "shader.wgsl",

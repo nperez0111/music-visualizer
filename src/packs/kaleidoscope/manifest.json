@@ -3,7 +3,7 @@
 	"id": "kaleidoscope",
 	"name": "Kaleidoscope",
 	"version": "1.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "N-fold mirror symmetry over a roaming plasma. Bass spins the petals, mid morphs them, beats flash the seam.",
 	"tags": ["geometric", "trippy", "colorful"],
 	"shader": "shader.wgsl",

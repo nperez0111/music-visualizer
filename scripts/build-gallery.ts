@@ -152,8 +152,8 @@ function generateHtml(packs: GalleryPack[], generatedAt: string): string {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Pack Gallery - music-visualizer</title>
-<meta name="description" content="Browse ${count} visualizer packs for music-visualizer. Preview renders, parameters, and presets.">
+<title>Pack Gallery - Cat Nip</title>
+<meta name="description" content="Browse ${count} visualizer packs for Cat Nip. Preview renders, parameters, and presets.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&display=swap" rel="stylesheet">
@@ -452,7 +452,7 @@ body {
 
 <header class="header">
 	<div class="header-top">
-		<h1 class="title">music visualizer</h1>
+		<h1 class="title">Cat Nip</h1>
 		<span class="pack-count">${count} packs</span>
 	</div>
 	<p class="subtitle">pack gallery</p>
@@ -477,7 +477,7 @@ ${cards}
 	<p class="footer-text">
 		generated ${escapeHtml(generatedAt)}
 		&middot;
-		<a href="https://github.com/nperez0111/music-visualizer">github</a>
+		<a href="https://github.com/nperez0111/cat-nip">github</a>
 	</p>
 </footer>
 

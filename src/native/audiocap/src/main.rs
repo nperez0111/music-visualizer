@@ -1,4 +1,4 @@
-//! Cross-platform audio capture helper for music-visualizer.
+//! Cross-platform audio capture helper for Cat Nip.
 //!
 //! Frames PCM to stdout and emits NDJSON status events to stderr. The wire
 //! format is identical to the original Swift `audiotap` so the Bun-side

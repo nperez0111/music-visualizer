@@ -3,7 +3,7 @@
 	"id": "tunnel",
 	"name": "Tunnel",
 	"version": "1.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Endless textured tunnel rushing inward. Bass throws you forward, mid widens the bore, treble shimmers the walls.",
 	"tags": ["3d", "trippy", "dark"],
 	"shader": "shader.wgsl",

@@ -3,7 +3,7 @@
 	"id": "galaxy-spiral",
 	"name": "Galaxy Spiral",
 	"version": "0.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Polar-warped spiral galaxy with FBM dust and a glowing core. Bass swells the core, mid rotates the arms, treble adds star sparkle.",
 	"tags": ["space", "generative", "colorful"],
 	"shader": "shader.wgsl",

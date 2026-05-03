@@ -103,7 +103,7 @@ jobs:
         run: |
           mkdir -p node_modules/electrobun/Resources
           cat > node_modules/electrobun/Resources/version.json <<'EOF'
-          {"version":"0.0.1","hash":"ci","channel":"canary","baseUrl":"","name":"music-visualizer","identifier":"music-visualizer.electrobun.dev"}
+          {"version":"0.0.1","hash":"ci","channel":"canary","baseUrl":"","name":"cat-nip","identifier":"cat-nip.nickthesick.com"}
           EOF
 
       - name: Render every pack

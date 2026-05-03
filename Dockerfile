@@ -3,10 +3,10 @@
 # host without GPU passthrough.
 #
 # Build:
-#   docker build -t music-visualizer-headless .
+#   docker build -t cat-nip-headless .
 # Run:
 #   mkdir -p docker-out
-#   docker run --rm -v $PWD/docker-out:/out music-visualizer-headless truchet-flow
+#   docker run --rm -v $PWD/docker-out:/out cat-nip-headless truchet-flow
 
 FROM oven/bun:1.3.13-debian
 
@@ -76,7 +76,7 @@ RUN DIST=$(ls -d node_modules/electrobun/dist-linux-* | head -1) && \
 # `node_modules/electrobun/dist-linux-<arch>` before importing, so a single
 # Resources dir at the parent satisfies it for any arch.
 RUN mkdir -p node_modules/electrobun/Resources && \
-	printf '{"version":"0.0.1","hash":"docker","channel":"canary","baseUrl":"","name":"music-visualizer","identifier":"music-visualizer.electrobun.dev"}\n' \
+	printf '{"version":"0.0.1","hash":"docker","channel":"canary","baseUrl":"","name":"cat-nip","identifier":"cat-nip.nickthesick.com"}\n' \
 		> node_modules/electrobun/Resources/version.json
 
 # Bind-mount target for the rendered PNG.

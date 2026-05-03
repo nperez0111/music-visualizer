@@ -3,7 +3,7 @@
 	"id": "milkdrop-swirl",
 	"name": "Milkdrop Swirl",
 	"version": "1.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Geiss-flavored fluid swirl — domain-warped FBM with palette cycling. Bass kicks up vorticity, treble adds glitter.",
 	"tags": ["fluid", "retro", "trippy"],
 	"shader": "shader.wgsl",

@@ -8,7 +8,7 @@
 // executable inside an electrobun build, and (b) a real GPU. CI must invoke
 // this with the bundled bun, e.g.:
 //
-//   build/.../music-visualizer-dev.app/Contents/MacOS/bun test src/packs/render.test.ts
+//   build/.../cat-nip-dev.app/Contents/MacOS/bun test src/packs/render.test.ts
 //
 // otherwise the electrobun runtime imports it depends on will fail at module-load.
 
@@ -45,8 +45,8 @@ function findBundleNativeDir(): string | null {
 	const override = process.env.VIZ_BUNDLE_NATIVE_DIR;
 	if (override && existsSync(override)) return override;
 	for (const c of [
-		resolve(REPO_ROOT, "build/dev-macos-arm64/music-visualizer-dev.app/Contents/MacOS"),
-		resolve(REPO_ROOT, "build/canary-macos-arm64/music-visualizer.app/Contents/MacOS"),
+		resolve(REPO_ROOT, "build/dev-macos-arm64/cat-nip-dev.app/Contents/MacOS"),
+		resolve(REPO_ROOT, "build/canary-macos-arm64/cat-nip.app/Contents/MacOS"),
 		resolve(REPO_ROOT, "node_modules/electrobun/dist-linux-arm64"),
 		resolve(REPO_ROOT, "node_modules/electrobun/dist-linux-x64"),
 	]) {

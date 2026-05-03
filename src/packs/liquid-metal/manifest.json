@@ -3,7 +3,7 @@
 	"id": "liquid-metal",
 	"name": "Liquid Metal",
 	"version": "1.0.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Domain-warped fbm reflective surface. Bass intensifies the warp, treble sharpens specular, mid recolors.",
 	"tags": ["fluid", "generative", "dark"],
 	"shader": "shader.wgsl"

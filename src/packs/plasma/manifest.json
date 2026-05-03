@@ -3,7 +3,7 @@
 	"id": "plasma",
 	"name": "Plasma",
 	"version": "1.0.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Demoscene-flavored plasma. Sums of sines that drift with the music. Bass shifts hue, mids tint, beats punch.",
 	"tags": ["fluid", "retro", "trippy"],
 	"shader": "shader.wgsl"

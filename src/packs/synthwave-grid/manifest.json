@@ -3,7 +3,7 @@
 	"id": "synthwave-grid",
 	"name": "Synthwave Grid",
 	"version": "0.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Outrun perspective grid + neon sun with horizontal cut bars. Bass drives sun glow, mid speeds the grid scroll, treble brightens lines.",
 	"tags": ["retro", "3d", "colorful"],
 	"shader": "shader.wgsl",

@@ -3,7 +3,7 @@
 	"id": "feedback-trails",
 	"name": "Feedback Trails",
 	"version": "1.0.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Reads the previous frame, warps and decays it, adds beat-triggered starbursts. Classic MilkDrop feel.",
 	"tags": ["trippy", "retro", "colorful"],
 	"shader": "shader.wgsl"

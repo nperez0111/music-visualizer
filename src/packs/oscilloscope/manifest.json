@@ -3,7 +3,7 @@
 	"id": "oscilloscope",
 	"name": "Oscilloscope",
 	"version": "1.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Classic CRT-style waveform line synthesized from FFT bins. Bass thickens the trace, treble adds high-frequency wobble.",
 	"tags": ["spectrum", "retro", "minimal"],
 	"shader": "shader.wgsl",

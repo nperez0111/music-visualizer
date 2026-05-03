@@ -1,6 +1,6 @@
 ---
 name: new-pack
-description: Scaffold a new visualizer pack for the music-visualizer project. Use when the user wants to create a new visualizer, write a custom shader, add a Tier 2 (WASM) pack, or asks how to add their own visuals to the music-visualizer app. Asks the user for the pack name + tier, then writes manifest.json, shader.wgsl, and (for Tier 2) pack.ts so it builds via `bun run build:packs`.
+description: Scaffold a new visualizer pack for the Cat Nip project. Use when the user wants to create a new visualizer, write a custom shader, add a Tier 2 (WASM) pack, or asks how to add their own visuals to Cat Nip. Asks the user for the pack name + tier, then writes manifest.json, shader.wgsl, and (for Tier 2) pack.ts so it builds via `bun run build:packs`.
 ---
 
 # Create a new visualizer pack

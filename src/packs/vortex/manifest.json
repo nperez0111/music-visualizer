@@ -3,7 +3,7 @@
 	"id": "vortex",
 	"name": "Vortex",
 	"version": "1.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Spiral arms swirling toward a singularity. Bass tightens the spiral, treble adds chromatic shimmer along the arms.",
 	"tags": ["geometric", "trippy", "dark"],
 	"shader": "shader.wgsl",

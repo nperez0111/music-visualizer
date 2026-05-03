@@ -231,7 +231,7 @@ function broadcastPacksChanged(): void {
 // ---------- Windows ----------
 
 const renderWin = new GpuWindow({
-	title: "music-visualizer",
+	title: "Cat Nip",
 	frame: windowPrefs.visualizerBounds,
 	titleBarStyle: "default",
 	transparent: false,
@@ -242,7 +242,7 @@ const initialControlsSize = controlsSizeFor(
 	windowPrefs.controlsExpandedSize,
 );
 const controlsWin = new BrowserWindow({
-	title: "music-visualizer-controls",
+	title: "cat-nip-controls",
 	url: "views://mainview/index.html",
 	frame: {
 		x: windowPrefs.controlsPosition.x,
@@ -268,7 +268,7 @@ const windowMgr = new WindowPrefsManager(
 // ---------- View toggles (menu / global shortcut) ----------
 
 ApplicationMenu.setApplicationMenu([
-	{ label: "music-visualizer", submenu: [{ role: "quit" }] },
+	{ label: "Cat Nip", submenu: [{ role: "quit" }] },
 	{
 		label: "View",
 		submenu: [

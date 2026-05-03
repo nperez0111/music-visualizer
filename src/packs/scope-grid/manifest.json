@@ -3,7 +3,7 @@
 	"id": "scope-grid",
 	"name": "Scope Grid",
 	"version": "1.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Lissajous-style XY oscilloscope painted on a dotted CRT graticule. Bands drive the X/Y frequencies, beats throw the trace.",
 	"tags": ["spectrum", "retro", "minimal"],
 	"shader": "shader.wgsl",

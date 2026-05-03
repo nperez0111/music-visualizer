@@ -3,7 +3,7 @@
 	"id": "fotonica-runner",
 	"name": "Fotonica Runner",
 	"version": "0.2.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "First-person wireframe sprint through a black void. The runner bobs to the beat, gates rush in on every kick.",
 	"tags": ["3d", "retro", "minimal", "dark"],
 	"shader": "shader.wgsl",

@@ -3,7 +3,7 @@
 	"id": "bloom-pulse",
 	"name": "Bloom Pulse",
 	"version": "1.0.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Concentric color rings pulsing with the beat, smeared by a multi-tap bloom pass. Demonstrates pack post-FX chains.",
 	"tags": ["geometric", "colorful", "trippy"],
 	"shader": "shader.wgsl",

@@ -3,7 +3,7 @@
 	"id": "mandelbrot-pulse",
 	"name": "Mandelbrot Pulse",
 	"version": "0.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Kaleidoscope-folded Mandelbrot view that drifts between Seahorse Valley, Misiurewicz, Tante Renate, and Paul Bourke. Bass contracts the camera; beats flash a band along the boundary.",
 	"tags": ["fractal", "trippy", "colorful"],
 	"shader": "shader.wgsl",

@@ -3,7 +3,7 @@
 	"id": "julia-pulse",
 	"name": "Julia Pulse",
 	"version": "0.1.0",
-	"author": "music-visualizer",
+	"author": "nickthesick.com",
 	"description": "Animated Julia set. The constant c orbits a circle (phase locked to the beat); RMS pumps the radius; treble shifts colors.",
 	"tags": ["fractal", "colorful", "trippy"],
 	"shader": "shader.wgsl",

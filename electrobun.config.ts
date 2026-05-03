@@ -2,8 +2,8 @@ import type { ElectrobunConfig } from "electrobun";
 
 export default {
 	app: {
-		name: "music-visualizer",
-		identifier: "music-visualizer.electrobun.dev",
+		name: "cat-nip",
+		identifier: "cat-nip.nickthesick.com",
 		version: "0.0.1",
 	},
 	build: {
