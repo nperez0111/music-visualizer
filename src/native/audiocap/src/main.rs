@@ -1,8 +1,12 @@
-//! Cross-platform system-audio loopback helper for music-visualizer.
+//! Cross-platform audio capture helper for music-visualizer.
 //!
 //! Frames PCM to stdout and emits NDJSON status events to stderr. The wire
 //! format is identical to the original Swift `audiotap` so the Bun-side
 //! parser in `src/bun/audio/capture.ts` is unchanged.
+//!
+//! Usage:
+//!   audiocap           — capture system-wide loopback audio (default)
+//!   audiocap --mic     — capture from the default microphone input device
 //!
 //! Stdout frame layout (all little-endian):
 //!   u32  magic = 0xA1D10A1D
@@ -18,7 +22,7 @@
 //!   {"type":"permission-denied"}
 //!   {"type":"error","message":"..."}
 //!
-//! Loopback selection per-platform:
+//! Loopback selection per-platform (default mode):
 //!   macOS   — `default_output_device()` + `build_input_stream()`. cpal master
 //!             auto-creates a CoreAudio process tap + aggregate device under
 //!             the hood (requires macOS 14.2+ and "System Audio Only" TCC
@@ -28,6 +32,11 @@
 //!   Linux   — looks for a `*.monitor` source on the host's input device list
 //!             (PulseAudio/PipeWire). Requires `cpal` built with the
 //!             `pulseaudio` or `pipewire` feature.
+//!
+//! Microphone mode (`--mic`):
+//!   All platforms — `default_input_device()`. Opens the system's default
+//!   microphone / line-in. No special permissions beyond standard microphone
+//!   access on macOS.
 
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -105,6 +114,12 @@ fn select_loopback_device(_host: &cpal::Host) -> Result<cpal::Device, String> {
     Err("system-audio loopback is not supported on this platform".to_string())
 }
 
+/// Select the default microphone / line-in input device (all platforms).
+fn select_mic_device(host: &cpal::Host) -> Result<cpal::Device, String> {
+    host.default_input_device()
+        .ok_or_else(|| "no default input (microphone) device available".to_string())
+}
+
 fn is_permission_denied(err: &Error) -> bool {
     matches!(err.kind(), ErrorKind::PermissionDenied)
 }
@@ -160,6 +175,8 @@ fn build_loopback_stream(
 }
 
 fn run() -> i32 {
+    let mic_mode = std::env::args().any(|a| a == "--mic");
+
     emit_status(r#"{"type":"ready"}"#);
 
     let shutdown = Arc::new(AtomicBool::new(false));
@@ -173,25 +190,46 @@ fn run() -> i32 {
 
     let host = cpal::default_host();
 
-    let device = match select_loopback_device(&host) {
-        Ok(d) => d,
-        Err(msg) => {
-            emit_error(&msg);
-            return 1;
+    let device = if mic_mode {
+        match select_mic_device(&host) {
+            Ok(d) => d,
+            Err(msg) => {
+                emit_error(&msg);
+                return 1;
+            }
+        }
+    } else {
+        match select_loopback_device(&host) {
+            Ok(d) => d,
+            Err(msg) => {
+                emit_error(&msg);
+                return 1;
+            }
         }
     };
 
-    // Use the output config to discover format on macOS/Windows (the device
-    // is the OUTPUT endpoint; cpal taps it as input). On Linux the device is
+    // Mic mode: the device is a true input, so try input config first.
+    // Loopback mode: on macOS/Windows the device is an OUTPUT endpoint that
+    // cpal taps as input, so try output config first. On Linux the device is
     // already a monitor input source, so try input config first.
-    #[cfg(target_os = "linux")]
-    let supported = device
-        .default_input_config()
-        .or_else(|_| device.default_output_config());
-    #[cfg(not(target_os = "linux"))]
-    let supported = device
-        .default_output_config()
-        .or_else(|_| device.default_input_config());
+    let supported = if mic_mode {
+        device
+            .default_input_config()
+            .or_else(|_| device.default_output_config())
+    } else {
+        #[cfg(target_os = "linux")]
+        {
+            device
+                .default_input_config()
+                .or_else(|_| device.default_output_config())
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            device
+                .default_output_config()
+                .or_else(|_| device.default_input_config())
+        }
+    };
 
     let supported = match supported {
         Ok(c) => c,

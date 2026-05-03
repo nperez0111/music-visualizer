@@ -1,5 +1,6 @@
 import { findAudiocapBinary } from "../paths";
 import type { RingBuffer } from "./ring-buffer";
+import type { AudioSource } from "../../shared/rpc-types";
 
 // Protocol constants (must match audiocap):
 //   stdout: framed binary
@@ -33,6 +34,7 @@ export class AudioCapture {
 	status: CaptureStatus = "idle";
 	sampleRate = 48000;
 	channels = 2;
+	source: AudioSource = "system";
 
 	private proc: Bun.Subprocess | null = null;
 	private listeners: StatusListener[] = [];
@@ -49,8 +51,9 @@ export class AudioCapture {
 		for (const l of this.listeners) l(status, detail);
 	}
 
-	async start(): Promise<void> {
+	async start(source?: AudioSource): Promise<void> {
 		if (this.status === "starting" || this.status === "capturing") return;
+		if (source) this.source = source;
 		const binary = findAudiocapBinary();
 		if (!binary) {
 			this.setStatus(
@@ -60,8 +63,10 @@ export class AudioCapture {
 			return;
 		}
 		this.setStatus("starting");
+		const args = [binary];
+		if (this.source === "mic") args.push("--mic");
 		try {
-			this.proc = Bun.spawn([binary], {
+			this.proc = Bun.spawn(args, {
 				stdout: "pipe",
 				stderr: "pipe",
 				stdin: "ignore",
@@ -80,6 +85,14 @@ export class AudioCapture {
 			}
 			this.proc = null;
 		});
+	}
+
+	/** Stop current capture, switch source, and restart. */
+	async switchSource(source: AudioSource): Promise<void> {
+		this.stop();
+		// Small delay to allow the previous process to fully terminate.
+		await new Promise((r) => setTimeout(r, 100));
+		await this.start(source);
 	}
 
 	stop(): void {

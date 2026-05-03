@@ -1,5 +1,6 @@
 import Electrobun, { Electroview } from "electrobun/view";
 import type {
+	AudioSource,
 	AutoSettings,
 	CaptureStatus,
 	ControlsRPC,
@@ -8,14 +9,23 @@ import type {
 	ParamValue,
 } from "../shared/rpc-types";
 
-const STATUS_TEXT: Record<CaptureStatus, string> = {
-	idle: "idle",
-	starting: "starting…",
-	capturing: "capturing system audio",
-	"permission-denied": "system audio permission required",
-	"binary-missing": "audiocap binary missing — run build:audiocap",
-	error: "capture error",
-};
+let currentAudioSource: AudioSource = "system";
+
+function statusText(status: CaptureStatus): string {
+	switch (status) {
+		case "idle": return "idle";
+		case "starting": return "starting…";
+		case "capturing":
+			return currentAudioSource === "mic" ? "capturing microphone" : "capturing system audio";
+		case "permission-denied":
+			return currentAudioSource === "mic"
+				? "microphone permission required"
+				: "system audio permission required";
+		case "binary-missing": return "audiocap binary missing — run build:audiocap";
+		case "error": return "capture error";
+		default: return status;
+	}
+}
 
 let lastLevel = 0;
 
@@ -26,6 +36,10 @@ const rpc = Electroview.defineRPC<ControlsRPC>({
 		messages: {
 			audioStatus: ({ status, detail }: { status: CaptureStatus; detail?: string }) => {
 				updateStatus(status, detail);
+			},
+			audioSourceChanged: ({ source }: { source: AudioSource }) => {
+				currentAudioSource = source;
+				if (audioSourceSelect) audioSourceSelect.value = source;
 			},
 			audioLevel: ({ rms }: { rms: number; peak: number }) => {
 				lastLevel = rms;
@@ -62,6 +76,7 @@ const autoChk = document.getElementById("autoChk") as HTMLInputElement | null;
 const autoSec = document.getElementById("autoSec") as HTMLInputElement | null;
 const shuffleChk = document.getElementById("shuffleChk") as HTMLInputElement | null;
 const paramsPanel = document.getElementById("paramsPanel") as HTMLElement;
+const audioSourceSelect = document.getElementById("audioSourceSelect") as HTMLSelectElement | null;
 const permFixBtn = document.getElementById("permFixBtn") as HTMLButtonElement | null;
 const errorBanner = document.getElementById("errorBanner") as HTMLElement | null;
 
@@ -86,7 +101,7 @@ function applyCollapsed(collapsed: boolean) {
 }
 
 function updateStatus(status: CaptureStatus, detail?: string) {
-	const text = STATUS_TEXT[status] ?? status;
+	const text = statusText(status);
 	if (audioStatusEl) {
 		audioStatusEl.textContent = detail ? `${text} — ${detail}` : text;
 		audioStatusEl.classList.toggle("muted", status !== "capturing");
@@ -104,6 +119,14 @@ function updateStatus(status: CaptureStatus, detail?: string) {
 		dotEl.style.boxShadow = `0 0 6px ${color}`;
 	}
 	if (permFixBtn) permFixBtn.hidden = status !== "permission-denied";
+}
+
+if (audioSourceSelect) {
+	audioSourceSelect.addEventListener("change", () => {
+		const source = audioSourceSelect.value as AudioSource;
+		currentAudioSource = source;
+		electrobun.rpc?.send?.setAudioSource({ source });
+	});
 }
 
 if (permFixBtn) {
@@ -488,6 +511,10 @@ window.addEventListener("drop", async (e) => {
 		const state = await electrobun.rpc?.request?.getInitialState({});
 		collapsed = !!state?.collapsed;
 		initialStatus = state?.audioStatus ?? "idle";
+		if (state?.audioSource) {
+			currentAudioSource = state.audioSource;
+			if (audioSourceSelect) audioSourceSelect.value = state.audioSource;
+		}
 		if (state?.packs) populatePacks(state.packs, state.activePackId);
 		if (state?.auto) applyAutoSettings(state.auto);
 	} catch (err) {

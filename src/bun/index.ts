@@ -25,7 +25,7 @@ import { FeatureSmoother } from "./engine/feature-smoother";
 import { UniformWriter } from "./engine/uniform-writer";
 import { createRenderDriver } from "./engine/render-frame";
 import { loadWindowPrefs, controlsSizeFor, WindowPrefsManager } from "./window-prefs";
-import type { AutoSettings, ControlsRPC } from "../shared/rpc-types";
+import type { AudioSource, AutoSettings, ControlsRPC } from "../shared/rpc-types";
 
 if (!existsSync(USER_PACKS_DIR)) mkdirSync(USER_PACKS_DIR, { recursive: true });
 
@@ -68,6 +68,8 @@ const autoSettings: AutoSettings = {
 
 console.log(`[packs] active: ${initialActive.name}`);
 
+const savedAudioSource = getPref<AudioSource>("audio.source", "system");
+
 const audioBuffer = new RingBuffer(RING_SIZE);
 const audioAnalyzer = new AudioAnalyzer(audioBuffer, 48000, FFT_SIZE);
 const capture = new AudioCapture(audioBuffer);
@@ -89,6 +91,7 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 			getInitialState: () => ({
 				collapsed: windowPrefs.controlsCollapsed,
 				audioStatus: capture.status,
+				audioSource: capture.source,
 				packs: registry.allPackInfos(),
 				activePackId: transitions.getActiveId(),
 				auto: transitions.getAutoSettings(),
@@ -175,6 +178,15 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 			},
 			setPackParameter: ({ packId, name, value }) => {
 				registry.setParameter(packId, name, value);
+			},
+			setAudioSource: ({ source }) => {
+				if (source !== "system" && source !== "mic") return;
+				if (source === capture.source) return;
+				setPref("audio.source", source);
+				void capture.switchSource(source);
+				try {
+					controlsWin.webview?.rpc?.send?.audioSourceChanged({ source });
+				} catch {}
 			},
 			openScreenCapturePrefs: () => {
 				try {
@@ -338,7 +350,7 @@ if (process.env["VIZ_PACKS_SELFTEST"] === "1") {
 // Pre-build the active pack's pipeline so the first frame doesn't stall.
 pipelineCache.ensure(initialActive);
 console.log("[visualizer] pipeline ready, surfaceFormat=" + renderer.surfaceFormat);
-void capture.start();
+void capture.start(savedAudioSource);
 transitions.rescheduleAutoTimer();
 
 // Hot-reload: drop the cached pipeline on shader/manifest/wasm change so the

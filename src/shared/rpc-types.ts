@@ -10,6 +10,8 @@ export type CaptureStatus =
 	| "binary-missing"
 	| "error";
 
+export type AudioSource = "system" | "mic";
+
 export type PackParameter =
 	| { type: "float"; name: string; label?: string; min: number; max: number; default: number }
 	| { type: "int"; name: string; label?: string; min: number; max: number; default: number }
@@ -54,6 +56,7 @@ export type ControlsRPC = {
 				response: {
 					collapsed: boolean;
 					audioStatus: CaptureStatus;
+					audioSource: AudioSource;
 					packs: PackInfo[];
 					activePackId: string;
 					auto: AutoSettings;
@@ -77,6 +80,7 @@ export type ControlsRPC = {
 			removePack: { id: string };
 			setPackParameter: { packId: string; name: string; value: ParamValue };
 			applyPreset: { packId: string; presetName: string };
+			setAudioSource: { source: AudioSource };
 			openScreenCapturePrefs: {};
 			nextPack: {};
 			setAutoSettings: { enabled: boolean; seconds: number; shuffle: boolean };
@@ -86,6 +90,7 @@ export type ControlsRPC = {
 		requests: {};
 		messages: {
 			audioStatus: { status: CaptureStatus; detail?: string };
+			audioSourceChanged: { source: AudioSource };
 			audioLevel: { rms: number; peak: number };
 			activePackChanged: { id: string };
 			packsChanged: { packs: PackInfo[]; activePackId: string };

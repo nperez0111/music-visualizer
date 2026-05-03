@@ -168,7 +168,9 @@ ignores any bytes the struct doesn't reach.
 ### Capture (`src/native/audiocap/`)
 
 A small Rust CLI built on [cpal](https://github.com/RustAudio/cpal) that
-opens the platform-appropriate loopback stream:
+opens the platform-appropriate audio stream. Two modes:
+
+**Default (system loopback):**
 
 | Platform | Backend                    | Notes |
 |----------|----------------------------|-------|
@@ -176,10 +178,18 @@ opens the platform-appropriate loopback stream:
 | Windows  | WASAPI loopback            | No permission prompt. |
 | Linux    | PulseAudio/PipeWire monitor | First `*.monitor` source on the input list. Requires cpal's `pulseaudio` or `pipewire` feature at build time. |
 
-Selection is made by `select_loopback_device()` in `src/main.rs`. On
-macOS and Windows the entry point is `host.default_output_device()`
-followed by `device.build_input_stream(...)`; cpal handles the loopback
-plumbing internally.
+Selection is made by `select_loopback_device()` in `main.rs`. On macOS
+and Windows the entry point is `host.default_output_device()` followed
+by `device.build_input_stream(...)`; cpal handles the loopback plumbing
+internally.
+
+**Microphone mode (`audiocap --mic`):**
+
+Uses `host.default_input_device()` on all platforms via
+`select_mic_device()`. Config discovery tries input config first (the
+device is a true input). The user selects the audio source from a
+dropdown in the controls window; the preference is persisted as
+`audio.source` in the DB.
 
 Each PCM callback writes one binary frame to **stdout**:
 
@@ -324,6 +334,7 @@ Known keys:
 | `window.controls.expandedSize`   | `{width,height}`                       |
 | `window.controls.collapsed`      | `boolean`                              |
 | `active.pack.id`                 | `string`                               |
+| `audio.source`                   | `"system" \| "mic"`                    |
 
 User packs are extracted to
 `~/Library/Application Support/.../packs/<id>/` — that directory is the
@@ -342,12 +353,12 @@ Bun-side:
 - **Requests** (webview → bun): `getInitialState`, `getControlsPosition`,
   `listPacks`, `importPack`.
 - **Messages** (webview → bun): `setCollapsed`, `setControlsPosition`,
-  `setActivePack`, `removePack`.
+  `setActivePack`, `removePack`, `setAudioSource`.
 
 Webview-side:
 
 - **Messages** (bun → webview): `audioStatus`, `audioLevel`,
-  `activePackChanged`, `packsChanged`.
+  `audioSourceChanged`, `activePackChanged`, `packsChanged`.
 
 ## Frame loop (sequence)
 

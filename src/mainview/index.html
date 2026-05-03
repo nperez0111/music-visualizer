@@ -37,11 +37,15 @@
 						<span>shuffle</span>
 					</label>
 				</div>
-				<div class="row">
-					<span class="label">audio</span>
-					<span class="value muted" id="audioStatus">capture not implemented yet</span>
-					<button class="btn no-drag" id="permFixBtn" title="Open Screen Recording settings" hidden>fix</button>
-				</div>
+			<div class="row">
+				<span class="label">audio</span>
+				<select id="audioSourceSelect" class="select select-sm no-drag" title="Audio source">
+					<option value="system">system</option>
+					<option value="mic">mic</option>
+				</select>
+				<span class="value muted" id="audioStatus">capture not implemented yet</span>
+				<button class="btn no-drag" id="permFixBtn" title="Open Screen Recording settings" hidden>fix</button>
+			</div>
 				<section id="paramsPanel" class="params-panel" hidden></section>
 				<div id="errorBanner" class="error-banner" hidden></div>
 			</div>

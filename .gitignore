@@ -20,5 +20,6 @@ tests/snapshots/
 # Bind-mount target for `docker run -v $PWD/docker-out:/out music-visualizer-headless ...`
 docker-out/
 
-# Local Claude Code state
+# Local agent state
 .claude/settings.local.json
+.opencode/
