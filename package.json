@@ -13,7 +13,8 @@
 		"test": "bun test",
 		"test:gpu": "bun run scripts/test-packs-gpu.ts",
 		"render-pack": "bun run scripts/render-pack.ts",
-		"build:gallery": "bun run scripts/build-gallery.ts"
+		"build:gallery": "bun run scripts/build-gallery.ts",
+		"release": "bumpp"
 	},
 	"dependencies": {
 		"electrobun": "1.16.0",
@@ -26,6 +27,7 @@
 		"@types/bun": "latest",
 		"@types/pngjs": "6.0.5",
 		"assemblyscript": "0.28.16",
+		"bumpp": "11.0.1",
 		"typescript": "^5.7.2"
 	}
 }
