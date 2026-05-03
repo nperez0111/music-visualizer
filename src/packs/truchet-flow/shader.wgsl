@@ -42,9 +42,9 @@ fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
   let uv = vec2<f32>((pix.x - 0.5) * aspect, pix.y - 0.5);
   let t = u.time_ms * 0.001 * p.speed.x;
 
-  // Drift the field, with a slow bass-driven warp.
-  let warp = vec2<f32>(sin(t * 0.4), cos(t * 0.3)) * (0.05 + 0.15 * u.bass);
-  let st = (uv + warp) * p.scale.x + vec2<f32>(t * 0.3, t * 0.2);
+  // Drift the field, with a bass-driven warp.
+  let warp = vec2<f32>(sin(t * 0.5), cos(t * 0.4)) * (0.06 + 0.3 * u.bass);
+  let st = (uv + warp) * p.scale.x + vec2<f32>(t * 0.55, t * 0.4);
 
   let cell = floor(st);
   var frc  = fract(st) - vec2<f32>(0.5);
@@ -60,12 +60,14 @@ fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
   let d2 = abs(length(frc - vec2<f32>( 0.5,  0.5)) - 0.5);
   let d  = min(d1, d2);
 
-  let line_w = p.thickness.x * (0.7 + 0.8 * u.mid);
+  let beat = pow(1.0 - u.beat_phase, 4.0);
+
+  let line_w = p.thickness.x * (0.7 + 0.8 * u.mid + 0.5 * beat * (0.4 + u.peak));
   let line   = smoothstep(line_w, line_w * 0.5, d);
 
   // Travel parameter along the arc, used to color a flowing stripe along the line.
   let theta = atan2(frc.y + 0.5, frc.x + 0.5);
-  let travel = theta + t * 1.2 + hash12(cell) * 6.2831;
+  let travel = theta + t * 1.6 + u.bass * 3.0 + hash12(cell) * 6.2831;
   let stripe = 0.5 + 0.5 * sin(travel * 4.0);
 
   // Background color tinted toward complement; foreground is the user tint shifted by bass.
@@ -73,10 +75,10 @@ fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
   let fg = mix(p.tint.xyz, p.tint.zxy, hue_shift);
   let bg = vec3<f32>(0.04, 0.05, 0.10) + 0.05 * p.tint.xyz;
 
-  var color = mix(bg, fg * (0.5 + 0.7 * stripe), line);
+  var color = mix(bg, fg * (0.5 + 0.7 * stripe + 0.6 * beat), line);
 
-  let pulse = pow(1.0 - u.beat_phase, 6.0) * (0.3 + u.peak * 0.5);
-  color = color + fg * pulse * 0.2;
+  let pulse = beat * (0.5 + u.peak * 0.8);
+  color = color + fg * pulse * 0.85;
 
   let vignette = smoothstep(1.3, 0.4, length(uv));
   color = color * vignette;

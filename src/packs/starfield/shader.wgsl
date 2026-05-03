@@ -74,12 +74,6 @@ fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
     let twinkle = 0.7 + 0.3 * sin(t * 4.0 + hash1(cell) * 30.0);
     let core = exp(-d * (60.0 - lf * 6.0)) * twinkle;
 
-    // Streak from radial outward motion (warp lines).
-    let radial = normalize(uv + vec2<f32>(0.0001));
-    let along  = abs(dot(f - starP, vec2<f32>(-radial.y, radial.x)));
-    let streakLen = 0.35 + warp * 0.6;
-    let streak = exp(-along * 200.0) * smoothstep(streakLen, 0.0, distance(f, starP)) * warp;
-
     // Star tint from spectrum bin index by hash.
     let bin = u32(clamp(h.x * 32.0, 0.0, 31.0));
     let bp = u.spectrum[bin >> 2u];
@@ -91,7 +85,7 @@ fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
     let tint = mix(p.nearTint.xyz, p.farTint.xyz, clamp(spec * 6.0, 0.0, 1.0));
 
     let layerWeight = 1.0 - lf * 0.18;
-    color = color + tint * (core + streak * 0.6) * layerWeight;
+    color = color + tint * core * layerWeight * 0.7;
   }
 
   // Center bloom — beats flare the camera.
