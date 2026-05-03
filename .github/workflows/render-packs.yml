@@ -27,6 +27,8 @@ on:
       - "src/bun/gpu/**"
       - "package.json"
       - "bun.lock"
+      - "scripts/headless-shim.c"
+      - ".github/workflows/render-packs.yml"
 
 jobs:
   render:
