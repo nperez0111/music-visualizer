@@ -14,5 +14,8 @@ artifacts/
 # Generated pack artifacts (built by `bun run build:packs`)
 src/packs/*/pack.wasm
 
+# Headless render snapshots (produced by `src/packs/render.test.ts` and `scripts/render-pack.ts`)
+tests/snapshots/
+
 # Local Claude Code state
 .claude/settings.local.json

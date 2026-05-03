@@ -1,0 +1,13 @@
+# Don't ship the host's macOS build output / node_modules / git history into
+# the Docker build context — keeps the daemon transfer fast and avoids any
+# host-arch artifacts ending up in the image.
+build/
+node_modules/
+.git/
+docker-out/
+tests/snapshots/
+.claude/
+.cache/
+artifacts/
+.DS_Store
+*.log

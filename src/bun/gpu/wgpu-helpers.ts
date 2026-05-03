@@ -120,6 +120,28 @@ function descriptor(size: number): Descriptor & { view: DataView } {
 	return { buffer, view: new DataView(buffer), ptr: ptr(buffer) as number };
 }
 
+// ---------- Async callback descriptors (request adapter / request device) ----------
+
+/** Mode for WGPU*CallbackInfo. AllowProcessEvents = 2: callback fires inside
+ *  `wgpuInstanceProcessEvents`, which we poll. */
+export const WGPUCallbackMode_AllowProcessEvents = 2;
+
+/**
+ * Builds a WGPURequestAdapterCallbackInfo / WGPURequestDeviceCallbackInfo
+ * (same ABI shape: 40 bytes) for the async wgpu APIs. Pass the raw function
+ * pointer from a `bun:ffi` JSCallback.
+ */
+export function makeRequestCallbackInfo(callbackPtr: number, mode: number = WGPUCallbackMode_AllowProcessEvents): Descriptor {
+	const d = descriptor(40);
+	writePtr(d.view, 0, 0); // nextInChain
+	writeU32(d.view, 8, mode); // mode
+	writeU32(d.view, 12, 0); // padding
+	writePtr(d.view, 16, callbackPtr); // callback
+	writePtr(d.view, 24, 0); // userdata1
+	writePtr(d.view, 32, 0); // userdata2
+	return d;
+}
+
 // ---------- Surface ----------
 
 export function makeSurfaceConfiguration(
@@ -470,6 +492,20 @@ export function makeTexelCopyBufferLayout(
 	writeU64(d.view, 0, 0n);
 	writeU32(d.view, 8, bytesPerRow);
 	writeU32(d.view, 12, rowsPerImage);
+	return d;
+}
+
+/** WGPUTexelCopyBufferInfo: inline 16-byte layout followed by an 8-byte buffer pointer. */
+export function makeTexelCopyBufferInfo(
+	bufferPtr: number,
+	bytesPerRow: number,
+	rowsPerImage: number,
+): Descriptor {
+	const d = descriptor(24);
+	writeU64(d.view, 0, 0n);
+	writeU32(d.view, 8, bytesPerRow);
+	writeU32(d.view, 12, rowsPerImage);
+	writePtr(d.view, 16, bufferPtr);
 	return d;
 }
 

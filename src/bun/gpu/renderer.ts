@@ -1,6 +1,7 @@
 import { WGPU, WGPUBridge, type GpuWindow } from "electrobun/bun";
-import { ptr, toArrayBuffer } from "bun:ffi";
+import { FFIType, JSCallback, ptr, toArrayBuffer } from "bun:ffi";
 import {
+	makeRequestCallbackInfo,
 	makeSurfaceConfiguration,
 	PresentMode_Fifo,
 	TextureFormat_BGRA8Unorm,
@@ -11,10 +12,11 @@ export type Renderer = {
 	adapter: number;
 	device: number;
 	queue: number;
+	/** Zero in headless mode — readers must guard before calling surface APIs. */
 	surface: number;
 	surfaceFormat: number;
 	getSize: () => { width: number; height: number };
-	/** Reconfigure the surface for a new size; safe to call every frame. */
+	/** Reconfigure the surface for a new size; safe to call every frame. No-op in headless mode. */
 	reconfigure: (width: number, height: number) => void;
 };
 
@@ -81,4 +83,107 @@ export function createRenderer(window: GpuWindow): Renderer {
 		getSize: () => window.getSize(),
 		reconfigure,
 	};
+}
+
+/**
+ * Boots wgpu-native without any window or surface, using the canonical async
+ * `wgpuInstanceRequestAdapter` + `wgpuAdapterRequestDevice` APIs driven by
+ * `wgpuInstanceProcessEvents` polling. We deliberately *don't* use electrobun's
+ * `WGPUBridge.createAdapterDeviceMainThread` shim — on Linux that shim posts to
+ * a GTK main loop we don't run, hanging forever (verified in a headless
+ * container). The shim works on macOS only because Bun's main thread happens to
+ * service the right runloop.
+ *
+ * The callback signatures are tricky: WGPU's *Callback functions take a
+ * `WGPUStringView` struct *by value*, which bun:ffi doesn't model. On the
+ * platform ABIs we care about (ARM64 AAPCS, x86_64 SysV) a 16-byte struct of
+ * two pointer-sized fields is passed in two registers, so flattening to
+ * `(ptr, u64)` in the JSCallback signature matches the ABI and works.
+ */
+export function createHeadlessRenderer(opts: { width: number; height: number }): Renderer {
+	const native = WGPU.native;
+	if (!native.available) {
+		throw new Error("wgpu-native not available — enable bundleWGPU in electrobun.config.ts");
+	}
+
+	const instance = native.symbols.wgpuCreateInstance(0) as number;
+	if (!instance) throw new Error("wgpuCreateInstance returned null");
+
+	const adapter = requestAdapterSync(instance);
+	if (!adapter) throw new Error("wgpuInstanceRequestAdapter returned no adapter");
+
+	const device = requestDeviceSync(instance, adapter);
+	if (!device) throw new Error("wgpuAdapterRequestDevice returned no device");
+
+	const queue = native.symbols.wgpuDeviceGetQueue(device) as number;
+
+	const size = { width: Math.max(1, opts.width), height: Math.max(1, opts.height) };
+	return {
+		instance,
+		adapter,
+		device,
+		queue,
+		surface: 0,
+		surfaceFormat: TextureFormat_BGRA8Unorm,
+		getSize: () => size,
+		reconfigure: () => {},
+	};
+}
+
+const ASYNC_POLL_MAX_ITERATIONS = 5_000;
+
+function requestAdapterSync(instance: number): number {
+	const native = WGPU.native;
+	let result = 0;
+	let done = false;
+	const cb = new JSCallback(
+		(_status: number, adapterPtr: number) => {
+			result = Number(adapterPtr);
+			done = true;
+		},
+		// (status: u32, adapter: ptr, message_data: ptr, message_length: u64, ud1: ptr, ud2: ptr)
+		// — WGPUStringView is two pointer-sized fields passed in two registers.
+		{
+			args: [FFIType.u32, FFIType.ptr, FFIType.ptr, FFIType.u64, FFIType.ptr, FFIType.ptr],
+			returns: FFIType.void,
+		},
+	);
+	try {
+		const cbInfo = makeRequestCallbackInfo(Number(cb.ptr));
+		native.symbols.wgpuInstanceRequestAdapter(instance, 0, cbInfo.ptr);
+		for (let i = 0; i < ASYNC_POLL_MAX_ITERATIONS && !done; i++) {
+			native.symbols.wgpuInstanceProcessEvents(instance);
+		}
+		if (!done) throw new Error("wgpuInstanceRequestAdapter did not complete after polling");
+	} finally {
+		cb.close();
+	}
+	return result;
+}
+
+function requestDeviceSync(instance: number, adapter: number): number {
+	const native = WGPU.native;
+	let result = 0;
+	let done = false;
+	const cb = new JSCallback(
+		(_status: number, devicePtr: number) => {
+			result = Number(devicePtr);
+			done = true;
+		},
+		{
+			args: [FFIType.u32, FFIType.ptr, FFIType.ptr, FFIType.u64, FFIType.ptr, FFIType.ptr],
+			returns: FFIType.void,
+		},
+	);
+	try {
+		const cbInfo = makeRequestCallbackInfo(Number(cb.ptr));
+		native.symbols.wgpuAdapterRequestDevice(adapter, 0, cbInfo.ptr);
+		for (let i = 0; i < ASYNC_POLL_MAX_ITERATIONS && !done; i++) {
+			native.symbols.wgpuInstanceProcessEvents(instance);
+		}
+		if (!done) throw new Error("wgpuAdapterRequestDevice did not complete after polling");
+	} finally {
+		cb.close();
+	}
+	return result;
 }

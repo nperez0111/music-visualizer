@@ -46,11 +46,7 @@ export class FeatureSmoother {
 	}
 
 	private fillFakeSpectrum(elapsed: number): void {
-		for (let i = 0; i < this.bins; i++) {
-			const k = i / this.bins;
-			this.displaySpectrum[i] =
-				0.05 + Math.max(0, Math.sin(elapsed * (1 + k * 4) + i * 0.3)) * (1 - k) * 0.6;
-		}
+		fakeSpectrum(elapsed, this.displaySpectrum);
 	}
 
 	private fillSpectrumFromAnalyzer(): void {
@@ -68,7 +64,10 @@ export class FeatureSmoother {
 			const hi = Math.min(halfBins - 1, Math.max(lo, Math.ceil(fHi / binHz)));
 			let sum = 0;
 			for (let j = lo; j <= hi; j++) sum += mags[j]!;
-			this.displaySpectrum[i] = sum;
+			// Average per band so high-freq bins (which cover many FFT bins on a
+			// log scale) don't get inflated relative to bass bins. Matches the
+			// per-band averaging already used by bandSum in analysis.ts.
+			this.displaySpectrum[i] = sum / (hi - lo + 1);
 		}
 	}
 
@@ -97,7 +96,8 @@ function ema(prev: number, next: number, alpha: number): number {
 	return prev * (1 - alpha) + next * alpha;
 }
 
-function fakeFeatures(elapsed: number): AudioFeatures {
+/** Synthetic audio features used by the no-capture preview and headless rendering. Pure function of `elapsed`. */
+export function fakeFeatures(elapsed: number): AudioFeatures {
 	const fast = Math.sin(elapsed * 7.0);
 	return {
 		rms: 0.4 + 0.3 * Math.sin(elapsed * 1.5),
@@ -108,4 +108,13 @@ function fakeFeatures(elapsed: number): AudioFeatures {
 		bpm: 120,
 		beat_phase: (elapsed * (120 / 60)) % 1.0,
 	};
+}
+
+/** Fills `out` with the same fake spectrum the live preview uses. Pure function of `elapsed`. */
+export function fakeSpectrum(elapsed: number, out: Float32Array): void {
+	const bins = out.length;
+	for (let i = 0; i < bins; i++) {
+		const k = i / bins;
+		out[i] = 0.05 + Math.max(0, Math.sin(elapsed * (1 + k * 4) + i * 0.3)) * (1 - k) * 0.6;
+	}
 }

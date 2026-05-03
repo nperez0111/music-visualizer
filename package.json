@@ -11,7 +11,8 @@
 		"build:audiocap": "bun run scripts/build-audiocap.ts",
 		"build:packs": "bun run scripts/build-packs.ts",
 		"test": "bun test",
-		"test:gpu": "bun run scripts/test-packs-gpu.ts"
+		"test:gpu": "bun run scripts/test-packs-gpu.ts",
+		"render-pack": "bun run scripts/render-pack.ts"
 	},
 	"dependencies": {
 		"electrobun": "1.16.0",
