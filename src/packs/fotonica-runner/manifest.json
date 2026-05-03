@@ -1,0 +1,111 @@
+{
+	"schemaVersion": 1,
+	"id": "fotonica-runner",
+	"name": "Fotonica Runner",
+	"version": "0.2.0",
+	"author": "music-visualizer",
+	"description": "First-person wireframe sprint through a black void. The runner bobs to the beat, gates rush in on every kick.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "base flight speed",
+			"min": 0.2,
+			"max": 4.0,
+			"default": 1.6
+		},
+		{
+			"type": "float",
+			"name": "beatPunch",
+			"label": "beat advance kick",
+			"min": 0.0,
+			"max": 2.0,
+			"default": 0.7
+		},
+		{
+			"type": "float",
+			"name": "density",
+			"label": "gates in flight",
+			"min": 4.0,
+			"max": 24.0,
+			"default": 12.0
+		},
+		{
+			"type": "float",
+			"name": "bob",
+			"label": "running bob amount",
+			"min": 0.0,
+			"max": 2.0,
+			"default": 1.0
+		},
+		{
+			"type": "color",
+			"name": "lineColor",
+			"label": "wireframe color",
+			"default": [1.0, 1.0, 1.0]
+		},
+		{
+			"type": "color",
+			"name": "accentColor",
+			"label": "beat-flash accent",
+			"default": [1.0, 0.85, 0.35]
+		},
+		{
+			"type": "color",
+			"name": "bgColor",
+			"label": "void color",
+			"default": [0.015, 0.015, 0.025]
+		}
+	],
+	"presets": [
+		{
+			"name": "Classic",
+			"values": {
+				"speed": 1.6,
+				"beatPunch": 0.7,
+				"density": 12.0,
+				"bob": 1.0,
+				"lineColor": [1.0, 1.0, 1.0],
+				"accentColor": [1.0, 0.85, 0.35],
+				"bgColor": [0.015, 0.015, 0.025]
+			}
+		},
+		{
+			"name": "Sprint",
+			"values": {
+				"speed": 3.0,
+				"beatPunch": 1.2,
+				"density": 16.0,
+				"bob": 1.4,
+				"lineColor": [1.0, 1.0, 0.95],
+				"accentColor": [1.0, 0.7, 0.2],
+				"bgColor": [0.0, 0.0, 0.0]
+			}
+		},
+		{
+			"name": "Subzero",
+			"values": {
+				"speed": 1.2,
+				"beatPunch": 0.5,
+				"density": 10.0,
+				"bob": 0.7,
+				"lineColor": [0.7, 0.95, 1.0],
+				"accentColor": [0.4, 0.9, 1.0],
+				"bgColor": [0.0, 0.01, 0.03]
+			}
+		},
+		{
+			"name": "Pogo",
+			"values": {
+				"speed": 1.0,
+				"beatPunch": 0.4,
+				"density": 8.0,
+				"bob": 2.0,
+				"lineColor": [1.0, 0.9, 0.95],
+				"accentColor": [1.0, 0.4, 0.6],
+				"bgColor": [0.02, 0.0, 0.02]
+			}
+		}
+	]
+}

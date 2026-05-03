@@ -1,0 +1,47 @@
+{
+	"schemaVersion": 1,
+	"id": "apollonian-gasket",
+	"name": "Apollonian Gasket",
+	"version": "0.1.0",
+	"author": "music-visualizer",
+	"description": "Recursive sphere-fold Apollonian limit set. Bass deepens recursion; mid bends the fold; treble jitters the lattice.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "speed",
+			"min": 0.0,
+			"max": 4.0,
+			"default": 1.0
+		},
+		{
+			"type": "float",
+			"name": "scale",
+			"label": "fold scale",
+			"min": 1.05,
+			"max": 1.6,
+			"default": 1.27
+		},
+		{
+			"type": "int",
+			"name": "depth",
+			"label": "depth",
+			"min": 4,
+			"max": 18,
+			"default": 11
+		},
+		{
+			"type": "color",
+			"name": "tint",
+			"label": "tint",
+			"default": [1.0, 0.85, 0.55]
+		}
+	],
+	"presets": [
+		{ "name": "Honey",   "values": { "speed": 0.8, "scale": 1.27, "depth": 11, "tint": [1.0, 0.85, 0.55] } },
+		{ "name": "Cyan Ice","values": { "speed": 1.2, "scale": 1.32, "depth": 13, "tint": [0.55, 0.95, 1.0] } },
+		{ "name": "Magenta", "values": { "speed": 1.0, "scale": 1.21, "depth": 10, "tint": [1.0, 0.45, 0.85] } },
+		{ "name": "Deep",    "values": { "speed": 0.6, "scale": 1.4,  "depth": 16, "tint": [0.85, 0.7, 1.0] } }
+	]
+}

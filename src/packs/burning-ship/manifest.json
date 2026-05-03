@@ -1,0 +1,47 @@
+{
+	"schemaVersion": 1,
+	"id": "burning-ship",
+	"name": "Burning Ship",
+	"version": "0.1.0",
+	"author": "music-visualizer",
+	"description": "Escape-time Burning Ship fractal — abs-fold gives ship/antenna structures and harsh diagonal flames. Bass contracts the camera, beats flash the boundary.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "speed",
+			"min": 0.0,
+			"max": 4.0,
+			"default": 1.0
+		},
+		{
+			"type": "float",
+			"name": "zoom",
+			"label": "zoom",
+			"min": 0.4,
+			"max": 3.0,
+			"default": 1.0
+		},
+		{
+			"type": "color",
+			"name": "tint",
+			"label": "tint",
+			"default": [1.0, 0.55, 0.22]
+		},
+		{
+			"type": "int",
+			"name": "iterations",
+			"label": "detail",
+			"min": 32,
+			"max": 256,
+			"default": 110
+		}
+	],
+	"presets": [
+		{ "name": "Furnace",  "values": { "speed": 0.9, "zoom": 1.0, "tint": [1.0, 0.55, 0.22], "iterations": 110 } },
+		{ "name": "Frostbite","values": { "speed": 1.1, "zoom": 1.2, "tint": [0.5, 0.85, 1.0],  "iterations": 140 } },
+		{ "name": "Ember",    "values": { "speed": 0.6, "zoom": 0.8, "tint": [1.1, 0.32, 0.12], "iterations": 96 } },
+		{ "name": "Toxic",    "values": { "speed": 1.4, "zoom": 1.5, "tint": [0.4, 1.0, 0.55],  "iterations": 160 } }
+	]
+}

@@ -1,0 +1,55 @@
+{
+	"schemaVersion": 1,
+	"id": "mandelbrot-pulse",
+	"name": "Mandelbrot Pulse",
+	"version": "0.1.0",
+	"author": "music-visualizer",
+	"description": "Kaleidoscope-folded Mandelbrot view that drifts between Seahorse Valley, Misiurewicz, Tante Renate, and Paul Bourke. Bass contracts the camera; beats flash a band along the boundary.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "speed",
+			"min": 0.0,
+			"max": 4.0,
+			"default": 1.0
+		},
+		{
+			"type": "float",
+			"name": "zoom",
+			"label": "zoom",
+			"min": 0.3,
+			"max": 3.0,
+			"default": 1.0
+		},
+		{
+			"type": "color",
+			"name": "tint",
+			"label": "tint",
+			"default": [1.0, 0.7, 0.95]
+		},
+		{
+			"type": "int",
+			"name": "iterations",
+			"label": "detail",
+			"min": 32,
+			"max": 192,
+			"default": 80
+		},
+		{
+			"type": "int",
+			"name": "symmetry",
+			"label": "symmetry",
+			"min": 1,
+			"max": 12,
+			"default": 6
+		}
+	],
+	"presets": [
+		{ "name": "Pink Spiral",  "values": { "speed": 0.8, "zoom": 1.0, "tint": [1.0, 0.7, 0.95], "iterations": 80,  "symmetry": 6 } },
+		{ "name": "Cyan Lattice", "values": { "speed": 1.2, "zoom": 1.4, "tint": [0.55, 0.95, 1.0], "iterations": 120, "symmetry": 8 } },
+		{ "name": "Ember Quad",   "values": { "speed": 0.6, "zoom": 0.9, "tint": [1.1, 0.55, 0.3], "iterations": 96,  "symmetry": 4 } },
+		{ "name": "Bare",         "values": { "speed": 0.7, "zoom": 1.0, "tint": [1.0, 0.85, 0.7], "iterations": 96,  "symmetry": 1 } }
+	]
+}

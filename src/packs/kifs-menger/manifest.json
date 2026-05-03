@@ -1,0 +1,47 @@
+{
+	"schemaVersion": 1,
+	"id": "kifs-menger",
+	"name": "Menger Storm",
+	"version": "0.1.0",
+	"author": "music-visualizer",
+	"description": "3D Menger-sponge KIFS: abs-fold + rotate + scale, ray-marched. Mid drives the fold rotation, bass orbits the camera, beats flash the surface.",
+	"shader": "shader.wgsl",
+	"parameters": [
+		{
+			"type": "float",
+			"name": "speed",
+			"label": "speed",
+			"min": 0.0,
+			"max": 4.0,
+			"default": 1.0
+		},
+		{
+			"type": "float",
+			"name": "rotation",
+			"label": "fold twist",
+			"min": 0.0,
+			"max": 1.5,
+			"default": 0.55
+		},
+		{
+			"type": "int",
+			"name": "iterations",
+			"label": "iterations",
+			"min": 3,
+			"max": 8,
+			"default": 6
+		},
+		{
+			"type": "color",
+			"name": "tint",
+			"label": "tint",
+			"default": [0.85, 0.95, 1.0]
+		}
+	],
+	"presets": [
+		{ "name": "Cathedral", "values": { "speed": 0.7, "rotation": 0.55, "iterations": 6, "tint": [0.85, 0.95, 1.0] } },
+		{ "name": "Furnace",   "values": { "speed": 1.0, "rotation": 0.85, "iterations": 7, "tint": [1.0, 0.55, 0.25] } },
+		{ "name": "Verdant",   "values": { "speed": 1.2, "rotation": 1.10, "iterations": 5, "tint": [0.45, 1.0, 0.6] } },
+		{ "name": "Monolith",  "values": { "speed": 0.5, "rotation": 0.20, "iterations": 6, "tint": [0.9, 0.85, 0.95] } }
+	]
+}
