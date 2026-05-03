@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "name": "Dancing Mushrooms",
+  "version": "0.1.0",
+  "description": "Kawaii anime-style toadstool mushroom bopping to the beat",
+  "tags": ["cartoon", "anime", "cute", "mushroom", "kawaii"],
+  "shader": "shader.wgsl",
+  "parameters": [
+    { "type": "float", "name": "speed", "label": "speed", "min": 0.0, "max": 4.0, "default": 1.0 },
+    { "type": "float", "name": "sway", "label": "sway", "min": 0.0, "max": 1.0, "default": 0.5 },
+    { "type": "color", "name": "tint", "label": "cap color", "default": [0.85, 0.15, 0.1] },
+    { "type": "float", "name": "squish", "label": "squish", "min": 0.0, "max": 1.0, "default": 0.6 }
+  ]
+}
