@@ -5,6 +5,7 @@
 	"version": "0.1.0",
 	"author": "music-visualizer",
 	"description": "Quarter-arc Truchet tile maze that scrolls. Mid drives line thickness, bass shifts hue, beats brighten the path.",
+	"tags": ["geometric", "generative", "minimal"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{

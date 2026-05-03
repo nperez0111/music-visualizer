@@ -5,6 +5,7 @@
 	"version": "1.0.0",
 	"author": "music-visualizer",
 	"description": "Tier 2 sample. WASM produces RGB + accumulated bass energy each frame; the shader paints a cell grid with those values.",
+	"tags": ["geometric", "colorful", "minimal"],
 	"shader": "shader.wgsl",
 	"wasm": "pack.wasm"
 }

@@ -5,6 +5,7 @@
 	"version": "0.1.0",
 	"author": "music-visualizer",
 	"description": "Wireframe car cruising down a neon-outlined cityscape; buildings on either side fly past with heights pumping to the beat.",
+	"tags": ["3d", "retro", "dark"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{

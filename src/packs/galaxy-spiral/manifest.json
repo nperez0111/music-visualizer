@@ -5,6 +5,7 @@
 	"version": "0.1.0",
 	"author": "music-visualizer",
 	"description": "Polar-warped spiral galaxy with FBM dust and a glowing core. Bass swells the core, mid rotates the arms, treble adds star sparkle.",
+	"tags": ["space", "generative", "colorful"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{

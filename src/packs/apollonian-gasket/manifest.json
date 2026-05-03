@@ -5,6 +5,7 @@
 	"version": "0.1.0",
 	"author": "music-visualizer",
 	"description": "Recursive sphere-fold Apollonian limit set. Bass deepens recursion; mid bends the fold; treble jitters the lattice.",
+	"tags": ["fractal", "geometric", "trippy"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{

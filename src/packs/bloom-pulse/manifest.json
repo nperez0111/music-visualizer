@@ -5,6 +5,7 @@
 	"version": "1.0.0",
 	"author": "music-visualizer",
 	"description": "Concentric color rings pulsing with the beat, smeared by a multi-tap bloom pass. Demonstrates pack post-FX chains.",
+	"tags": ["geometric", "colorful", "trippy"],
 	"shader": "shader.wgsl",
 	"passes": [
 		{ "shader": "bloom.wgsl" }

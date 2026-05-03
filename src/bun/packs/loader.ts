@@ -34,6 +34,8 @@ export type PackManifest = {
 	parameters?: PackParameter[];
 	images?: PackManifestImage[];
 	presets?: PackPreset[];
+	/** Human-readable discovery tags for gallery search (e.g. "fractal", "retro", "3d"). */
+	tags?: string[];
 	/**
 	 * Optional post-FX chain. Each entry's shader runs after the main pass,
 	 * sampling the previous pass's color via @group(3). Last pass output is
@@ -216,6 +218,11 @@ export function validateManifest(raw: unknown): { ok: true; m: PackManifest } | 
 			validated.push(p);
 		}
 		out.parameters = validated;
+	}
+	if (m.tags !== undefined) {
+		if (!Array.isArray(m.tags) || !m.tags.every((t: unknown) => typeof t === "string"))
+			return { ok: false, err: "tags must be an array of strings" };
+		out.tags = m.tags as string[];
 	}
 	if (m.passes !== undefined) {
 		if (!Array.isArray(m.passes)) return { ok: false, err: "passes must be an array" };

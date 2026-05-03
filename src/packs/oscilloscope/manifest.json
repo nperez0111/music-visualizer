@@ -5,6 +5,7 @@
 	"version": "1.1.0",
 	"author": "music-visualizer",
 	"description": "Classic CRT-style waveform line synthesized from FFT bins. Bass thickens the trace, treble adds high-frequency wobble.",
+	"tags": ["spectrum", "retro", "minimal"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{

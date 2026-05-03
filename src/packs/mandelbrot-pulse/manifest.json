@@ -5,6 +5,7 @@
 	"version": "0.1.0",
 	"author": "music-visualizer",
 	"description": "Kaleidoscope-folded Mandelbrot view that drifts between Seahorse Valley, Misiurewicz, Tante Renate, and Paul Bourke. Bass contracts the camera; beats flash a band along the boundary.",
+	"tags": ["fractal", "trippy", "colorful"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{

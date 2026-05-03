@@ -12,7 +12,8 @@
 		"build:packs": "bun run scripts/build-packs.ts",
 		"test": "bun test",
 		"test:gpu": "bun run scripts/test-packs-gpu.ts",
-		"render-pack": "bun run scripts/render-pack.ts"
+		"render-pack": "bun run scripts/render-pack.ts",
+		"build:gallery": "bun run scripts/build-gallery.ts"
 	},
 	"dependencies": {
 		"electrobun": "1.16.0",
