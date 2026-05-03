@@ -1,6 +1,7 @@
 name: build
 
-# Builds macOS application bundles for ARM64 (Apple Silicon) and x64 (Intel).
+# Builds macOS application bundle for ARM64 (Apple Silicon).
+# Intel Macs can run the ARM64 build via Rosetta 2.
 # Produces .app/.dmg artifacts via `electrobun build`.
 
 on:
@@ -13,20 +14,9 @@ on:
 
 jobs:
   build:
-    name: Build macOS (${{ matrix.arch }})
-    runs-on: ${{ matrix.runner }}
+    name: Build macOS (arm64)
+    runs-on: macos-latest
     timeout-minutes: 30
-
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: arm64
-            runner: macos-latest          # Apple Silicon
-            rust-target: aarch64-apple-darwin
-          - arch: x64
-            runner: macos-13              # Intel
-            rust-target: x86_64-apple-darwin
 
     steps:
       - uses: actions/checkout@v4
@@ -39,7 +29,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.rust-target }}
+          targets: aarch64-apple-darwin
 
       - name: Cache Cargo registry + build
         uses: actions/cache@v4
@@ -48,14 +38,14 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             src/native/audiocap/target
-          key: cargo-${{ matrix.arch }}-${{ hashFiles('src/native/audiocap/Cargo.lock') }}
-          restore-keys: cargo-${{ matrix.arch }}-
+          key: cargo-arm64-${{ hashFiles('src/native/audiocap/Cargo.lock') }}
+          restore-keys: cargo-arm64-
 
       - name: Build audiocap (native arch)
         run: |
           cd src/native/audiocap
-          cargo build --release --target ${{ matrix.rust-target }}
-          cp target/${{ matrix.rust-target }}/release/audiocap audiocap
+          cargo build --release --target aarch64-apple-darwin
+          cp target/aarch64-apple-darwin/release/audiocap audiocap
 
       - name: bun install
         run: bun install --frozen-lockfile
@@ -69,7 +59,7 @@ jobs:
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: music-visualizer-macos-${{ matrix.arch }}
+          name: music-visualizer-macos-arm64
           path: artifacts/
           retention-days: 30
           if-no-files-found: error
