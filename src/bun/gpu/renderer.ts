@@ -1,4 +1,4 @@
-import { WGPU, WGPUBridge, type GpuWindow } from "./electrobun-gpu";
+import { WGPU, WGPUBridge, asPtr, type GpuWindow } from "./electrobun-gpu";
 import { dlopen, FFIType, JSCallback, ptr, toArrayBuffer } from "bun:ffi";
 import { existsSync } from "fs";
 import { join } from "path";
@@ -32,7 +32,7 @@ export function createRenderer(window: GpuWindow): Renderer {
 		throw new Error("wgpu-native not available — enable bundleWGPU in electrobun.config.ts");
 	}
 
-	const instance = native.symbols.wgpuCreateInstance(0) as number;
+	const instance = native.symbols.wgpuCreateInstance(asPtr(0)) as number;
 	if (!instance) throw new Error("wgpuCreateInstance returned null");
 
 	const surface = WGPUBridge.createSurfaceForView(
@@ -47,17 +47,17 @@ export function createRenderer(window: GpuWindow): Renderer {
 	const device = Number(adapterDevice[1]);
 	if (!adapter || !device) throw new Error("Failed to acquire adapter/device");
 
-	const queue = native.symbols.wgpuDeviceGetQueue(device) as number;
+	const queue = native.symbols.wgpuDeviceGetQueue(asPtr(device)) as number;
 
 	// Probe surface capabilities for a preferred format (with a sane fallback).
 	const capsBuffer = new ArrayBuffer(64);
 	const capsView = new DataView(capsBuffer);
-	native.symbols.wgpuSurfaceGetCapabilities(surface, adapter, ptr(capsBuffer));
+	native.symbols.wgpuSurfaceGetCapabilities(asPtr(surface), asPtr(adapter), ptr(capsBuffer));
 	const formatCount = Number(capsView.getBigUint64(16, true));
 	const formatPtr = Number(capsView.getBigUint64(24, true));
 	let surfaceFormat = TextureFormat_BGRA8Unorm;
 	if (formatCount && formatPtr) {
-		const formats = new Uint32Array(toArrayBuffer(formatPtr, 0, formatCount * 4));
+		const formats = new Uint32Array(toArrayBuffer(asPtr(formatPtr), 0, formatCount * 4));
 		if (formats.length) surfaceFormat = formats[0]!;
 	}
 
@@ -108,7 +108,7 @@ export function createHeadlessRenderer(opts: { width: number; height: number }):
 		throw new Error("wgpu-native not available — enable bundleWGPU in electrobun.config.ts");
 	}
 
-	const instance = native.symbols.wgpuCreateInstance(0) as number;
+	const instance = native.symbols.wgpuCreateInstance(asPtr(0)) as number;
 	if (!instance) throw new Error("wgpuCreateInstance returned null");
 
 	const adapter = requestAdapterSync(instance);
@@ -117,7 +117,7 @@ export function createHeadlessRenderer(opts: { width: number; height: number }):
 	const device = requestDeviceSync(instance, adapter);
 	if (!device) throw new Error("wgpuAdapterRequestDevice returned no device");
 
-	const queue = native.symbols.wgpuDeviceGetQueue(device) as number;
+	const queue = native.symbols.wgpuDeviceGetQueue(asPtr(device)) as number;
 
 	const size = { width: Math.max(1, opts.width), height: Math.max(1, opts.height) };
 	return {
@@ -204,9 +204,9 @@ function requestAdapterSync(instance: number): number {
 	try {
 		const cbInfo = makeRequestCallbackInfo(Number(cb.ptr));
 		if (shim) shim.requestAdapter(instance, cbInfo.ptr);
-		else native.symbols.wgpuInstanceRequestAdapter(instance, 0, cbInfo.ptr);
+		else native.symbols.wgpuInstanceRequestAdapter(asPtr(instance), asPtr(0), asPtr(cbInfo.ptr));
 		for (let i = 0; i < ASYNC_POLL_MAX_ITERATIONS && !done; i++) {
-			native.symbols.wgpuInstanceProcessEvents(instance);
+			native.symbols.wgpuInstanceProcessEvents(asPtr(instance));
 		}
 		if (!done) throw new Error("wgpuInstanceRequestAdapter did not complete after polling");
 	} finally {
@@ -233,9 +233,9 @@ function requestDeviceSync(instance: number, adapter: number): number {
 	try {
 		const cbInfo = makeRequestCallbackInfo(Number(cb.ptr));
 		if (shim) shim.requestDevice(adapter, cbInfo.ptr);
-		else native.symbols.wgpuAdapterRequestDevice(adapter, 0, cbInfo.ptr);
+		else native.symbols.wgpuAdapterRequestDevice(asPtr(adapter), asPtr(0), asPtr(cbInfo.ptr));
 		for (let i = 0; i < ASYNC_POLL_MAX_ITERATIONS && !done; i++) {
-			native.symbols.wgpuInstanceProcessEvents(instance);
+			native.symbols.wgpuInstanceProcessEvents(asPtr(instance));
 		}
 		if (!done) throw new Error("wgpuAdapterRequestDevice did not complete after polling");
 	} finally {

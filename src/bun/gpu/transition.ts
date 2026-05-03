@@ -1,5 +1,5 @@
-import { CString, ptr } from "bun:ffi";
-import { WGPU } from "./electrobun-gpu";
+import { CString, ptr, type Pointer } from "bun:ffi";
+import { WGPU, asPtr } from "./electrobun-gpu";
 import {
 	BufferUsage_CopyDst,
 	BufferUsage_Uniform,
@@ -173,8 +173,8 @@ export function createTransitionRig(renderer: Renderer): TransitionRig {
 	);
 	keepalive.push(compositeUboDesc.buffer);
 	const compositeUbo = native.symbols.wgpuDeviceCreateBuffer(
-		renderer.device,
-		compositeUboDesc.ptr,
+		asPtr(renderer.device),
+		asPtr(compositeUboDesc.ptr),
 	) as number;
 	if (!compositeUbo) throw new Error("failed to create composite UBO");
 
@@ -182,8 +182,8 @@ export function createTransitionRig(renderer: Renderer): TransitionRig {
 	const samplerDesc = makeSamplerDescriptor();
 	keepalive.push(samplerDesc.buffer);
 	const sampler = native.symbols.wgpuDeviceCreateSampler(
-		renderer.device,
-		samplerDesc.ptr,
+		asPtr(renderer.device),
+		asPtr(samplerDesc.ptr),
 	) as number;
 	if (!sampler) throw new Error("failed to create composite sampler");
 
@@ -201,13 +201,13 @@ export function createTransitionRig(renderer: Renderer): TransitionRig {
 		const shaderModuleDesc = makeShaderModuleDescriptor(shaderSource.ptr);
 		keepalive.push(shaderSource.buffer, shaderModuleDesc.buffer);
 		const shaderModule = native.symbols.wgpuDeviceCreateShaderModule(
-			renderer.device,
-			shaderModuleDesc.ptr,
+			asPtr(renderer.device),
+			asPtr(shaderModuleDesc.ptr),
 		) as number;
 		if (!shaderModule) throw new Error(`failed to create transition "${variant}" shader module`);
 
-		const vsEntry = new CString("vs_main");
-		const fsEntry = new CString("fs_main");
+		const vsEntry = new CString("vs_main" as unknown as Pointer);
+		const fsEntry = new CString("fs_main" as unknown as Pointer);
 		keepalive.push(vsEntry, fsEntry);
 		const vertexState = makeVertexState(shaderModule, vsEntry.ptr as number, 0, 0);
 		const colorTarget = makeColorTargetState(targetFormat);
@@ -229,13 +229,13 @@ export function createTransitionRig(renderer: Renderer): TransitionRig {
 		);
 		keepalive.push(pipelineDesc.buffer);
 		const pipeline = native.symbols.wgpuDeviceCreateRenderPipeline(
-			renderer.device,
-			pipelineDesc.ptr,
+			asPtr(renderer.device),
+			asPtr(pipelineDesc.ptr),
 		) as number;
 		if (!pipeline) throw new Error(`failed to create transition "${variant}" pipeline`);
 		variantPipelines[variant] = pipeline;
 		variantLayouts[variant] = native.symbols.wgpuRenderPipelineGetBindGroupLayout(
-			pipeline,
+			asPtr(pipeline),
 			0,
 		) as number;
 	}
@@ -244,8 +244,8 @@ export function createTransitionRig(renderer: Renderer): TransitionRig {
 	const prevSamplerDesc = makeSamplerDescriptor();
 	keepalive.push(prevSamplerDesc.buffer);
 	const prevFrameSampler = native.symbols.wgpuDeviceCreateSampler(
-		renderer.device,
-		prevSamplerDesc.ptr,
+		asPtr(renderer.device),
+		asPtr(prevSamplerDesc.ptr),
 	) as number;
 	if (!prevFrameSampler) throw new Error("failed to create prev-frame sampler");
 
@@ -266,12 +266,12 @@ export function createTransitionRig(renderer: Renderer): TransitionRig {
 	const bindKeepalive: any[] = [];
 
 	function releaseTargets() {
-		if (viewA) native.symbols.wgpuTextureViewRelease(viewA);
-		if (viewB) native.symbols.wgpuTextureViewRelease(viewB);
-		if (prevTexView) native.symbols.wgpuTextureViewRelease(prevTexView);
-		if (texA) native.symbols.wgpuTextureRelease(texA);
-		if (texB) native.symbols.wgpuTextureRelease(texB);
-		if (prevTex) native.symbols.wgpuTextureRelease(prevTex);
+		if (viewA) native.symbols.wgpuTextureViewRelease(asPtr(viewA));
+		if (viewB) native.symbols.wgpuTextureViewRelease(asPtr(viewB));
+		if (prevTexView) native.symbols.wgpuTextureViewRelease(asPtr(prevTexView));
+		if (texA) native.symbols.wgpuTextureRelease(asPtr(texA));
+		if (texB) native.symbols.wgpuTextureRelease(asPtr(texB));
+		if (prevTex) native.symbols.wgpuTextureRelease(asPtr(prevTex));
 		viewA = viewB = texA = texB = 0;
 		prevTex = prevTexView = 0;
 		copySrc = copyDst = copyExtent = null;
@@ -289,13 +289,13 @@ export function createTransitionRig(renderer: Renderer): TransitionRig {
 		const descB = makeTextureDescriptor(w, h, targetFormat, usageB);
 		const descPrev = makeTextureDescriptor(w, h, targetFormat, usagePrev);
 		bindKeepalive.push(descA.buffer, descB.buffer, descPrev.buffer);
-		texA = native.symbols.wgpuDeviceCreateTexture(renderer.device, descA.ptr) as number;
-		texB = native.symbols.wgpuDeviceCreateTexture(renderer.device, descB.ptr) as number;
-		prevTex = native.symbols.wgpuDeviceCreateTexture(renderer.device, descPrev.ptr) as number;
+		texA = native.symbols.wgpuDeviceCreateTexture(asPtr(renderer.device), asPtr(descA.ptr)) as number;
+		texB = native.symbols.wgpuDeviceCreateTexture(asPtr(renderer.device), asPtr(descB.ptr)) as number;
+		prevTex = native.symbols.wgpuDeviceCreateTexture(asPtr(renderer.device), asPtr(descPrev.ptr)) as number;
 		if (!texA || !texB || !prevTex) throw new Error("failed to allocate transition textures");
-		viewA = native.symbols.wgpuTextureCreateView(texA, 0) as number;
-		viewB = native.symbols.wgpuTextureCreateView(texB, 0) as number;
-		prevTexView = native.symbols.wgpuTextureCreateView(prevTex, 0) as number;
+		viewA = native.symbols.wgpuTextureCreateView(asPtr(texA), asPtr(0)) as number;
+		viewB = native.symbols.wgpuTextureCreateView(asPtr(texB), asPtr(0)) as number;
+		prevTexView = native.symbols.wgpuTextureCreateView(asPtr(prevTex), asPtr(0)) as number;
 		if (!viewA || !viewB || !prevTexView) throw new Error("failed to create transition texture views");
 
 		// Pre-build copy descriptors (targetA -> prevTex). Stable until next resize.
@@ -317,8 +317,8 @@ export function createTransitionRig(renderer: Renderer): TransitionRig {
 			const desc = makeBindGroupDescriptor(variantLayouts[variant], entries.ptr, 4);
 			bindKeepalive.push(entries.buffer, desc.buffer);
 			const bg = native.symbols.wgpuDeviceCreateBindGroup(
-				renderer.device,
-				desc.ptr,
+				asPtr(renderer.device),
+				asPtr(desc.ptr),
 			) as number;
 			if (!bg) throw new Error(`failed to create composite bind group for "${variant}"`);
 			variantBindGroups[variant] = bg;
@@ -341,8 +341,8 @@ export function createTransitionRig(renderer: Renderer): TransitionRig {
 		uboView.setFloat32(8, width, true);
 		uboView.setFloat32(12, height, true);
 		native.symbols.wgpuQueueWriteBuffer(
-			renderer.queue,
-			compositeUbo,
+			asPtr(renderer.queue),
+			asPtr(compositeUbo),
 			0,
 			ptr(uboStaging),
 			UNIFORM_SIZE,
@@ -353,22 +353,22 @@ export function createTransitionRig(renderer: Renderer): TransitionRig {
 		const colorAttachment = makeRenderPassColorAttachment(swapView, [0, 0, 0, 1]);
 		const renderPassDesc = makeRenderPassDescriptor(colorAttachment.ptr);
 		const pass = native.symbols.wgpuCommandEncoderBeginRenderPass(
-			encoder,
-			renderPassDesc.ptr,
+			asPtr(encoder),
+			asPtr(renderPassDesc.ptr),
 		) as number;
-		native.symbols.wgpuRenderPassEncoderSetPipeline(pass, pipeline);
-		native.symbols.wgpuRenderPassEncoderSetBindGroup(pass, 0, bindGroup, 0, 0);
-		native.symbols.wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
-		native.symbols.wgpuRenderPassEncoderEnd(pass);
+		native.symbols.wgpuRenderPassEncoderSetPipeline(asPtr(pass), asPtr(pipeline));
+		native.symbols.wgpuRenderPassEncoderSetBindGroup(asPtr(pass), 0, asPtr(bindGroup), 0, asPtr(0));
+		native.symbols.wgpuRenderPassEncoderDraw(asPtr(pass), 3, 1, 0, 0);
+		native.symbols.wgpuRenderPassEncoderEnd(asPtr(pass));
 	}
 
 	function copyTargetAToPrev(encoder: number) {
 		if (!copySrc || !copyDst || !copyExtent) return;
 		native.symbols.wgpuCommandEncoderCopyTextureToTexture(
-			encoder,
-			copySrc.ptr,
-			copyDst.ptr,
-			copyExtent.ptr,
+			asPtr(encoder),
+			asPtr(copySrc.ptr),
+			asPtr(copyDst.ptr),
+			asPtr(copyExtent.ptr),
 		);
 	}
 

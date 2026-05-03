@@ -1,5 +1,5 @@
-import { CString, ptr } from "bun:ffi";
-import { WGPU } from "./electrobun-gpu";
+import { CString, ptr, type Pointer } from "bun:ffi";
+import { WGPU, asPtr } from "./electrobun-gpu";
 import {
 	BufferUsage_CopyDst,
 	BufferUsage_Uniform,
@@ -101,8 +101,8 @@ export function createPackPipeline(opts: {
 	);
 	keepalive.push(uniformBufferDesc.buffer);
 	const uniformBuffer = native.symbols.wgpuDeviceCreateBuffer(
-		renderer.device,
-		uniformBufferDesc.ptr,
+		asPtr(renderer.device),
+		asPtr(uniformBufferDesc.ptr),
 	) as number;
 	if (!uniformBuffer) throw new Error("Failed to create per-pack uniform buffer");
 
@@ -114,8 +114,8 @@ export function createPackPipeline(opts: {
 		);
 		keepalive.push(paramBufDesc.buffer);
 		paramBuffer = native.symbols.wgpuDeviceCreateBuffer(
-			renderer.device,
-			paramBufDesc.ptr,
+			asPtr(renderer.device),
+			asPtr(paramBufDesc.ptr),
 		) as number;
 		if (!paramBuffer) throw new Error("failed to create per-pack parameter buffer");
 	}
@@ -127,13 +127,13 @@ export function createPackPipeline(opts: {
 		const shaderModuleDesc = makeShaderModuleDescriptor(shaderSource.ptr);
 		keepalive.push(shaderSource.buffer, shaderModuleDesc.buffer);
 		const shaderModule = native.symbols.wgpuDeviceCreateShaderModule(
-			renderer.device,
-			shaderModuleDesc.ptr,
+			asPtr(renderer.device),
+			asPtr(shaderModuleDesc.ptr),
 		) as number;
 		if (!shaderModule) throw new Error("Failed to create shader module");
 
-		const vsEntry = new CString("vs_main");
-		const fsEntry = new CString("fs_main");
+		const vsEntry = new CString("vs_main" as unknown as Pointer);
+		const fsEntry = new CString("fs_main" as unknown as Pointer);
 		keepalive.push(vsEntry, fsEntry);
 
 		const vertexState = makeVertexState(shaderModule, vsEntry.ptr as number, 0, 0);
@@ -157,8 +157,8 @@ export function createPackPipeline(opts: {
 		);
 		keepalive.push(pipelineDesc.buffer);
 		const pipeline = native.symbols.wgpuDeviceCreateRenderPipeline(
-			renderer.device,
-			pipelineDesc.ptr,
+			asPtr(renderer.device),
+			asPtr(pipelineDesc.ptr),
 		) as number;
 		if (!pipeline) throw new Error("Failed to create render pipeline");
 		return { pipeline, shaderModule };
@@ -166,7 +166,7 @@ export function createPackPipeline(opts: {
 
 	function buildUniformBindGroup(pipeline: number): number {
 		const bindGroupLayout = native.symbols.wgpuRenderPipelineGetBindGroupLayout(
-			pipeline,
+			asPtr(pipeline),
 			0,
 		) as number;
 		const entries = makeBindGroupEntries([
@@ -174,7 +174,7 @@ export function createPackPipeline(opts: {
 		]);
 		const desc = makeBindGroupDescriptor(bindGroupLayout, entries.ptr, 1);
 		keepalive.push(entries.buffer, desc.buffer);
-		const bg = native.symbols.wgpuDeviceCreateBindGroup(renderer.device, desc.ptr) as number;
+		const bg = native.symbols.wgpuDeviceCreateBindGroup(asPtr(renderer.device), asPtr(desc.ptr)) as number;
 		if (!bg) throw new Error("Failed to create uniform bind group");
 		return bg;
 	}
@@ -182,7 +182,7 @@ export function createPackPipeline(opts: {
 	function buildParamBindGroup(pipeline: number): number {
 		if (paramBufferSize <= 0 || !paramBuffer) return 0;
 		const layout = native.symbols.wgpuRenderPipelineGetBindGroupLayout(
-			pipeline,
+			asPtr(pipeline),
 			1,
 		) as number;
 		if (!layout) throw new Error("pack declares parameters but shader has no @group(1) binding");
@@ -191,7 +191,7 @@ export function createPackPipeline(opts: {
 		]);
 		const desc = makeBindGroupDescriptor(layout, entries.ptr, 1);
 		keepalive.push(entries.buffer, desc.buffer);
-		const bg = native.symbols.wgpuDeviceCreateBindGroup(renderer.device, desc.ptr) as number;
+		const bg = native.symbols.wgpuDeviceCreateBindGroup(asPtr(renderer.device), asPtr(desc.ptr)) as number;
 		if (!bg) throw new Error("failed to create parameter bind group");
 		return bg;
 	}
@@ -210,7 +210,7 @@ export function createPackPipeline(opts: {
 			throw new Error("pack uses prev-frame but host did not supply view/sampler");
 		}
 		prevBindLayout = native.symbols.wgpuRenderPipelineGetBindGroupLayout(
-			pipeline,
+			asPtr(pipeline),
 			2,
 		) as number;
 		if (!prevBindLayout)
@@ -222,8 +222,8 @@ export function createPackPipeline(opts: {
 		const prevBindDesc = makeBindGroupDescriptor(prevBindLayout, prevEntries.ptr, 2);
 		keepalive.push(prevEntries.buffer, prevBindDesc.buffer);
 		prevBindGroup = native.symbols.wgpuDeviceCreateBindGroup(
-			renderer.device,
-			prevBindDesc.ptr,
+			asPtr(renderer.device),
+			asPtr(prevBindDesc.ptr),
 		) as number;
 		if (!prevBindGroup) throw new Error("failed to create prev-frame bind group");
 	}
@@ -238,8 +238,8 @@ export function createPackPipeline(opts: {
 		const samplerDesc = makeSamplerDescriptor();
 		keepalive.push(samplerDesc.buffer);
 		interSampler = native.symbols.wgpuDeviceCreateSampler(
-			renderer.device,
-			samplerDesc.ptr,
+			asPtr(renderer.device),
+			asPtr(samplerDesc.ptr),
 		) as number;
 		if (!interSampler) throw new Error("failed to create inter-pass sampler");
 
@@ -249,9 +249,9 @@ export function createPackPipeline(opts: {
 		for (let i = 0; i < extraPassShaders.length; i++) {
 			const desc = makeTextureDescriptor(chainWidth, chainHeight, targetFormat, interUsage);
 			keepalive.push(desc.buffer);
-			const tex = native.symbols.wgpuDeviceCreateTexture(renderer.device, desc.ptr) as number;
+			const tex = native.symbols.wgpuDeviceCreateTexture(asPtr(renderer.device), asPtr(desc.ptr)) as number;
 			if (!tex) throw new Error("failed to create intermediate texture");
-			const view = native.symbols.wgpuTextureCreateView(tex, 0) as number;
+			const view = native.symbols.wgpuTextureCreateView(asPtr(tex), asPtr(0)) as number;
 			if (!view) throw new Error("failed to create intermediate texture view");
 			intermediateTex.push(tex);
 			intermediateView.push(view);
@@ -269,7 +269,7 @@ export function createPackPipeline(opts: {
 			const paramBg = buildParamBindGroup(pl.pipeline);
 
 			const inputLayout = native.symbols.wgpuRenderPipelineGetBindGroupLayout(
-				pl.pipeline,
+				asPtr(pl.pipeline),
 				3,
 			) as number;
 			if (!inputLayout)
@@ -281,8 +281,8 @@ export function createPackPipeline(opts: {
 			const inputDesc = makeBindGroupDescriptor(inputLayout, inputEntries.ptr, 2);
 			keepalive.push(inputEntries.buffer, inputDesc.buffer);
 			const inputBg = native.symbols.wgpuDeviceCreateBindGroup(
-				renderer.device,
-				inputDesc.ptr,
+				asPtr(renderer.device),
+				asPtr(inputDesc.ptr),
 			) as number;
 			if (!inputBg) throw new Error(`failed to create extra-pass ${k} input bind group`);
 
@@ -327,9 +327,9 @@ export function createPackPipeline(opts: {
  */
 export function releasePackPipeline(pp: PackPipeline): void {
 	const native = WGPU.native;
-	const tryRelease = (fn: (h: number) => void, h: number) => {
+	const tryRelease = (fn: Function, h: number) => {
 		if (!h) return;
-		try { fn(h); } catch {}
+		try { fn(asPtr(h)); } catch {}
 	};
 	tryRelease(native.symbols.wgpuBindGroupRelease, pp.bindGroup);
 	tryRelease(native.symbols.wgpuBindGroupRelease, pp.paramBindGroup);
@@ -372,8 +372,8 @@ export function rebuildPackPrevBindGroup(
 	const prevBindDesc = makeBindGroupDescriptor(pp.prevBindLayout, prevEntries.ptr, 2);
 	pp.keepalive.push(prevEntries.buffer, prevBindDesc.buffer);
 	const bg = native.symbols.wgpuDeviceCreateBindGroup(
-		renderer.device,
-		prevBindDesc.ptr,
+		asPtr(renderer.device),
+		asPtr(prevBindDesc.ptr),
 	) as number;
 	if (!bg) throw new Error("failed to rebuild prev-frame bind group");
 	pp.prevBindGroup = bg;
@@ -397,10 +397,10 @@ export function rebuildPackChain(
 
 	// Release old textures/views before reallocating.
 	for (const v of pp.intermediateView) {
-		try { native.symbols.wgpuTextureViewRelease(v); } catch {}
+		try { native.symbols.wgpuTextureViewRelease(asPtr(v)); } catch {}
 	}
 	for (const t of pp.intermediateTex) {
-		try { native.symbols.wgpuTextureRelease(t); } catch {}
+		try { native.symbols.wgpuTextureRelease(asPtr(t)); } catch {}
 	}
 	pp.intermediateView.length = 0;
 	pp.intermediateTex.length = 0;
@@ -409,9 +409,9 @@ export function rebuildPackChain(
 	for (let i = 0; i < pp.extraPasses.length; i++) {
 		const desc = makeTextureDescriptor(width, height, renderer.surfaceFormat, interUsage);
 		pp.keepalive.push(desc.buffer);
-		const tex = native.symbols.wgpuDeviceCreateTexture(renderer.device, desc.ptr) as number;
+		const tex = native.symbols.wgpuDeviceCreateTexture(asPtr(renderer.device), asPtr(desc.ptr)) as number;
 		if (!tex) throw new Error("failed to reallocate intermediate texture");
-		const view = native.symbols.wgpuTextureCreateView(tex, 0) as number;
+		const view = native.symbols.wgpuTextureCreateView(asPtr(tex), asPtr(0)) as number;
 		if (!view) throw new Error("failed to create intermediate texture view");
 		pp.intermediateTex.push(tex);
 		pp.intermediateView.push(view);
@@ -427,10 +427,10 @@ export function rebuildPackChain(
 		]);
 		const desc = makeBindGroupDescriptor(ep.inputBindLayout, entries.ptr, 2);
 		pp.keepalive.push(entries.buffer, desc.buffer);
-		const bg = native.symbols.wgpuDeviceCreateBindGroup(renderer.device, desc.ptr) as number;
+		const bg = native.symbols.wgpuDeviceCreateBindGroup(asPtr(renderer.device), asPtr(desc.ptr)) as number;
 		if (!bg) throw new Error(`failed to rebuild input bind group for pass ${k}`);
 		ep.inputBindGroup = bg;
-		try { native.symbols.wgpuBindGroupRelease(oldBg); } catch {}
+		try { native.symbols.wgpuBindGroupRelease(asPtr(oldBg)); } catch {}
 	}
 
 	pp.chainWidth = width;

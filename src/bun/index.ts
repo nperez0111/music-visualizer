@@ -96,10 +96,10 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 				activePackId: transitions.getActiveId(),
 				auto: transitions.getAutoSettings(),
 			}),
-			getControlsPosition: () => {
-				const f = controlsWin.getFrame();
-				return { x: f.x, y: f.y };
-			},
+		getControlsPosition: (): { x: number; y: number } => {
+			const f = controlsWin.getFrame();
+			return { x: f.x, y: f.y };
+		},
 			listPacks: () => ({
 				packs: registry.allPackInfos(),
 				activePackId: transitions.getActiveId(),

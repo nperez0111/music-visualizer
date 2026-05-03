@@ -1,7 +1,7 @@
 import { ptr } from "bun:ffi";
 import { writeFileSync } from "fs";
 import { encodeAnimation } from "wasm-webp";
-import { WGPU, WGPUBridge } from "../gpu/electrobun-gpu";
+import { WGPU, WGPUBridge, asPtr } from "../gpu/electrobun-gpu";
 
 import {
 	alignTo,
@@ -103,9 +103,9 @@ export async function renderPackToPng(opts: RenderPackToPngOptions): Promise<voi
 		TextureFormat_BGRA8Unorm,
 		TextureUsage_RenderAttachment | TextureUsage_TextureBinding | TextureUsage_CopySrc,
 	);
-	const targetTex = native.symbols.wgpuDeviceCreateTexture(renderer.device, targetDesc.ptr) as number;
+	const targetTex = native.symbols.wgpuDeviceCreateTexture(asPtr(renderer.device), asPtr(targetDesc.ptr)) as number;
 	if (!targetTex) throw new Error("failed to create offscreen target texture");
-	const targetView = native.symbols.wgpuTextureCreateView(targetTex, 0) as number;
+	const targetView = native.symbols.wgpuTextureCreateView(asPtr(targetTex), asPtr(0)) as number;
 	if (!targetView) throw new Error("failed to create offscreen target view");
 
 	let prevTex = 0;
@@ -118,11 +118,11 @@ export async function renderPackToPng(opts: RenderPackToPngOptions): Promise<voi
 			TextureFormat_BGRA8Unorm,
 			TextureUsage_TextureBinding | TextureUsage_CopyDst,
 		);
-		prevTex = native.symbols.wgpuDeviceCreateTexture(renderer.device, prevDesc.ptr) as number;
+		prevTex = native.symbols.wgpuDeviceCreateTexture(asPtr(renderer.device), asPtr(prevDesc.ptr)) as number;
 		if (!prevTex) throw new Error("failed to create prev-frame texture");
-		prevView = native.symbols.wgpuTextureCreateView(prevTex, 0) as number;
+		prevView = native.symbols.wgpuTextureCreateView(asPtr(prevTex), asPtr(0)) as number;
 		const samplerDesc = makeSamplerDescriptor();
-		prevSampler = native.symbols.wgpuDeviceCreateSampler(renderer.device, samplerDesc.ptr) as number;
+		prevSampler = native.symbols.wgpuDeviceCreateSampler(asPtr(renderer.device), asPtr(samplerDesc.ptr)) as number;
 		if (!prevSampler) throw new Error("failed to create prev-frame sampler");
 	}
 
@@ -170,26 +170,26 @@ export async function renderPackToPng(opts: RenderPackToPngOptions): Promise<voi
 			uniforms.fillHost(nowMs, 0, dtMs, { width, height }, features, synthSpectrum);
 			uniforms.write(nowMs, 0, opts.pack, pipeline, paramValues, renderer, features);
 
-			native.symbols.wgpuInstanceProcessEvents(renderer.instance);
+			native.symbols.wgpuInstanceProcessEvents(asPtr(renderer.instance));
 
 			const encoder = native.symbols.wgpuDeviceCreateCommandEncoder(
-				renderer.device,
-				encoderDesc.ptr,
+				asPtr(renderer.device),
+				asPtr(encoderDesc.ptr),
 			) as number;
 			renderPackPass(encoder, pipeline, targetView);
 			if (prevCopySrc && prevCopyDst && prevCopyExtent) {
 				native.symbols.wgpuCommandEncoderCopyTextureToTexture(
-					encoder,
-					prevCopySrc.ptr,
-					prevCopyDst.ptr,
-					prevCopyExtent.ptr,
+					asPtr(encoder),
+					asPtr(prevCopySrc.ptr),
+					asPtr(prevCopyDst.ptr),
+					asPtr(prevCopyExtent.ptr),
 				);
 			}
-			const cmd = native.symbols.wgpuCommandEncoderFinish(encoder, 0) as number;
+			const cmd = native.symbols.wgpuCommandEncoderFinish(asPtr(encoder), asPtr(0)) as number;
 			const cmdArray = makeCommandBufferArray(cmd);
-			native.symbols.wgpuQueueSubmit(renderer.queue, 1, cmdArray.ptr);
-			native.symbols.wgpuCommandBufferRelease(cmd);
-			native.symbols.wgpuCommandEncoderRelease(encoder);
+			native.symbols.wgpuQueueSubmit(asPtr(renderer.queue), 1, asPtr(cmdArray.ptr));
+			native.symbols.wgpuCommandBufferRelease(asPtr(cmd));
+			native.symbols.wgpuCommandEncoderRelease(asPtr(encoder));
 
 			// WASM packs run their viz_frame on a worker; sleeping for ~one frame
 			// keeps framesPending under the deadline (see runtime.ts:128).
@@ -204,11 +204,11 @@ export async function renderPackToPng(opts: RenderPackToPngOptions): Promise<voi
 		await readbackAndWritePng(renderer, targetTex, width, height, opts.outPath);
 	} finally {
 		releasePackPipeline(pipeline);
-		if (prevView) native.symbols.wgpuTextureViewRelease(prevView);
-		if (prevTex) native.symbols.wgpuTextureRelease(prevTex);
-		if (prevSampler) native.symbols.wgpuSamplerRelease(prevSampler);
-		native.symbols.wgpuTextureViewRelease(targetView);
-		native.symbols.wgpuTextureRelease(targetTex);
+		if (prevView) native.symbols.wgpuTextureViewRelease(asPtr(prevView));
+		if (prevTex) native.symbols.wgpuTextureRelease(asPtr(prevTex));
+		if (prevSampler) native.symbols.wgpuSamplerRelease(asPtr(prevSampler));
+		native.symbols.wgpuTextureViewRelease(asPtr(targetView));
+		native.symbols.wgpuTextureRelease(asPtr(targetTex));
 	}
 }
 
@@ -269,9 +269,9 @@ export async function renderPackToWebP(opts: RenderPackToWebPOptions): Promise<v
 		TextureFormat_BGRA8Unorm,
 		TextureUsage_RenderAttachment | TextureUsage_TextureBinding | TextureUsage_CopySrc,
 	);
-	const targetTex = native.symbols.wgpuDeviceCreateTexture(renderer.device, targetDesc.ptr) as number;
+	const targetTex = native.symbols.wgpuDeviceCreateTexture(asPtr(renderer.device), asPtr(targetDesc.ptr)) as number;
 	if (!targetTex) throw new Error("failed to create offscreen target texture");
-	const targetView = native.symbols.wgpuTextureCreateView(targetTex, 0) as number;
+	const targetView = native.symbols.wgpuTextureCreateView(asPtr(targetTex), asPtr(0)) as number;
 	if (!targetView) throw new Error("failed to create offscreen target view");
 
 	let prevTex = 0;
@@ -284,11 +284,11 @@ export async function renderPackToWebP(opts: RenderPackToWebPOptions): Promise<v
 			TextureFormat_BGRA8Unorm,
 			TextureUsage_TextureBinding | TextureUsage_CopyDst,
 		);
-		prevTex = native.symbols.wgpuDeviceCreateTexture(renderer.device, prevDesc.ptr) as number;
+		prevTex = native.symbols.wgpuDeviceCreateTexture(asPtr(renderer.device), asPtr(prevDesc.ptr)) as number;
 		if (!prevTex) throw new Error("failed to create prev-frame texture");
-		prevView = native.symbols.wgpuTextureCreateView(prevTex, 0) as number;
+		prevView = native.symbols.wgpuTextureCreateView(asPtr(prevTex), asPtr(0)) as number;
 		const samplerDesc = makeSamplerDescriptor();
-		prevSampler = native.symbols.wgpuDeviceCreateSampler(renderer.device, samplerDesc.ptr) as number;
+		prevSampler = native.symbols.wgpuDeviceCreateSampler(asPtr(renderer.device), asPtr(samplerDesc.ptr)) as number;
 		if (!prevSampler) throw new Error("failed to create prev-frame sampler");
 	}
 
@@ -337,26 +337,26 @@ export async function renderPackToWebP(opts: RenderPackToWebPOptions): Promise<v
 			uniforms.fillHost(nowMs, 0, dtMs, { width, height }, features, synthSpectrum);
 			uniforms.write(nowMs, 0, opts.pack, pipeline, paramValues, renderer, features);
 
-			native.symbols.wgpuInstanceProcessEvents(renderer.instance);
+			native.symbols.wgpuInstanceProcessEvents(asPtr(renderer.instance));
 
 			const encoder = native.symbols.wgpuDeviceCreateCommandEncoder(
-				renderer.device,
-				encoderDesc.ptr,
+				asPtr(renderer.device),
+				asPtr(encoderDesc.ptr),
 			) as number;
 			renderPackPass(encoder, pipeline, targetView);
 			if (prevCopySrc && prevCopyDst && prevCopyExtent) {
 				native.symbols.wgpuCommandEncoderCopyTextureToTexture(
-					encoder,
-					prevCopySrc.ptr,
-					prevCopyDst.ptr,
-					prevCopyExtent.ptr,
+					asPtr(encoder),
+					asPtr(prevCopySrc.ptr),
+					asPtr(prevCopyDst.ptr),
+					asPtr(prevCopyExtent.ptr),
 				);
 			}
-			const cmd = native.symbols.wgpuCommandEncoderFinish(encoder, 0) as number;
+			const cmd = native.symbols.wgpuCommandEncoderFinish(asPtr(encoder), asPtr(0)) as number;
 			const cmdArray = makeCommandBufferArray(cmd);
-			native.symbols.wgpuQueueSubmit(renderer.queue, 1, cmdArray.ptr);
-			native.symbols.wgpuCommandBufferRelease(cmd);
-			native.symbols.wgpuCommandEncoderRelease(encoder);
+			native.symbols.wgpuQueueSubmit(asPtr(renderer.queue), 1, asPtr(cmdArray.ptr));
+			native.symbols.wgpuCommandBufferRelease(asPtr(cmd));
+			native.symbols.wgpuCommandEncoderRelease(asPtr(encoder));
 
 			if (opts.pack.wasmRuntime) await Bun.sleep(8);
 
@@ -377,11 +377,11 @@ export async function renderPackToWebP(opts: RenderPackToWebPOptions): Promise<v
 		writeFileSync(opts.outPath, webpData);
 	} finally {
 		releasePackPipeline(pipeline);
-		if (prevView) native.symbols.wgpuTextureViewRelease(prevView);
-		if (prevTex) native.symbols.wgpuTextureRelease(prevTex);
-		if (prevSampler) native.symbols.wgpuSamplerRelease(prevSampler);
-		native.symbols.wgpuTextureViewRelease(targetView);
-		native.symbols.wgpuTextureRelease(targetTex);
+		if (prevView) native.symbols.wgpuTextureViewRelease(asPtr(prevView));
+		if (prevTex) native.symbols.wgpuTextureRelease(asPtr(prevTex));
+		if (prevSampler) native.symbols.wgpuSamplerRelease(asPtr(prevSampler));
+		native.symbols.wgpuTextureViewRelease(asPtr(targetView));
+		native.symbols.wgpuTextureRelease(asPtr(targetTex));
 	}
 }
 
@@ -402,57 +402,57 @@ async function readbackToRgba(
 		BufferUsage_MapRead | BufferUsage_CopyDst,
 	);
 	const readback = native.symbols.wgpuDeviceCreateBuffer(
-		renderer.device,
-		readbackDesc.ptr,
+		asPtr(renderer.device),
+		asPtr(readbackDesc.ptr),
 	) as number;
 	if (!readback) throw new Error("failed to create readback buffer");
 
 	try {
 		const encoderDesc = makeCommandEncoderDescriptor();
 		const copyEncoder = native.symbols.wgpuDeviceCreateCommandEncoder(
-			renderer.device,
-			encoderDesc.ptr,
+			asPtr(renderer.device),
+			asPtr(encoderDesc.ptr),
 		) as number;
 		const copySrcInfo = makeTexelCopyTextureInfo(srcTex);
 		const copyDstInfo = makeTexelCopyBufferInfo(readback, bytesPerRow, height);
 		const copyExtent = makeExtent3D(width, height, 1);
 		native.symbols.wgpuCommandEncoderCopyTextureToBuffer(
-			copyEncoder,
-			copySrcInfo.ptr,
-			copyDstInfo.ptr,
-			copyExtent.ptr,
+			asPtr(copyEncoder),
+			asPtr(copySrcInfo.ptr),
+			asPtr(copyDstInfo.ptr),
+			asPtr(copyExtent.ptr),
 		);
-		const copyCmd = native.symbols.wgpuCommandEncoderFinish(copyEncoder, 0) as number;
+		const copyCmd = native.symbols.wgpuCommandEncoderFinish(asPtr(copyEncoder), asPtr(0)) as number;
 		const copyCmdArray = makeCommandBufferArray(copyCmd);
-		native.symbols.wgpuQueueSubmit(renderer.queue, 1, copyCmdArray.ptr);
-		native.symbols.wgpuCommandBufferRelease(copyCmd);
-		native.symbols.wgpuCommandEncoderRelease(copyEncoder);
+		native.symbols.wgpuQueueSubmit(asPtr(renderer.queue), 1, asPtr(copyCmdArray.ptr));
+		native.symbols.wgpuCommandBufferRelease(asPtr(copyCmd));
+		native.symbols.wgpuCommandEncoderRelease(asPtr(copyEncoder));
 
 		const padded = new Uint8Array(readbackSize);
 		const job = WGPUBridge.bufferReadbackBegin(
-			readback as any,
+			readback,
 			0n,
 			BigInt(readbackSize),
-			ptr(padded.buffer) as any,
+			ptr(padded.buffer),
 		);
 		if (!job) throw new Error("bufferReadbackBegin returned null");
 		let done = false;
 		try {
 			for (let i = 0; i < READBACK_POLL_ITERATIONS; i++) {
-				native.symbols.wgpuInstanceProcessEvents(renderer.instance);
-				const status = WGPUBridge.bufferReadbackStatus(job as any);
+				native.symbols.wgpuInstanceProcessEvents(asPtr(renderer.instance));
+				const status = WGPUBridge.bufferReadbackStatus(job);
 				if (status > 0) { done = true; break; }
 				if (status < 0) throw new Error(`bufferReadbackStatus = ${status}`);
 				await Bun.sleep(2);
 			}
 		} finally {
-			WGPUBridge.bufferReadbackFree(job as any);
+			WGPUBridge.bufferReadbackFree(job);
 		}
 		if (!done) throw new Error("buffer readback timed out");
 
 		return stripPaddingToRgba(padded, width, height, bytesPerRow);
 	} finally {
-		native.symbols.wgpuBufferRelease(readback);
+		native.symbols.wgpuBufferRelease(asPtr(readback));
 	}
 }
 
@@ -499,26 +499,26 @@ function renderPackPass(encoder: number, pp: PackPipeline, finalTargetView: numb
 		const colorAttachment = makeRenderPassColorAttachment(targetView, [0, 0, 0, 1]);
 		const renderPassDesc = makeRenderPassDescriptor(colorAttachment.ptr);
 		const pass = native.symbols.wgpuCommandEncoderBeginRenderPass(
-			encoder,
-			renderPassDesc.ptr,
+			asPtr(encoder),
+			asPtr(renderPassDesc.ptr),
 		) as number;
-		native.symbols.wgpuRenderPassEncoderSetPipeline(pass, pipelineHandle);
-		native.symbols.wgpuRenderPassEncoderSetBindGroup(pass, 0, uniformBg, 0, 0);
-		if (paramBg) native.symbols.wgpuRenderPassEncoderSetBindGroup(pass, 1, paramBg, 0, 0);
+		native.symbols.wgpuRenderPassEncoderSetPipeline(asPtr(pass), asPtr(pipelineHandle));
+		native.symbols.wgpuRenderPassEncoderSetBindGroup(asPtr(pass), 0, asPtr(uniformBg), 0, asPtr(0));
+		if (paramBg) native.symbols.wgpuRenderPassEncoderSetBindGroup(asPtr(pass), 1, asPtr(paramBg), 0, asPtr(0));
 		if (i === 0 && pp.prevBindGroup) {
-			native.symbols.wgpuRenderPassEncoderSetBindGroup(pass, 2, pp.prevBindGroup, 0, 0);
+			native.symbols.wgpuRenderPassEncoderSetBindGroup(asPtr(pass), 2, asPtr(pp.prevBindGroup), 0, asPtr(0));
 		}
 		if (i > 0) {
 			native.symbols.wgpuRenderPassEncoderSetBindGroup(
-				pass,
+				asPtr(pass),
 				3,
-				pp.extraPasses[i - 1]!.inputBindGroup,
+				asPtr(pp.extraPasses[i - 1]!.inputBindGroup),
 				0,
-				0,
+				asPtr(0),
 			);
 		}
-		native.symbols.wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
-		native.symbols.wgpuRenderPassEncoderEnd(pass);
+		native.symbols.wgpuRenderPassEncoderDraw(asPtr(pass), 3, 1, 0, 0);
+		native.symbols.wgpuRenderPassEncoderEnd(asPtr(pass));
 	}
 }
 

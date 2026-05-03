@@ -1,5 +1,5 @@
 import { ptr } from "bun:ffi";
-import { WGPU } from "../gpu/electrobun-gpu";
+import { WGPU, asPtr } from "../gpu/electrobun-gpu";
 import type { AudioFeatures } from "../audio/analysis";
 import type { Pack } from "../packs/loader";
 import {
@@ -123,8 +123,8 @@ export class UniformWriter {
 
 		const native = WGPU.native;
 		native.symbols.wgpuQueueWriteBuffer(
-			renderer.queue,
-			pipeline.uniformBuffer,
+			asPtr(renderer.queue),
+			asPtr(pipeline.uniformBuffer),
 			0,
 			ptr(this.staging),
 			this.bufferSize,
@@ -132,8 +132,8 @@ export class UniformWriter {
 
 		if (pipeline.paramBuffer && packedParams) {
 			native.symbols.wgpuQueueWriteBuffer(
-				renderer.queue,
-				pipeline.paramBuffer,
+				asPtr(renderer.queue),
+				asPtr(pipeline.paramBuffer),
 				0,
 				ptr(packedParams.buffer),
 				pipeline.paramBufferSize,

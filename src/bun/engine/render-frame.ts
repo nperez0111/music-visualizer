@@ -1,4 +1,4 @@
-import { WGPU, WGPUBridge } from "../gpu/electrobun-gpu";
+import { WGPU, WGPUBridge, asPtr } from "../gpu/electrobun-gpu";
 import {
 	makeCommandBufferArray,
 	makeCommandEncoderDescriptor,
@@ -61,28 +61,28 @@ export function createRenderDriver(deps: RenderFrameDeps): () => void {
 			const colorAttachment = makeRenderPassColorAttachment(targetView, [0, 0, 0, 1]);
 			const renderPassDesc = makeRenderPassDescriptor(colorAttachment.ptr);
 			const pass = native.symbols.wgpuCommandEncoderBeginRenderPass(
-				encoder,
-				renderPassDesc.ptr,
+				asPtr(encoder),
+				asPtr(renderPassDesc.ptr),
 			) as number;
-			native.symbols.wgpuRenderPassEncoderSetPipeline(pass, pipelineHandle);
-			native.symbols.wgpuRenderPassEncoderSetBindGroup(pass, 0, uniformBg, 0, 0);
+			native.symbols.wgpuRenderPassEncoderSetPipeline(asPtr(pass), asPtr(pipelineHandle));
+			native.symbols.wgpuRenderPassEncoderSetBindGroup(asPtr(pass), 0, asPtr(uniformBg), 0, asPtr(0));
 			if (paramBg) {
-				native.symbols.wgpuRenderPassEncoderSetBindGroup(pass, 1, paramBg, 0, 0);
+				native.symbols.wgpuRenderPassEncoderSetBindGroup(asPtr(pass), 1, asPtr(paramBg), 0, asPtr(0));
 			}
 			if (i === 0 && pp.prevBindGroup) {
-				native.symbols.wgpuRenderPassEncoderSetBindGroup(pass, 2, pp.prevBindGroup, 0, 0);
+				native.symbols.wgpuRenderPassEncoderSetBindGroup(asPtr(pass), 2, asPtr(pp.prevBindGroup), 0, asPtr(0));
 			}
 			if (i > 0) {
 				native.symbols.wgpuRenderPassEncoderSetBindGroup(
-					pass,
+					asPtr(pass),
 					3,
-					pp.extraPasses[i - 1]!.inputBindGroup,
+					asPtr(pp.extraPasses[i - 1]!.inputBindGroup),
 					0,
-					0,
+					asPtr(0),
 				);
 			}
-			native.symbols.wgpuRenderPassEncoderDraw(pass, 3, 1, 0, 0);
-			native.symbols.wgpuRenderPassEncoderEnd(pass);
+			native.symbols.wgpuRenderPassEncoderDraw(asPtr(pass), 3, 1, 0, 0);
+			native.symbols.wgpuRenderPassEncoderEnd(asPtr(pass));
 		}
 		return true;
 	}
@@ -119,7 +119,7 @@ export function createRenderDriver(deps: RenderFrameDeps): () => void {
 			lastAudioLevelPushMs = now;
 			deps.pushAudioLevel(live.rms, live.peak);
 		}
-		native.symbols.wgpuInstanceProcessEvents(deps.renderer.instance);
+		native.symbols.wgpuInstanceProcessEvents(asPtr(deps.renderer.instance));
 
 		const t: FrameTransition = deps.transitions.tick(now);
 
@@ -137,18 +137,18 @@ export function createRenderDriver(deps: RenderFrameDeps): () => void {
 		const texPtr = Number(surfaceTexture.view.getBigUint64(8, true));
 		if (!texPtr) return;
 
-		const swapView = native.symbols.wgpuTextureCreateView(texPtr, 0) as number;
+		const swapView = native.symbols.wgpuTextureCreateView(asPtr(texPtr), asPtr(0)) as number;
 		if (!swapView) return;
 
 		const encoder = native.symbols.wgpuDeviceCreateCommandEncoder(
-			deps.renderer.device,
-			encoderDesc.ptr,
+			asPtr(deps.renderer.device),
+			asPtr(encoderDesc.ptr),
 		) as number;
 
 		// Pass 1: from-pack -> target A
 		if (!renderPackPass(encoder, t.from, deps.transitionRig.targetAView())) {
-			native.symbols.wgpuTextureViewRelease(swapView);
-			native.symbols.wgpuTextureRelease(texPtr);
+			native.symbols.wgpuTextureViewRelease(asPtr(swapView));
+			native.symbols.wgpuTextureRelease(asPtr(texPtr));
 			return;
 		}
 		// Pass 2 (only during transition): to-pack -> target B
@@ -161,14 +161,14 @@ export function createRenderDriver(deps: RenderFrameDeps): () => void {
 		// packs can sample it via @group(2).
 		deps.transitionRig.copyTargetAToPrev(encoder);
 
-		const commandBuffer = native.symbols.wgpuCommandEncoderFinish(encoder, 0) as number;
+		const commandBuffer = native.symbols.wgpuCommandEncoderFinish(asPtr(encoder), asPtr(0)) as number;
 		const commandArray = makeCommandBufferArray(commandBuffer);
-		native.symbols.wgpuQueueSubmit(deps.renderer.queue, 1, commandArray.ptr);
+		native.symbols.wgpuQueueSubmit(asPtr(deps.renderer.queue), 1, asPtr(commandArray.ptr));
 		WGPUBridge.surfacePresent(deps.renderer.surface);
 
-		native.symbols.wgpuTextureViewRelease(swapView);
-		native.symbols.wgpuTextureRelease(texPtr);
-		native.symbols.wgpuCommandBufferRelease(commandBuffer);
-		native.symbols.wgpuCommandEncoderRelease(encoder);
+		native.symbols.wgpuTextureViewRelease(asPtr(swapView));
+		native.symbols.wgpuTextureRelease(asPtr(texPtr));
+		native.symbols.wgpuCommandBufferRelease(asPtr(commandBuffer));
+		native.symbols.wgpuCommandEncoderRelease(asPtr(encoder));
 	};
 }

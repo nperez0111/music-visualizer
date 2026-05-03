@@ -12,8 +12,9 @@
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
 		"noFallthroughCasesInSwitch": true,
-		"moduleResolution": "bundler"
+		"moduleResolution": "bundler",
+		"skipLibCheck": true
 	},
 	"include": ["src"],
-	"exclude": ["node_modules", "dist", "build", "../../package/dist"]
+	"exclude": ["node_modules", "dist", "build", "../../package/dist", "src/packs/*/pack.ts"]
 }
