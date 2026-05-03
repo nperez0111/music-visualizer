@@ -107,7 +107,7 @@ if (pack.wasmBytes && !pack.wasmRuntime) {
 mkdirSync(pathDirname(outPath), { recursive: true });
 
 // Env overrides — useful for slow software-Vulkan backends (e.g. Mesa lavapipe
-// in a container) where the 1024x768 / 120-frame defaults are painful.
+// in a container) where the 640x480 / 120-frame defaults are painful.
 const w = Number(process.env.VIZ_RENDER_WIDTH);
 const h = Number(process.env.VIZ_RENDER_HEIGHT);
 const f = Number(process.env.VIZ_RENDER_FRAMES);

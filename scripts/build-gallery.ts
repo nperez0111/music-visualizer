@@ -72,8 +72,10 @@ function readPacks(packsDir: string, imagesDir: string): GalleryPack[] {
 
 		const hash = computePackHashFromDir(dir);
 
-		const imgPath = join(imagesDir, `${slug}.png`);
-		const hasImage = existsSync(imgPath);
+		// Prefer animated WebP over static PNG for gallery previews
+		const webpPath = join(imagesDir, `${slug}.webp`);
+		const pngPath = join(imagesDir, `${slug}.png`);
+		const imgExt = existsSync(webpPath) ? "webp" : existsSync(pngPath) ? "png" : null;
 
 		packs.push({
 			slug,
@@ -92,7 +94,7 @@ function readPacks(packsDir: string, imagesDir: string): GalleryPack[] {
 			hasPasses: Array.isArray(m.passes) && m.passes.length > 0,
 			passCount: Array.isArray(m.passes) ? m.passes.length : 0,
 			audioFeatures: m.audio?.features ?? [],
-			image: hasImage ? `images/${slug}.png` : null,
+			image: imgExt ? `images/${slug}.${imgExt}` : null,
 		});
 	}
 
@@ -587,11 +589,11 @@ console.log(`[build:gallery] found ${packs.length} pack(s)`);
 // Create output dirs
 mkdirSync(join(outDir, "images"), { recursive: true });
 
-// Copy images
+// Copy images (WebP or PNG based on what's available)
 let copied = 0;
 for (const pack of packs) {
 	if (pack.image) {
-		const src = join(imagesDir, `${pack.slug}.png`);
+		const src = join(imagesDir, pack.image.replace("images/", ""));
 		const dst = join(outDir, pack.image);
 		copyFileSync(src, dst);
 		copied++;

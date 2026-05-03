@@ -1,6 +1,7 @@
 import { ptr } from "bun:ffi";
 import { writeFileSync } from "fs";
-import { WGPU, WGPUBridge } from "electrobun/bun";
+import { encodeAnimation } from "wasm-webp";
+import { WGPU, WGPUBridge } from "../gpu/electrobun-gpu";
 
 import {
 	alignTo,
@@ -31,8 +32,10 @@ import { createHeadlessRenderer } from "../gpu/renderer";
 import { fakeFeatures, fakeSpectrum } from "../engine/feature-smoother";
 import { UniformWriter } from "../engine/uniform-writer";
 import { defaultParameterValues, parameterBufferSize } from "./parameters";
+import type { ParamValueMap } from "./parameters";
 import { encodeRgbaPng } from "./png-encode";
 import type { Pack } from "./loader";
+import type { AudioFeatures } from "../audio/analysis";
 
 const SPECTRUM_BINS = 32;
 const UNIFORM_BUFFER_SIZE = 16384;
@@ -41,16 +44,41 @@ const PACK_UNIFORM_OFFSET = 176;
 /** Max iterations of the wgpu-event poll loop before giving up on a readback. */
 const READBACK_POLL_ITERATIONS = 1000;
 
+/** Default render resolution for headless captures (PNG and WebP). */
+export const DEFAULT_RENDER_WIDTH = 640;
+export const DEFAULT_RENDER_HEIGHT = 480;
+/** Default number of frames to simulate (2 s @ 60fps). */
+export const DEFAULT_RENDER_FRAMES = 120;
+
 export type RenderPackToPngOptions = {
 	pack: Pack;
-	/** Output image width. Default 1024. */
+	/** Output image width. Default DEFAULT_RENDER_WIDTH (640). */
 	width?: number;
-	/** Output image height. Default 768. */
+	/** Output image height. Default DEFAULT_RENDER_HEIGHT (480). */
 	height?: number;
-	/** Frames to render before capturing the last one. Default 120 (2 s @ 60fps). */
+	/** Frames to render before capturing the last one. Default DEFAULT_RENDER_FRAMES (120). */
 	frames?: number;
 	/** Where to write the PNG. The directory must already exist. */
 	outPath: string;
+	/**
+	 * Override pack parameter values. Keys are parameter names from the
+	 * manifest; unknown keys are silently ignored. Values are merged onto
+	 * the manifest defaults.
+	 */
+	paramOverrides?: ParamValueMap;
+	/**
+	 * Override synthetic audio features. Partial — unset fields fall back
+	 * to `fakeFeatures(elapsed)`. Applied every frame (the overridden
+	 * fields stay constant while the non-overridden fields still animate).
+	 */
+	audioOverrides?: Partial<AudioFeatures>;
+	/**
+	 * Capture PNGs at these frame indices (0-based) in addition to the
+	 * final frame. Each captured frame is written to `outPath` with a
+	 * `_frame<N>` suffix before the extension (e.g. `/tmp/foo_frame30.png`).
+	 * The final frame is always written to `outPath` unchanged.
+	 */
+	captureFrames?: number[];
 };
 
 /**
@@ -60,9 +88,9 @@ export type RenderPackToPngOptions = {
  * capture is running, so output is reproducible across runs.
  */
 export async function renderPackToPng(opts: RenderPackToPngOptions): Promise<void> {
-	const width = opts.width ?? 1024;
-	const height = opts.height ?? 768;
-	const frames = Math.max(1, opts.frames ?? 120);
+	const width = opts.width ?? DEFAULT_RENDER_WIDTH;
+	const height = opts.height ?? DEFAULT_RENDER_HEIGHT;
+	const frames = Math.max(1, opts.frames ?? DEFAULT_RENDER_FRAMES);
 	const dtMs = 1000 / 60;
 	const native = WGPU.native;
 
@@ -119,6 +147,12 @@ export async function renderPackToPng(opts: RenderPackToPngOptions): Promise<voi
 	});
 	const synthSpectrum = new Float32Array(SPECTRUM_BINS);
 	const paramValues = defaultParameterValues(opts.pack.parameters);
+	if (opts.paramOverrides) {
+		for (const [k, v] of Object.entries(opts.paramOverrides)) {
+			if (k in paramValues) paramValues[k] = v;
+		}
+	}
+	const captureSet = opts.captureFrames ? new Set(opts.captureFrames) : null;
 
 	const prevCopySrc = opts.pack.usesPrevFrame ? makeTexelCopyTextureInfo(targetTex) : null;
 	const prevCopyDst = opts.pack.usesPrevFrame ? makeTexelCopyTextureInfo(prevTex) : null;
@@ -127,7 +161,9 @@ export async function renderPackToPng(opts: RenderPackToPngOptions): Promise<voi
 	try {
 		for (let frameIdx = 0; frameIdx < frames; frameIdx++) {
 			const elapsedSec = (frameIdx * dtMs) / 1000;
-			const features = fakeFeatures(elapsedSec);
+			const features = opts.audioOverrides
+				? { ...fakeFeatures(elapsedSec), ...opts.audioOverrides }
+				: fakeFeatures(elapsedSec);
 			fakeSpectrum(elapsedSec, synthSpectrum);
 			const nowMs = frameIdx * dtMs;
 
@@ -158,68 +194,14 @@ export async function renderPackToPng(opts: RenderPackToPngOptions): Promise<voi
 			// WASM packs run their viz_frame on a worker; sleeping for ~one frame
 			// keeps framesPending under the deadline (see runtime.ts:128).
 			if (opts.pack.wasmRuntime) await Bun.sleep(8);
-		}
 
-		const bytesPerRow = alignTo(width * 4, 256);
-		const readbackSize = bytesPerRow * height;
-		const readbackDesc = makeBufferDescriptor(
-			readbackSize,
-			BufferUsage_MapRead | BufferUsage_CopyDst,
-		);
-		const readback = native.symbols.wgpuDeviceCreateBuffer(
-			renderer.device,
-			readbackDesc.ptr,
-		) as number;
-		if (!readback) throw new Error("failed to create readback buffer");
-
-		try {
-			const copyEncoder = native.symbols.wgpuDeviceCreateCommandEncoder(
-				renderer.device,
-				encoderDesc.ptr,
-			) as number;
-			const copySrcInfo = makeTexelCopyTextureInfo(targetTex);
-			const copyDstInfo = makeTexelCopyBufferInfo(readback, bytesPerRow, height);
-			const copyExtent = makeExtent3D(width, height, 1);
-			native.symbols.wgpuCommandEncoderCopyTextureToBuffer(
-				copyEncoder,
-				copySrcInfo.ptr,
-				copyDstInfo.ptr,
-				copyExtent.ptr,
-			);
-			const copyCmd = native.symbols.wgpuCommandEncoderFinish(copyEncoder, 0) as number;
-			const copyCmdArray = makeCommandBufferArray(copyCmd);
-			native.symbols.wgpuQueueSubmit(renderer.queue, 1, copyCmdArray.ptr);
-			native.symbols.wgpuCommandBufferRelease(copyCmd);
-			native.symbols.wgpuCommandEncoderRelease(copyEncoder);
-
-			const padded = new Uint8Array(readbackSize);
-			const job = WGPUBridge.bufferReadbackBegin(
-				readback as any,
-				0n,
-				BigInt(readbackSize),
-				ptr(padded.buffer) as any,
-			);
-			if (!job) throw new Error("bufferReadbackBegin returned null");
-			let done = false;
-			try {
-				for (let i = 0; i < READBACK_POLL_ITERATIONS; i++) {
-					native.symbols.wgpuInstanceProcessEvents(renderer.instance);
-					const status = WGPUBridge.bufferReadbackStatus(job as any);
-					if (status > 0) { done = true; break; }
-					if (status < 0) throw new Error(`bufferReadbackStatus = ${status}`);
-					await Bun.sleep(2);
-				}
-			} finally {
-				WGPUBridge.bufferReadbackFree(job as any);
+			if (captureSet?.has(frameIdx)) {
+				const capPath = captureFramePath(opts.outPath, frameIdx);
+				await readbackAndWritePng(renderer, targetTex, width, height, capPath);
 			}
-			if (!done) throw new Error("buffer readback timed out");
-
-			const rgba = stripPaddingToRgba(padded, width, height, bytesPerRow);
-			const png = encodeRgbaPng(rgba, width, height);
-			writeFileSync(opts.outPath, png);
-		} finally {
-			native.symbols.wgpuBufferRelease(readback);
 		}
+
+		await readbackAndWritePng(renderer, targetTex, width, height, opts.outPath);
 	} finally {
 		releasePackPipeline(pipeline);
 		if (prevView) native.symbols.wgpuTextureViewRelease(prevView);
@@ -228,6 +210,275 @@ export async function renderPackToPng(opts: RenderPackToPngOptions): Promise<voi
 		native.symbols.wgpuTextureViewRelease(targetView);
 		native.symbols.wgpuTextureRelease(targetTex);
 	}
+}
+
+export type RenderPackToWebPOptions = {
+	pack: Pack;
+	/** Output image width. Default DEFAULT_RENDER_WIDTH (640). */
+	width?: number;
+	/** Output image height. Default DEFAULT_RENDER_HEIGHT (480). */
+	height?: number;
+	/** Total frames to render. Default DEFAULT_RENDER_FRAMES (120). */
+	frames?: number;
+	/**
+	 * How many evenly-spaced frames to capture for the WebP animation.
+	 * Default 20 — produces a ~1–2 s animation at the given duration.
+	 * Must be <= `frames`.
+	 */
+	webpFrames?: number;
+	/** Duration of each frame in milliseconds. Default 100 (10 fps). */
+	duration?: number;
+	/** WebP quality (0–100). Default 80. */
+	quality?: number;
+	/** Where to write the WebP. The directory must already exist. */
+	outPath: string;
+	/** Override pack parameter values. */
+	paramOverrides?: ParamValueMap;
+	/** Override synthetic audio features (constant across all frames). */
+	audioOverrides?: Partial<AudioFeatures>;
+};
+
+/**
+ * Render `pack` headlessly for `frames` frames, capture `webpFrames` evenly-
+ * spaced snapshots, and assemble an animated WebP written to `outPath`.
+ * Uses full 24-bit colour (no palette limitation like GIF).
+ */
+export async function renderPackToWebP(opts: RenderPackToWebPOptions): Promise<void> {
+	const width = opts.width ?? DEFAULT_RENDER_WIDTH;
+	const height = opts.height ?? DEFAULT_RENDER_HEIGHT;
+	const frames = Math.max(1, opts.frames ?? DEFAULT_RENDER_FRAMES);
+	const webpFrameCount = Math.min(opts.webpFrames ?? 20, frames);
+	const duration = opts.duration ?? 100;
+	const quality = opts.quality ?? 80;
+	const dtMs = 1000 / 60;
+	const native = WGPU.native;
+
+	// Determine which frame indices to capture (evenly spaced)
+	const captureIndices: number[] = [];
+	for (let i = 0; i < webpFrameCount; i++) {
+		captureIndices.push(Math.round((i * (frames - 1)) / (webpFrameCount - 1)));
+	}
+	const captureSet = new Set(captureIndices);
+
+	const renderer = createHeadlessRenderer({ width, height });
+	const encoderDesc = makeCommandEncoderDescriptor();
+
+	const targetDesc = makeTextureDescriptor(
+		width,
+		height,
+		TextureFormat_BGRA8Unorm,
+		TextureUsage_RenderAttachment | TextureUsage_TextureBinding | TextureUsage_CopySrc,
+	);
+	const targetTex = native.symbols.wgpuDeviceCreateTexture(renderer.device, targetDesc.ptr) as number;
+	if (!targetTex) throw new Error("failed to create offscreen target texture");
+	const targetView = native.symbols.wgpuTextureCreateView(targetTex, 0) as number;
+	if (!targetView) throw new Error("failed to create offscreen target view");
+
+	let prevTex = 0;
+	let prevView = 0;
+	let prevSampler = 0;
+	if (opts.pack.usesPrevFrame) {
+		const prevDesc = makeTextureDescriptor(
+			width,
+			height,
+			TextureFormat_BGRA8Unorm,
+			TextureUsage_TextureBinding | TextureUsage_CopyDst,
+		);
+		prevTex = native.symbols.wgpuDeviceCreateTexture(renderer.device, prevDesc.ptr) as number;
+		if (!prevTex) throw new Error("failed to create prev-frame texture");
+		prevView = native.symbols.wgpuTextureCreateView(prevTex, 0) as number;
+		const samplerDesc = makeSamplerDescriptor();
+		prevSampler = native.symbols.wgpuDeviceCreateSampler(renderer.device, samplerDesc.ptr) as number;
+		if (!prevSampler) throw new Error("failed to create prev-frame sampler");
+	}
+
+	const pipeline = createPackPipeline({
+		renderer,
+		shaderText: opts.pack.shaderText,
+		uniformBufferSize: UNIFORM_BUFFER_SIZE,
+		paramBufferSize:
+			opts.pack.parameters.length > 0 ? parameterBufferSize(opts.pack.parameters) : 0,
+		usesPrevFrame: opts.pack.usesPrevFrame,
+		prevFrameView: prevView,
+		prevFrameSampler: prevSampler,
+		extraPassShaders: opts.pack.extraPasses,
+		chainWidth: width,
+		chainHeight: height,
+	});
+
+	const uniforms = new UniformWriter({
+		bufferSize: UNIFORM_BUFFER_SIZE,
+		packOffset: PACK_UNIFORM_OFFSET,
+		spectrumBins: SPECTRUM_BINS,
+	});
+	const synthSpectrum = new Float32Array(SPECTRUM_BINS);
+	const paramValues = defaultParameterValues(opts.pack.parameters);
+	if (opts.paramOverrides) {
+		for (const [k, v] of Object.entries(opts.paramOverrides)) {
+			if (k in paramValues) paramValues[k] = v;
+		}
+	}
+
+	const prevCopySrc = opts.pack.usesPrevFrame ? makeTexelCopyTextureInfo(targetTex) : null;
+	const prevCopyDst = opts.pack.usesPrevFrame ? makeTexelCopyTextureInfo(prevTex) : null;
+	const prevCopyExtent = opts.pack.usesPrevFrame ? makeExtent3D(width, height, 1) : null;
+
+	const capturedFrames: Uint8Array[] = [];
+
+	try {
+		for (let frameIdx = 0; frameIdx < frames; frameIdx++) {
+			const elapsedSec = (frameIdx * dtMs) / 1000;
+			const features = opts.audioOverrides
+				? { ...fakeFeatures(elapsedSec), ...opts.audioOverrides }
+				: fakeFeatures(elapsedSec);
+			fakeSpectrum(elapsedSec, synthSpectrum);
+			const nowMs = frameIdx * dtMs;
+
+			uniforms.fillHost(nowMs, 0, dtMs, { width, height }, features, synthSpectrum);
+			uniforms.write(nowMs, 0, opts.pack, pipeline, paramValues, renderer, features);
+
+			native.symbols.wgpuInstanceProcessEvents(renderer.instance);
+
+			const encoder = native.symbols.wgpuDeviceCreateCommandEncoder(
+				renderer.device,
+				encoderDesc.ptr,
+			) as number;
+			renderPackPass(encoder, pipeline, targetView);
+			if (prevCopySrc && prevCopyDst && prevCopyExtent) {
+				native.symbols.wgpuCommandEncoderCopyTextureToTexture(
+					encoder,
+					prevCopySrc.ptr,
+					prevCopyDst.ptr,
+					prevCopyExtent.ptr,
+				);
+			}
+			const cmd = native.symbols.wgpuCommandEncoderFinish(encoder, 0) as number;
+			const cmdArray = makeCommandBufferArray(cmd);
+			native.symbols.wgpuQueueSubmit(renderer.queue, 1, cmdArray.ptr);
+			native.symbols.wgpuCommandBufferRelease(cmd);
+			native.symbols.wgpuCommandEncoderRelease(encoder);
+
+			if (opts.pack.wasmRuntime) await Bun.sleep(8);
+
+			if (captureSet.has(frameIdx)) {
+				const rgba = await readbackToRgba(renderer, targetTex, width, height);
+				capturedFrames.push(rgba);
+			}
+		}
+
+		// Assemble animated WebP from captured frames
+		const webpFrames = capturedFrames.map((data) => ({
+			data,
+			duration,
+			config: { lossless: 0, quality },
+		}));
+		const webpData = await encodeAnimation(width, height, true, webpFrames);
+		if (!webpData) throw new Error("encodeAnimation returned null");
+		writeFileSync(opts.outPath, webpData);
+	} finally {
+		releasePackPipeline(pipeline);
+		if (prevView) native.symbols.wgpuTextureViewRelease(prevView);
+		if (prevTex) native.symbols.wgpuTextureRelease(prevTex);
+		if (prevSampler) native.symbols.wgpuSamplerRelease(prevSampler);
+		native.symbols.wgpuTextureViewRelease(targetView);
+		native.symbols.wgpuTextureRelease(targetTex);
+	}
+}
+
+/**
+ * Read back the contents of `srcTex` as a tightly-packed RGBA Uint8Array.
+ */
+async function readbackToRgba(
+	renderer: { instance: number; device: number; queue: number },
+	srcTex: number,
+	width: number,
+	height: number,
+): Promise<Uint8Array> {
+	const native = WGPU.native;
+	const bytesPerRow = alignTo(width * 4, 256);
+	const readbackSize = bytesPerRow * height;
+	const readbackDesc = makeBufferDescriptor(
+		readbackSize,
+		BufferUsage_MapRead | BufferUsage_CopyDst,
+	);
+	const readback = native.symbols.wgpuDeviceCreateBuffer(
+		renderer.device,
+		readbackDesc.ptr,
+	) as number;
+	if (!readback) throw new Error("failed to create readback buffer");
+
+	try {
+		const encoderDesc = makeCommandEncoderDescriptor();
+		const copyEncoder = native.symbols.wgpuDeviceCreateCommandEncoder(
+			renderer.device,
+			encoderDesc.ptr,
+		) as number;
+		const copySrcInfo = makeTexelCopyTextureInfo(srcTex);
+		const copyDstInfo = makeTexelCopyBufferInfo(readback, bytesPerRow, height);
+		const copyExtent = makeExtent3D(width, height, 1);
+		native.symbols.wgpuCommandEncoderCopyTextureToBuffer(
+			copyEncoder,
+			copySrcInfo.ptr,
+			copyDstInfo.ptr,
+			copyExtent.ptr,
+		);
+		const copyCmd = native.symbols.wgpuCommandEncoderFinish(copyEncoder, 0) as number;
+		const copyCmdArray = makeCommandBufferArray(copyCmd);
+		native.symbols.wgpuQueueSubmit(renderer.queue, 1, copyCmdArray.ptr);
+		native.symbols.wgpuCommandBufferRelease(copyCmd);
+		native.symbols.wgpuCommandEncoderRelease(copyEncoder);
+
+		const padded = new Uint8Array(readbackSize);
+		const job = WGPUBridge.bufferReadbackBegin(
+			readback as any,
+			0n,
+			BigInt(readbackSize),
+			ptr(padded.buffer) as any,
+		);
+		if (!job) throw new Error("bufferReadbackBegin returned null");
+		let done = false;
+		try {
+			for (let i = 0; i < READBACK_POLL_ITERATIONS; i++) {
+				native.symbols.wgpuInstanceProcessEvents(renderer.instance);
+				const status = WGPUBridge.bufferReadbackStatus(job as any);
+				if (status > 0) { done = true; break; }
+				if (status < 0) throw new Error(`bufferReadbackStatus = ${status}`);
+				await Bun.sleep(2);
+			}
+		} finally {
+			WGPUBridge.bufferReadbackFree(job as any);
+		}
+		if (!done) throw new Error("buffer readback timed out");
+
+		return stripPaddingToRgba(padded, width, height, bytesPerRow);
+	} finally {
+		native.symbols.wgpuBufferRelease(readback);
+	}
+}
+
+/**
+ * Read back the contents of `srcTex` and encode as a PNG file.
+ */
+async function readbackAndWritePng(
+	renderer: { instance: number; device: number; queue: number },
+	srcTex: number,
+	width: number,
+	height: number,
+	outPath: string,
+): Promise<void> {
+	const rgba = await readbackToRgba(renderer, srcTex, width, height);
+	const png = encodeRgbaPng(rgba, width, height);
+	writeFileSync(outPath, png);
+}
+
+/**
+ * Build the output path for a mid-render capture frame.
+ * `/tmp/foo.png` + frame 30 → `/tmp/foo_frame30.png`
+ */
+function captureFramePath(basePath: string, frameIdx: number): string {
+	const dot = basePath.lastIndexOf(".");
+	if (dot === -1) return `${basePath}_frame${frameIdx}`;
+	return `${basePath.slice(0, dot)}_frame${frameIdx}${basePath.slice(dot)}`;
 }
 
 /**

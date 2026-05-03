@@ -118,6 +118,68 @@ describeIfRunning("packs/render", () => {
 			throw new Error(`${failures.length}/${packs.length} packs failed:\n  ${failures.join("\n  ")}`);
 		}
 	}, 120_000);
+
+	test("renders every built-in pack to an animated WebP", async () => {
+		const bundleDir = findBundleNativeDir();
+		if (!bundleDir) {
+			throw new Error(
+				"no electrobun bundle found; run `bunx electrobun dev` (macOS) or " +
+				"`bunx electrobun build --env=canary` (Linux) first, or set " +
+				"VIZ_BUNDLE_NATIVE_DIR.",
+			);
+		}
+		process.chdir(bundleDir);
+
+		const { loadPacksFromDir } = await import("../bun/packs/loader");
+		const { renderPackToWebP } = await import("../bun/packs/headless-render");
+		const { instantiateWasmPack } = await import("../bun/packs/runtime");
+		const { parameterFloatCount } = await import("../bun/packs/parameters");
+
+		mkdirSync(SNAPSHOTS_DIR, { recursive: true });
+
+		const packs = loadPacksFromDir(PACKS_DIR, "builtin");
+		expect(packs.length).toBeGreaterThan(0);
+
+		const failures: string[] = [];
+		for (const pack of packs) {
+			const slug = pack.path.split("/").pop()!;
+			const outPath = resolve(SNAPSHOTS_DIR, `${slug}.webp`);
+			if (existsSync(outPath)) rmSync(outPath);
+
+			if (pack.wasmBytes && !pack.wasmRuntime) {
+				pack.wasmRuntime = await instantiateWasmPack({
+					packId: pack.id,
+					bytes: pack.wasmBytes,
+					parameterCount: parameterFloatCount(pack.parameters),
+				});
+			}
+
+			try {
+				await renderPackToWebP({
+					pack,
+					width: RENDER_W,
+					height: RENDER_H,
+					frames: RENDER_FRAMES,
+					webpFrames: 15,
+					duration: 100,
+					outPath,
+				});
+			} catch (err) {
+				failures.push(`${slug}: WebP render threw: ${(err as Error).message}`);
+				if (pack.wasmRuntime) pack.wasmRuntime.dispose();
+				continue;
+			}
+
+			const reason = inspectWebP(outPath);
+			if (reason) failures.push(`${slug}: ${reason}`);
+
+			if (pack.wasmRuntime) pack.wasmRuntime.dispose();
+		}
+
+		if (failures.length > 0) {
+			throw new Error(`${failures.length}/${packs.length} WebP renders failed:\n  ${failures.join("\n  ")}`);
+		}
+	}, 180_000);
 });
 
 if (!SHOULD_RUN) {
@@ -152,6 +214,19 @@ function inspectPng(path: string, expectedW: number, expectedH: number): string 
 	if (idatLen < MIN_IDAT_BYTES) {
 		return `IDAT only ${idatLen} bytes (< ${MIN_IDAT_BYTES} threshold) — pack likely drew a uniform frame`;
 	}
+	return null;
+}
+
+/** Returns null if the WebP passes basic smoke checks, otherwise a reason string. */
+function inspectWebP(path: string): string | null {
+	const bytes = readFileSync(path);
+	if (bytes.length < 12) return "WebP too short";
+	// RIFF....WEBP header
+	const riff = String.fromCharCode(bytes[0]!, bytes[1]!, bytes[2]!, bytes[3]!);
+	const webp = String.fromCharCode(bytes[8]!, bytes[9]!, bytes[10]!, bytes[11]!);
+	if (riff !== "RIFF" || webp !== "WEBP") return `not a WebP (header: ${riff}...${webp})`;
+	// Minimum size — an animated WebP at 320x240 with any content should be > 1KB
+	if (bytes.length < 1000) return `WebP suspiciously small (${bytes.length} bytes)`;
 	return null;
 }
 
