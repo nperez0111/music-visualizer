@@ -74,6 +74,13 @@ jobs:
       - name: bun install
         run: bun install --frozen-lockfile
 
+      - name: Build Tier 2 (WASM) pack artifacts
+        # Tier 2 packs ship `pack.ts` but the compiled `pack.wasm` is gitignored
+        # (`build-packs.ts` produces it via AssemblyScript). Without this step
+        # those packs fall back to Tier 1 and render uniform-color frames,
+        # tripping the render-test's IDAT-size assertion.
+        run: bun run build:packs
+
       - name: Fetch electrobun's Linux runtime libs
         # We don't actually use the build output (it's a self-extracting
         # installer that's the wrong shape for direct invocation). The build
