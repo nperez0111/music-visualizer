@@ -475,7 +475,7 @@ ${cards}
 	<p class="footer-text">
 		generated ${escapeHtml(generatedAt)}
 		&middot;
-		<a href="https://github.com/nicholasgasior/music-visualizer">github</a>
+		<a href="https://github.com/nperez0111/music-visualizer">github</a>
 	</p>
 </footer>
 
