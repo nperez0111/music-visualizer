@@ -366,6 +366,96 @@ The host logs `[packs] hot-reloaded "<id>" (...)` on success or warns
 if revalidation fails (the previous version stays loaded). This watcher
 only runs against the source tree, not against bundled `.app` builds.
 
+## Step 6 — visual verification loop (headless screenshots)
+
+After the pack scaffolding is complete, use the **screenshot-debug**
+skill to take headless screengrabs and verify the output matches
+expectations. This gives you a feedback loop without needing to launch
+the full app.
+
+### Basic check
+
+Render a quick screenshot with defaults and inspect it:
+
+```bash
+bun scripts/render-pack-debug.ts <slug> --width 640 --height 480 --frames 60
+open /tmp/<slug>.png   # macOS
+```
+
+Look at the output. If the image is black, solid-color, or clearly
+wrong, iterate on the shader and re-render.
+
+### Iterate on the shader
+
+Repeat this loop until the visual looks right:
+
+1. Edit `shader.wgsl` (or extra-pass shaders)
+2. Re-render: `bun scripts/render-pack-debug.ts <slug> --width 640 --height 480 --frames 60`
+3. Inspect the output PNG
+4. If wrong, go back to step 1
+
+### Check parameter behavior
+
+Verify that each parameter actually changes the output:
+
+```bash
+# Render with default params
+bun scripts/render-pack-debug.ts <slug> --out /tmp/<slug>-default.png
+
+# Render with a parameter cranked to its extreme
+bun scripts/render-pack-debug.ts <slug> --param speed=4.0 --out /tmp/<slug>-fast.png
+bun scripts/render-pack-debug.ts <slug> --param speed=0.1 --out /tmp/<slug>-slow.png
+```
+
+If a parameter doesn't visibly change the output, the shader isn't
+wired up correctly — fix the WGSL binding.
+
+### Check temporal evolution
+
+Use `--capture-frames` or `--time` to verify the visual changes over
+time (not frozen):
+
+```bash
+bun scripts/render-pack-debug.ts <slug> --capture-frames 0,30,60,90,119
+```
+
+Compare the captured frames — they should look different from each
+other. If they're identical, the shader likely isn't using `time_ms`
+or audio features.
+
+### Check audio reactivity
+
+Override audio features to verify the shader responds:
+
+```bash
+# High bass
+bun scripts/render-pack-debug.ts <slug> --audio bass=1.0 --audio rms=0.9 --out /tmp/<slug>-loud.png
+
+# Silent
+bun scripts/render-pack-debug.ts <slug> --audio rms=0 --audio bass=0 --audio mid=0 --audio treble=0 --out /tmp/<slug>-silent.png
+```
+
+The loud vs silent renders should look noticeably different.
+
+### Check presets
+
+If the pack has presets, verify each one renders distinctly:
+
+```bash
+bun scripts/render-pack-debug.ts <slug> --preset Calm --out /tmp/<slug>-calm.png
+bun scripts/render-pack-debug.ts <slug> --preset Wild --out /tmp/<slug>-wild.png
+```
+
+### Summary checklist
+
+Before declaring the pack done, confirm:
+- [ ] Default render produces a non-trivial visual (not black/solid)
+- [ ] Each parameter visibly affects the output
+- [ ] The visual changes over time (temporal evolution)
+- [ ] Audio features (especially bass/rms) visibly affect the output
+- [ ] Presets (if any) produce distinct looks
+- [ ] No shader compilation errors in the output
+
 ## What NOT to do
 
 - Don't use vertex buffers — the standard pipeline draws a single
