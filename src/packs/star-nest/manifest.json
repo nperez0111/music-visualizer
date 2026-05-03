@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "name": "Star Nest",
+  "version": "1.0.0",
+  "author": "Pablo Roman Andrioli (Kali)",
+  "description": "Volumetric kaliset fractal - deep-space flight through star clusters. Original shader by Pablo Roman Andrioli, MIT License. https://www.shadertoy.com/view/XlfGRj",
+  "tags": ["glsl", "fractal", "volumetric", "space", "stars"],
+  "shader": "shader.glsl",
+  "audio": {
+    "features": ["rms", "bass", "mid", "treble", "beat_phase", "peak"]
+  }
+}

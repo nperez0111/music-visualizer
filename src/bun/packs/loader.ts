@@ -8,6 +8,7 @@ import type {
 } from "../../shared/rpc-types";
 import { findBuiltinPacksDir } from "../paths";
 import { computePackHashFromDir } from "./hash";
+import { transpileGlslToWgsl } from "./glsl-transpile";
 
 export type { PackParameter, PackPreset, ParamValue, ParamValueMap };
 export { findBuiltinPacksDir };
@@ -177,8 +178,8 @@ export function validateManifest(raw: unknown): { ok: true; m: PackManifest } | 
 	if (m.schemaVersion !== 1) return { ok: false, err: `schemaVersion must be 1 (got ${m.schemaVersion})` };
 	if (typeof m.name !== "string" || !m.name) return { ok: false, err: "name required" };
 	if (typeof m.version !== "string" || !m.version) return { ok: false, err: "version required" };
-	if (typeof m.shader !== "string" || !(m.shader as string).endsWith(".wgsl"))
-		return { ok: false, err: "shader must point to a .wgsl file" };
+	if (typeof m.shader !== "string" || (!(m.shader as string).endsWith(".wgsl") && !(m.shader as string).endsWith(".glsl")))
+		return { ok: false, err: "shader must point to a .wgsl or .glsl file" };
 	if (m.wasm !== undefined && (typeof m.wasm !== "string" || !(m.wasm as string).endsWith(".wasm")))
 		return { ok: false, err: "wasm must point to a .wasm file" };
 	if (m.author !== undefined && typeof m.author !== "string")
@@ -231,8 +232,8 @@ export function validateManifest(raw: unknown): { ok: true; m: PackManifest } | 
 			const raw = m.passes[i] as Record<string, unknown> | null;
 			if (!raw || typeof raw !== "object")
 				return { ok: false, err: `passes[${i}] not an object` };
-			if (typeof raw.shader !== "string" || !raw.shader.endsWith(".wgsl"))
-				return { ok: false, err: `passes[${i}].shader must point to a .wgsl file` };
+			if (typeof raw.shader !== "string" || (!raw.shader.endsWith(".wgsl") && !raw.shader.endsWith(".glsl")))
+				return { ok: false, err: `passes[${i}].shader must point to a .wgsl or .glsl file` };
 			validatedPasses.push({ shader: raw.shader });
 		}
 		out.passes = validatedPasses;
@@ -295,7 +296,17 @@ export function loadPacksFromDir(dir: string, source: "builtin" | "user"): Pack[
 				console.warn(`[packs] skipping ${entry.name}: shader file missing (${v.m.shader})`);
 				continue;
 			}
-			const shaderText = readFileSync(shaderPath, "utf8");
+			let shaderText = readFileSync(shaderPath, "utf8");
+			if (shaderPath.endsWith(".glsl")) {
+				const tr = transpileGlslToWgsl(shaderText, {
+					parameters: v.m.parameters,
+				});
+				if (!tr.ok) {
+					console.warn(`[packs] skipping ${entry.name}: GLSL transpilation failed (${tr.stage}): ${tr.error}`);
+					continue;
+				}
+				shaderText = tr.wgsl;
+			}
 			const extraPasses: Array<{ shaderText: string }> = [];
 			let extraPassFailed = false;
 			for (const pass of v.m.passes ?? []) {
@@ -305,7 +316,20 @@ export function loadPacksFromDir(dir: string, source: "builtin" | "user"): Pack[
 					extraPassFailed = true;
 					break;
 				}
-				extraPasses.push({ shaderText: readFileSync(pPath, "utf8") });
+				let passText = readFileSync(pPath, "utf8");
+				if (pPath.endsWith(".glsl")) {
+					const tr = transpileGlslToWgsl(passText, {
+						parameters: v.m.parameters,
+						interPass: true,
+					});
+					if (!tr.ok) {
+						console.warn(`[packs] skipping ${entry.name}: GLSL transpilation failed for pass ${pass.shader} (${tr.stage}): ${tr.error}`);
+						extraPassFailed = true;
+						break;
+					}
+					passText = tr.wgsl;
+				}
+				extraPasses.push({ shaderText: passText });
 			}
 			if (extraPassFailed) continue;
 			let wasmBytes: Uint8Array | undefined;

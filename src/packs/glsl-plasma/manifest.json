@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "name": "GLSL Plasma",
+  "version": "1.0.0",
+  "author": "Cat Nip",
+  "description": "Classic plasma effect written in GLSL (Shadertoy convention). Demonstrates the GLSL-to-WGSL transpilation pipeline.",
+  "tags": ["glsl", "plasma", "colorful"],
+  "shader": "shader.glsl",
+  "audio": {
+    "features": ["bass", "mid", "treble", "beat_phase"]
+  }
+}

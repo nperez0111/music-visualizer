@@ -103,6 +103,7 @@ src/
 └── packs/                    # built-in packs
     ├── gradient/{manifest.json, shader.wgsl}
     ├── plasma/{manifest.json, shader.wgsl}
+    ├── glsl-plasma/{manifest.json, shader.glsl}   # GLSL (Shadertoy convention)
     └── wasm-color/{manifest.json, shader.wgsl, pack.ts, pack.wasm}
 ```
 
@@ -118,9 +119,11 @@ capabilities (typically `BGRA8Unorm` on macOS).
 ### Pipeline cache (`gpu/pipeline.ts`)
 
 Each pack's WGSL is compiled into its own pipeline (one shader module +
-render pipeline + bind group). All packs share a single 512-byte uniform
-buffer; their bind groups bind that buffer at `@group(0) @binding(0)`.
-Pipelines are cached by pack id.
+render pipeline + bind group). GLSL packs (`.glsl` extension in manifest)
+are automatically transpiled to WGSL at load time via the GLSL
+preprocessing + Naga CLI pipeline (see "GLSL transpilation" below). All
+packs share a single 512-byte uniform buffer; their bind groups bind that
+buffer at `@group(0) @binding(0)`. Pipelines are cached by pack id.
 
 ### A/B render targets and composite (`gpu/transition.ts`)
 
@@ -260,6 +263,42 @@ my-pack/
 "Uniform buffer layout" above) and exports `vs_main` (vertex) + `fs_main`
 (fragment). The vertex shader uses `@builtin(vertex_index)` to emit a
 fullscreen triangle from no vertex buffer.
+
+#### GLSL variant (Shadertoy convention)
+
+Tier 1 packs can alternatively use a `.glsl` shader:
+
+```
+my-pack/
+├── manifest.json    # "shader": "shader.glsl"
+└── shader.glsl      # Shadertoy mainImage convention
+```
+
+GLSL shaders use the Shadertoy entry point
+`void mainImage(out vec4 fragColor, in vec2 fragCoord)` and are
+automatically transpiled to WGSL at load time via:
+
+1. **Preprocessing** (`src/bun/packs/glsl-preprocess.ts`): injects
+   `#version 450`, a uniform block with explicit `layout` bindings
+   matching the Cat Nip buffer layout, Shadertoy compatibility aliases
+   (`iTime`, `iResolution`, `iTimeDelta`), and wraps `mainImage` into
+   `void main()`. Also fixes `mat2(a,b,c,d)` scalar constructors.
+2. **Naga CLI** (`naga input.frag.glsl output.wgsl`): translates GLSL 450
+   to WGSL. Binary resolved by `findNagaBinary()` in `src/bun/paths.ts`.
+3. **Post-processing**: renames entry points to `vs_main`/`fs_main`,
+   renames the uniform variable to `u`, prepends the fullscreen triangle
+   vertex shader.
+
+Cat Nip audio uniforms (`bass`, `mid`, `treble`, `rms`, `peak`, `bpm`,
+`beat_phase`, `spectrum`) are available directly as bare names in GLSL
+alongside the Shadertoy aliases. This is the **recommended format for
+LLM-authored packs** due to vastly more GLSL training data.
+
+The preprocessor auto-injects `@group(1)` parameter blocks (when the
+manifest declares `parameters`), `@group(2)` prev-frame bindings (when
+the shader references `prev_tex`/`prev_sampler`), and `@group(3)`
+inter-pass bindings for multi-pass chains. The only limitation is that
+GLSL packs cannot be Tier 2 (no WASM custom uniforms).
 
 ### Tier 2 — adds WASM
 

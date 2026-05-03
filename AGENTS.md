@@ -31,7 +31,9 @@ Read [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design. Keep both 
 | **DB / preferences** | `src/bun/db/index.ts` |
 | **Path resolution** | `src/bun/paths.ts` |
 | **Controls UI** | `src/mainview/index.html`, `index.css`, `index.ts` |
-| **Built-in packs** | `src/packs/<name>/manifest.json` + `shader.wgsl` |
+| **Built-in packs** | `src/packs/<name>/manifest.json` + `shader.wgsl` (or `shader.glsl`) |
+| **GLSL preprocessor** | `src/bun/packs/glsl-preprocess.ts` |
+| **GLSL→WGSL transpiler** | `src/bun/packs/glsl-transpile.ts` |
 | **Build scripts** | `scripts/build-audiocap.ts`, `scripts/build-packs.ts` |
 | **Headless pack render** | `scripts/render-pack.ts` (CI), `scripts/render-pack-debug.ts` (debug) |
 | **Shader compilation check** | `scripts/check-shader.ts` |
@@ -44,4 +46,6 @@ Read [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design. Keep both 
 - Preferences are stored in SQLite (`bun:sqlite`) as JSON values in a `preferences(key, value)` table.
 - The audiocap binary writes framed PCM to stdout and NDJSON status events to stderr. See ARCHITECTURE.md for wire format.
 - Pack manifests are validated in `src/bun/packs/loader.ts`. Tier 1 = shader only, Tier 2 = shader + WASM.
+- Pack shaders can be `.wgsl` (native) or `.glsl` (Shadertoy convention). GLSL packs are transpiled to WGSL at load/import time via `glsl-preprocess.ts` → `naga` CLI → post-processing. GLSL is recommended for LLM-authored packs due to vastly more training data.
+- The `naga` CLI binary is resolved via `findNagaBinary()` in `src/bun/paths.ts` (checks bundle Resources, `~/.cargo/bin/naga`, then PATH).
 - GPU work uses `bun:ffi` against wgpu-native symbols. Descriptor structs passed by pointer need keepalive arrays to survive GC.

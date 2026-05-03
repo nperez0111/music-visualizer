@@ -4,6 +4,7 @@ import { dirname, join } from "path";
 import { computePackHashFromEntries, isPackHash } from "./hash";
 import { PACK_LIMITS } from "./limits";
 import { validateManifest } from "./loader";
+import { transpileGlslToWgsl } from "./glsl-transpile";
 
 export type ImportResult =
 	| { ok: true; id: string; installPath: string }
@@ -137,6 +138,54 @@ export function importVizFile(sourceFile: string, userPacksDir: string): ImportR
 		const dst = join(installPath, rel);
 		mkdirSync(dirname(dst), { recursive: true });
 		writeFileSync(dst, data);
+	}
+
+	// If the manifest references .glsl shaders, transpile them in-place to .wgsl
+	// and update the manifest so the loader sees only WGSL at runtime.
+	const manifest = v.m;
+	let manifestChanged = false;
+	if (manifest.shader.endsWith(".glsl")) {
+		const glslPath = join(installPath, manifest.shader);
+		if (existsSync(glslPath)) {
+			const glslSrc = readFileSync(glslPath, "utf8").toString();
+			const tr = transpileGlslToWgsl(glslSrc, {
+				parameters: manifest.parameters,
+			});
+			if (!tr.ok) {
+				rmSync(installPath, { recursive: true, force: true });
+				return { ok: false, error: `GLSL transpilation failed (${tr.stage}): ${tr.error}` };
+			}
+			const wgslName = manifest.shader.replace(/\.glsl$/, ".wgsl");
+			writeFileSync(join(installPath, wgslName), tr.wgsl, "utf8");
+			manifest.shader = wgslName;
+			manifestChanged = true;
+		}
+	}
+	if (manifest.passes) {
+		for (let i = 0; i < manifest.passes.length; i++) {
+			const pass = manifest.passes[i]!;
+			if (pass.shader.endsWith(".glsl")) {
+				const glslPath = join(installPath, pass.shader);
+				if (existsSync(glslPath)) {
+					const glslSrc = readFileSync(glslPath, "utf8").toString();
+					const tr = transpileGlslToWgsl(glslSrc, {
+						parameters: manifest.parameters,
+						interPass: true,
+					});
+					if (!tr.ok) {
+						rmSync(installPath, { recursive: true, force: true });
+						return { ok: false, error: `GLSL transpilation of pass ${pass.shader} failed (${tr.stage}): ${tr.error}` };
+					}
+					const wgslName = pass.shader.replace(/\.glsl$/, ".wgsl");
+					writeFileSync(join(installPath, wgslName), tr.wgsl, "utf8");
+					pass.shader = wgslName;
+					manifestChanged = true;
+				}
+			}
+		}
+	}
+	if (manifestChanged) {
+		writeFileSync(join(installPath, "manifest.json"), JSON.stringify(manifest, null, 2), "utf8");
 	}
 
 	return { ok: true, id, installPath };

@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "name": "Mandelbulb (GLSL)",
+  "version": "1.0.0",
+  "author": "Pedro Tonini Rosenberg Schneider",
+  "description": "Ray-marched 3D Mandelbulb fractal with HSV coloring and ambient occlusion. Original shader by Pedro Schneider, MIT License. https://github.com/pedrotrschneider/shader-fractals",
+  "tags": ["glsl", "fractal", "3d", "raymarching", "mandelbulb"],
+  "shader": "shader.glsl",
+  "audio": {
+    "features": ["rms", "bass", "mid", "treble", "beat_phase", "peak"]
+  }
+}

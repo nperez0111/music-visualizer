@@ -39,9 +39,16 @@ describe("validateManifest", () => {
 		expect(r.ok).toBe(true);
 	});
 
-	test("rejects shader that isn't .wgsl", () => {
+	test("accepts .glsl shader extension", () => {
 		const r = validateManifest({ ...minimal, shader: "shader.glsl" });
-		expect(r.ok).toBe(false);
+		expect(r.ok).toBe(true);
+	});
+
+	test("rejects shader that isn't .wgsl or .glsl", () => {
+		expect(validateManifest({ ...minimal, shader: "shader.frag" }).ok).toBe(false);
+		expect(validateManifest({ ...minimal, shader: "shader.hlsl" }).ok).toBe(false);
+		expect(validateManifest({ ...minimal, shader: "shader.txt" }).ok).toBe(false);
+		expect(validateManifest({ ...minimal, shader: 42 }).ok).toBe(false);
 	});
 
 	test("rejects missing name or version", () => {

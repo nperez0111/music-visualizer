@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "name": "Julia Set (GLSL)",
+  "version": "1.0.0",
+  "author": "Pedro Tonini Rosenberg Schneider",
+  "description": "Animated Julia Set fractal with smooth coloring and orbiting c-parameter. Original shader by Pedro Schneider, MIT License. https://github.com/pedrotrschneider/shader-fractals",
+  "tags": ["glsl", "fractal", "2d", "julia", "colorful"],
+  "shader": "shader.glsl",
+  "audio": {
+    "features": ["rms", "bass", "mid", "treble", "beat_phase", "peak"]
+  }
+}

@@ -51,3 +51,29 @@ export function findBuiltinPacksDir(): string | null {
 	for (const c of candidates) if (existsSync(c)) return c;
 	return null;
 }
+
+/**
+ * Resolve the naga-cli binary for GLSL → WGSL transpilation.
+ * Production: bundled next to the app resources.
+ * Dev: cargo-installed in ~/.cargo/bin or on PATH.
+ */
+export function findNagaBinary(): string | null {
+	const candidates = [
+		resolve(process.cwd(), "..", "Resources", "app", "naga"),
+		resolve(homedir(), ".cargo", "bin", "naga"),
+	];
+	for (const path of candidates) {
+		if (existsSync(path)) return path;
+	}
+	// Fall back to PATH lookup — check if `naga` is accessible
+	try {
+		const { spawnSync } = require("child_process");
+		const result = spawnSync("which", ["naga"], { encoding: "utf8", timeout: 2000 });
+		if (result.status === 0 && result.stdout.trim()) {
+			return result.stdout.trim();
+		}
+	} catch {
+		// Ignore
+	}
+	return null;
+}
