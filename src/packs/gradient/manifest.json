@@ -5,6 +5,7 @@
 	"version": "1.0.0",
 	"author": "music-visualizer",
 	"description": "Concentric rings + radial swirl. Bass drives ring frequency, mid biases the swirl, beats flash brighter.",
+	"tags": ["geometric", "colorful", "minimal"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{

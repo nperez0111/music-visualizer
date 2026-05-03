@@ -5,6 +5,7 @@
 	"version": "1.0.0",
 	"author": "music-visualizer",
 	"description": "Tier 2. WASM Verlet particles spawned on beats. Treble blows them sideways, gravity pulls them back.",
+	"tags": ["particle", "colorful", "generative"],
 	"shader": "shader.wgsl",
 	"wasm": "pack.wasm"
 }

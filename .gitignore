@@ -20,6 +20,9 @@ tests/snapshots/
 # Bind-mount target for `docker run -v $PWD/docker-out:/out music-visualizer-headless ...`
 docker-out/
 
+# Gallery build output (produced by `bun run build:gallery`)
+site/
+
 # Local agent state
 .claude/settings.local.json
 .opencode/

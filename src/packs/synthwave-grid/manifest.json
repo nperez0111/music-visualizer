@@ -5,6 +5,7 @@
 	"version": "0.1.0",
 	"author": "music-visualizer",
 	"description": "Outrun perspective grid + neon sun with horizontal cut bars. Bass drives sun glow, mid speeds the grid scroll, treble brightens lines.",
+	"tags": ["retro", "3d", "colorful"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{

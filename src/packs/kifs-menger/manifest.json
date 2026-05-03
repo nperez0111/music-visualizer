@@ -5,6 +5,7 @@
 	"version": "0.1.0",
 	"author": "music-visualizer",
 	"description": "3D Menger-sponge KIFS: abs-fold + rotate + scale, ray-marched. Mid drives the fold rotation, bass orbits the camera, beats flash the surface.",
+	"tags": ["fractal", "3d", "dark"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{

@@ -5,6 +5,7 @@
 	"version": "1.1.0",
 	"author": "music-visualizer",
 	"description": "3D folding-space fractal raymarched live. Bass swells the fold scale, mid drives palette, beats flash.",
+	"tags": ["fractal", "3d", "dark"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{

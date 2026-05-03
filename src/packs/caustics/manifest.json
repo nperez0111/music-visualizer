@@ -5,6 +5,7 @@
 	"version": "0.1.0",
 	"author": "music-visualizer",
 	"description": "Iterative caustic shimmer (port of the classic Shadertoy MdlXz8). Treble drives shimmer speed, bass deepens contrast.",
+	"tags": ["fluid", "nature", "colorful"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{

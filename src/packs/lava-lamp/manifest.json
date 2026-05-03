@@ -5,6 +5,7 @@
 	"version": "1.1.0",
 	"author": "music-visualizer",
 	"description": "Eight metaball blobs floating in warm goo. Bass swells the blobs, beats pinch them apart and back together.",
+	"tags": ["fluid", "retro", "colorful"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{

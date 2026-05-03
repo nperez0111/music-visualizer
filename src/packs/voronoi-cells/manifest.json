@@ -5,6 +5,7 @@
 	"version": "0.1.0",
 	"author": "music-visualizer",
 	"description": "Worley cellular noise. Bass jitters cell points; treble glows the edges; mid scrolls the field.",
+	"tags": ["geometric", "generative", "colorful"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{

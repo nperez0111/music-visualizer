@@ -5,6 +5,7 @@
 	"version": "1.1.0",
 	"author": "music-visualizer",
 	"description": "Branching electric bolts that fire on each beat and decay between them. Bass hits forge brighter strikes.",
+	"tags": ["nature", "dark", "particle"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{

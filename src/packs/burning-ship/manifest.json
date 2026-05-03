@@ -5,6 +5,7 @@
 	"version": "0.1.0",
 	"author": "music-visualizer",
 	"description": "Escape-time Burning Ship fractal — abs-fold gives ship/antenna structures and harsh diagonal flames. Bass contracts the camera, beats flash the boundary.",
+	"tags": ["fractal", "dark", "generative"],
 	"shader": "shader.wgsl",
 	"parameters": [
 		{
