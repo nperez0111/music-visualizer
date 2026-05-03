@@ -1,5 +1,7 @@
 import { WGPU, WGPUBridge, type GpuWindow } from "electrobun/bun";
-import { FFIType, JSCallback, ptr, toArrayBuffer } from "bun:ffi";
+import { dlopen, FFIType, JSCallback, ptr, toArrayBuffer } from "bun:ffi";
+import { existsSync } from "fs";
+import { join } from "path";
 import {
 	makeRequestCallbackInfo,
 	makeSurfaceConfiguration,
@@ -132,8 +134,59 @@ export function createHeadlessRenderer(opts: { width: number; height: number }):
 
 const ASYNC_POLL_MAX_ITERATIONS = 5_000;
 
+/**
+ * On x86_64 Linux, `wgpuInstanceRequestAdapter` / `wgpuAdapterRequestDevice`
+ * pass their 40-byte `WGPUCallbackInfo` argument by value — which under SysV
+ * means the caller writes the bytes onto the stack at the call site. bun:ffi
+ * has no way to express that, so we route those two calls through a tiny
+ * `libheadlessshim.so` we compile in the Docker build / CI step. The shim
+ * takes the callback info by pointer; the C compiler emits the right
+ * by-value sequence for whichever ABI it was built for.
+ *
+ * On macOS / Linux ARM64 we don't need the shim — AAPCS64 passes large
+ * aggregates via an implicit indirect pointer, which bun:ffi *can* express
+ * as a regular `ptr` arg. If the shim isn't present, fall back to the
+ * direct call.
+ */
+type RequestShim = {
+	requestAdapter(instance: number, cbInfoPtr: number): bigint;
+	requestDevice(adapter: number, cbInfoPtr: number): bigint;
+};
+
+let cachedShim: RequestShim | null | undefined = undefined;
+
+function loadRequestShim(): RequestShim | null {
+	if (cachedShim !== undefined) return cachedShim;
+	const candidates: string[] = [];
+	const env = process.env.VIZ_HEADLESS_SHIM;
+	if (env) candidates.push(env);
+	const bundleDir = process.env.VIZ_BUNDLE_NATIVE_DIR;
+	if (bundleDir) candidates.push(join(bundleDir, "libheadlessshim.so"));
+	for (const path of candidates) {
+		if (!existsSync(path)) continue;
+		try {
+			const lib = dlopen(path, {
+				headlessShimRequestAdapter: { args: [FFIType.ptr, FFIType.ptr, FFIType.ptr], returns: FFIType.u64 },
+				headlessShimRequestDevice: { args: [FFIType.ptr, FFIType.ptr, FFIType.ptr], returns: FFIType.u64 },
+			});
+			cachedShim = {
+				requestAdapter: (instance, cbInfoPtr) =>
+					lib.symbols.headlessShimRequestAdapter(instance as any, 0 as any, cbInfoPtr as any) as bigint,
+				requestDevice: (adapter, cbInfoPtr) =>
+					lib.symbols.headlessShimRequestDevice(adapter as any, 0 as any, cbInfoPtr as any) as bigint,
+			};
+			return cachedShim;
+		} catch (err) {
+			console.warn(`[headless] failed to load ${path}:`, (err as Error).message);
+		}
+	}
+	cachedShim = null;
+	return null;
+}
+
 function requestAdapterSync(instance: number): number {
 	const native = WGPU.native;
+	const shim = loadRequestShim();
 	let result = 0;
 	let done = false;
 	const cb = new JSCallback(
@@ -150,7 +203,8 @@ function requestAdapterSync(instance: number): number {
 	);
 	try {
 		const cbInfo = makeRequestCallbackInfo(Number(cb.ptr));
-		native.symbols.wgpuInstanceRequestAdapter(instance, 0, cbInfo.ptr);
+		if (shim) shim.requestAdapter(instance, cbInfo.ptr);
+		else native.symbols.wgpuInstanceRequestAdapter(instance, 0, cbInfo.ptr);
 		for (let i = 0; i < ASYNC_POLL_MAX_ITERATIONS && !done; i++) {
 			native.symbols.wgpuInstanceProcessEvents(instance);
 		}
@@ -163,6 +217,7 @@ function requestAdapterSync(instance: number): number {
 
 function requestDeviceSync(instance: number, adapter: number): number {
 	const native = WGPU.native;
+	const shim = loadRequestShim();
 	let result = 0;
 	let done = false;
 	const cb = new JSCallback(
@@ -177,7 +232,8 @@ function requestDeviceSync(instance: number, adapter: number): number {
 	);
 	try {
 		const cbInfo = makeRequestCallbackInfo(Number(cb.ptr));
-		native.symbols.wgpuAdapterRequestDevice(adapter, 0, cbInfo.ptr);
+		if (shim) shim.requestDevice(adapter, cbInfo.ptr);
+		else native.symbols.wgpuAdapterRequestDevice(adapter, 0, cbInfo.ptr);
 		for (let i = 0; i < ASYNC_POLL_MAX_ITERATIONS && !done; i++) {
 			native.symbols.wgpuInstanceProcessEvents(instance);
 		}

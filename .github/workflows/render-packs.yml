@@ -46,10 +46,11 @@ jobs:
         with:
           bun-version: 1.3.13
 
-      - name: Install Mesa lavapipe + GTK/WebKit runtime deps
+      - name: Install Mesa lavapipe + GTK/WebKit runtime deps + compiler
         # libNativeWrapper.so is electrobun's GTK-only flavor, so even though
         # we never instantiate any windows or web views, the dynamic loader
         # eagerly resolves DT_NEEDED entries for GTK + WebKit at dlopen time.
+        # gcc is needed to compile the wgpu by-value-CallbackInfo shim.
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends \
@@ -58,7 +59,8 @@ jobs:
             libjavascriptcoregtk-4.1-0 libayatana-appindicator3-1 \
             libxkbcommon0 libgl1 libegl1 \
             libwayland-client0 libwayland-server0 \
-            libxcb1 libx11-6 libxext6
+            libxcb1 libx11-6 libxext6 \
+            gcc libc6-dev
 
       - name: Stub the macOS-only audiocap binary
         # `electrobun.config.ts` declares `src/native/audiocap/audiocap` as a
@@ -81,6 +83,21 @@ jobs:
         run: |
           bunx electrobun build --env=canary
           rm -rf build
+
+      - name: Compile the wgpu by-value-CallbackInfo shim
+        # See scripts/headless-shim.c for the full story. Short version: x86_64
+        # SysV passes 40-byte by-value structs in memory rather than via an
+        # implicit indirect pointer, which bun:ffi can't model. We wrap those
+        # two wgpu calls in a tiny pointer-based shim that the C compiler emits
+        # the right ABI sequence for.
+        run: |
+          DIST=node_modules/electrobun/dist-linux-x64
+          gcc -shared -fPIC -O2 \
+            -o "$DIST/libheadlessshim.so" \
+            scripts/headless-shim.c \
+            -L"$DIST" -lwebgpu_dawn \
+            -Wl,-rpath,'$ORIGIN'
+          ls -la "$DIST/libheadlessshim.so"
 
       - name: Shim Resources/version.json
         # electrobun's BrowserView import does

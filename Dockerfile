@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 		libwayland-client0 libwayland-server0 \
 		libxcb1 libx11-6 libxext6 \
 		ca-certificates \
+		gcc libc6-dev \
 	&& rm -rf /var/lib/apt/lists/*
 
 # Force Vulkan to use lavapipe (Mesa's CPU rasterizer). The container has no
@@ -57,6 +58,17 @@ RUN bun install --frozen-lockfile
 # produces a self-extracting installer that's the wrong shape for direct use —
 # so we discard it and run from `node_modules/electrobun/dist-linux-*` instead.
 RUN bunx electrobun build --env=canary && rm -rf build
+
+# Compile the by-pointer shim around wgpu's by-value-CallbackInfo APIs (see
+# scripts/headless-shim.c for the why). On x86_64 SysV the `WGPUCallbackInfo`
+# is passed in memory rather than via implicit indirect pointer, which bun:ffi
+# can't model.
+RUN DIST=$(ls -d node_modules/electrobun/dist-linux-* | head -1) && \
+	gcc -shared -fPIC -O2 \
+		-o "$DIST/libheadlessshim.so" \
+		scripts/headless-shim.c \
+		-L"$DIST" -lwebgpu_dawn \
+		-Wl,-rpath,'$ORIGIN'
 
 # Shim ../Resources/version.json relative to the dist dir. electrobun's
 # BrowserView import does `Bun.file('../Resources/version.json').json()` at
