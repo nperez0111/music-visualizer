@@ -36,6 +36,12 @@ export type PackInfo = {
 	parameters: PackParameter[];
 	parameterValues: ParamValueMap;
 	presets: PackPreset[];
+	/**
+	 * True when the pack's WASM runtime tripped its frame-deadline watchdog
+	 * (or otherwise self-terminated) and the pack is no longer producing
+	 * uniforms. UI should render the pack as disabled.
+	 */
+	runtimeBroken?: boolean;
 };
 
 export type AutoSettings = { enabled: boolean; seconds: number; shuffle: boolean };

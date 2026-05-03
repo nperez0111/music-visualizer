@@ -21,6 +21,10 @@ export default {
 			"src/mainview/index.css": "views/mainview/index.css",
 			"src/native/audiocap/audiocap": "audiocap",
 			"src/packs": "packs",
+			// `bun build` keeps the literal `new URL("./runtime-worker.ts", ...)`
+			// reference, so the worker source must sit next to the bundled bun
+			// entry (Resources/app/bun/index.js) at runtime.
+			"src/bun/packs/runtime-worker.ts": "bun/runtime-worker.ts",
 		},
 		watchIgnore: [
 			"src/native/audiocap/**",

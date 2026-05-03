@@ -143,7 +143,9 @@ function populatePacks(packs: PackInfo[], activeId: string) {
 	for (const p of packs) {
 		const opt = document.createElement("option");
 		opt.value = p.id;
-		opt.textContent = `${p.name}${p.source === "user" ? " ★" : ""}`;
+		const badge = p.runtimeBroken ? " ⚠ broken" : (p.source === "user" ? " ★" : "");
+		opt.textContent = `${p.name}${badge}`;
+		if (p.runtimeBroken) opt.disabled = true;
 		if (p.id === activeId) opt.selected = true;
 		packSelect.appendChild(opt);
 	}
