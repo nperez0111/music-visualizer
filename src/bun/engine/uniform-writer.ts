@@ -1,5 +1,5 @@
 import { ptr } from "bun:ffi";
-import { WGPU } from "electrobun/bun";
+import { WGPU } from "../gpu/electrobun-gpu";
 import type { AudioFeatures } from "../audio/analysis";
 import type { Pack } from "../packs/loader";
 import {

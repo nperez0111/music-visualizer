@@ -1,4 +1,4 @@
-import { WGPU, WGPUBridge, type GpuWindow } from "electrobun/bun";
+import { WGPU, WGPUBridge, type GpuWindow } from "./electrobun-gpu";
 import { dlopen, FFIType, JSCallback, ptr, toArrayBuffer } from "bun:ffi";
 import { existsSync } from "fs";
 import { join } from "path";

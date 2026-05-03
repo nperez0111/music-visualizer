@@ -33,6 +33,7 @@ Read [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design. Keep both 
 | **Controls UI** | `src/mainview/index.html`, `index.css`, `index.ts` |
 | **Built-in packs** | `src/packs/<name>/manifest.json` + `shader.wgsl` |
 | **Build scripts** | `scripts/build-audiocap.ts`, `scripts/build-packs.ts` |
+| **Headless pack render** | `scripts/render-pack.ts` (CI), `scripts/render-pack-debug.ts` (debug) |
 | **Roadmap** | `FUTURE.md` |
 
 ## Conventions

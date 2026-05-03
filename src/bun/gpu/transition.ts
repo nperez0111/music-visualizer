@@ -1,5 +1,5 @@
 import { CString, ptr } from "bun:ffi";
-import { WGPU } from "electrobun/bun";
+import { WGPU } from "./electrobun-gpu";
 import {
 	BufferUsage_CopyDst,
 	BufferUsage_Uniform,

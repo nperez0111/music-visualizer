@@ -1,4 +1,4 @@
-import { WGPU, WGPUBridge } from "electrobun/bun";
+import { WGPU, WGPUBridge } from "../gpu/electrobun-gpu";
 import {
 	makeCommandBufferArray,
 	makeCommandEncoderDescriptor,
