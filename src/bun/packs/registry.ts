@@ -1,4 +1,4 @@
-import { getPref, setPref } from "../db";
+import { deletePref, getPref, listPrefKeys, setPref } from "../db";
 import { findBuiltinPacksDir, loadAllPacks, type Pack } from "./loader";
 import { instantiateWasmPack } from "./runtime";
 import { removeUserPack } from "./import";
@@ -12,14 +12,20 @@ import {
 } from "./parameters";
 import type { PackInfo } from "../../shared/rpc-types";
 
+const PARAMS_KEY_PREFIX = "pack.params.";
+
 function paramsKey(id: string) {
-	return `pack.params.${id}`;
+	return PARAMS_KEY_PREFIX + id;
 }
 
 /**
  * Owns the in-memory list of installed packs, their per-pack parameter
  * values, and the dev-mode hot-reload watcher. WASM modules are instantiated
  * lazily when packs first appear and carried over across reloads.
+ *
+ * Pack ids are content-addressed (sha256 of the pack record), so editing a
+ * pack's shader during dev produces a new id; the registry matches packs by
+ * directory path during hot-reload to keep the user's selection coherent.
  */
 export class PackRegistry {
 	private packs: Pack[] = [];
@@ -38,7 +44,8 @@ export class PackRegistry {
 		}
 		await reg.instantiateWasmFor(reg.packs);
 		for (const p of reg.packs) reg.ensureParams(p);
-		console.log(`[packs] loaded ${reg.packs.length} pack(s): ${reg.packs.map((p) => p.id).join(", ")}`);
+		reg.cleanupOrphanParams();
+		console.log(`[packs] loaded ${reg.packs.length} pack(s)`);
 		return reg;
 	}
 
@@ -59,6 +66,12 @@ export class PackRegistry {
 
 	byId(id: string): Pack | undefined {
 		return this.packs.find((p) => p.id === id);
+	}
+
+	/** Resolve a pack by manifest name (used to recover an active selection
+	 *  across dev edits that change the content hash). Case-sensitive. */
+	bySlug(name: string): Pack | undefined {
+		return this.packs.find((p) => p.name === name);
 	}
 
 	getParamValues(p: Pack): ParamValueMap {
@@ -106,6 +119,7 @@ export class PackRegistry {
 			parameters: p.parameters,
 			parameterValues: this.ensureParams(p),
 			presets: p.presets,
+			runtimeBroken: p.wasmRuntime?.isBroken() ?? false,
 		};
 	}
 
@@ -121,11 +135,15 @@ export class PackRegistry {
 	async reload(): Promise<Pack[]> {
 		const fresh = loadAllPacks(this.userPacksDir);
 		await this.instantiateWasmFor(fresh);
-		const oldById = new Map(this.packs.map((p) => [p.id, p]));
+		const oldByPath = new Map(this.packs.map((p) => [p.path, p]));
 		for (const p of fresh) {
-			if (!p.wasmRuntime && oldById.get(p.id)?.wasmRuntime) {
-				p.wasmRuntime = oldById.get(p.id)!.wasmRuntime;
-			}
+			const prev = oldByPath.get(p.path);
+			if (!p.wasmRuntime && prev?.wasmRuntime) p.wasmRuntime = prev.wasmRuntime;
+		}
+		// Free param-value maps for ids no longer present.
+		const liveIds = new Set(fresh.map((p) => p.id));
+		for (const id of Array.from(this.paramValues.keys())) {
+			if (!liveIds.has(id)) this.paramValues.delete(id);
 		}
 		this.packs = fresh;
 		for (const p of fresh) this.ensureParams(p);
@@ -138,18 +156,22 @@ export class PackRegistry {
 		if (!target) return { ok: false, reason: "unknown pack" };
 		if (target.source !== "user") return { ok: false, reason: "not a user pack" };
 		removeUserPack(this.userPacksDir, id);
+		// Also drop the persisted params for this pack.
+		try { deletePref(paramsKey(id)); } catch {}
 		return { ok: true };
 	}
 
 	/**
 	 * Wire up dev-mode hot-reload. The provided callback fires for each pack
-	 * that changed (with WASM-changed flag) so the engine can drop pipelines
-	 * and re-run WASM init as needed.
+	 * that changed (with WASM-changed flag and the prior pack id, when known)
+	 * so the engine can drop pipelines and re-run WASM init as needed. The
+	 * `prevId` lets callers fix up stale active-pack pointers when the hash
+	 * rolls.
 	 */
 	watchForDevReload(opts: {
 		onPackUpdated: (
 			fresh: Pack,
-			meta: { wasmChanged: boolean },
+			meta: { wasmChanged: boolean; prevId: string | null },
 		) => void | Promise<void>;
 	}): () => void {
 		const builtinsDir = findBuiltinPacksDir();
@@ -163,10 +185,11 @@ export class PackRegistry {
 					console.warn(`[packs] hot-reload: ${dirName} failed to revalidate; keeping previous version`);
 					return;
 				}
-				const idx = this.packs.findIndex((p) => p.id === fresh.id);
+				// Match by directory path: the pack id rolls on every content
+				// change, but the folder doesn't.
+				const idx = this.packs.findIndex((p) => p.path === fresh.path);
 				if (idx < 0) {
-					// New pack appeared; full reload picks it up and notifies UI.
-					console.log(`[packs] hot-reload: new pack "${fresh.id}", reloading list`);
+					console.log(`[packs] hot-reload: new pack folder "${dirName}", reloading list`);
 					await this.reload();
 					return;
 				}
@@ -176,15 +199,17 @@ export class PackRegistry {
 					fresh.wasmRuntime = old.wasmRuntime;
 				}
 				this.packs[idx] = fresh;
+				if (old.id !== fresh.id) this.paramValues.delete(old.id);
 				this.ensureParams(fresh);
 
 				if (wasmChanged && fresh.wasmBytes) {
+					old.wasmRuntime?.dispose?.();
 					fresh.wasmRuntime = undefined;
 					await this.instantiateWasmFor([fresh]);
 				}
 
-				console.log(`[packs] hot-reloaded "${fresh.id}" (${Array.from(touched).join(", ")})`);
-				await opts.onPackUpdated(fresh, { wasmChanged });
+				console.log(`[packs] hot-reloaded "${dirName}" (${Array.from(touched).join(", ")})`);
+				await opts.onPackUpdated(fresh, { wasmChanged, prevId: old.id });
 				this.notify();
 			},
 		});
@@ -213,6 +238,20 @@ export class PackRegistry {
 		return defaults;
 	}
 
+	private cleanupOrphanParams(): void {
+		const live = new Set(this.packs.map((p) => paramsKey(p.id)));
+		try {
+			const keys = listPrefKeys(PARAMS_KEY_PREFIX);
+			for (const k of keys) {
+				if (!live.has(k)) {
+					deletePref(k);
+				}
+			}
+		} catch (err) {
+			console.warn("[packs] orphan-params cleanup failed:", err);
+		}
+	}
+
 	private async instantiateWasmFor(list: Pack[]): Promise<void> {
 		for (const p of list) {
 			if (!p.wasmBytes || p.wasmRuntime) continue;
@@ -223,10 +262,10 @@ export class PackRegistry {
 					parameterCount: parameterFloatCount(p.parameters),
 				});
 				console.log(
-					`[packs] WASM ready for "${p.id}" (uniform size ${p.wasmRuntime.packUniformSize})`,
+					`[packs] WASM ready for "${p.name}" (uniform size ${p.wasmRuntime.packUniformSize})`,
 				);
 			} catch (err) {
-				console.error(`[packs] WASM init failed for "${p.id}":`, err);
+				console.error(`[packs] WASM init failed for "${p.name}":`, err);
 			}
 		}
 	}

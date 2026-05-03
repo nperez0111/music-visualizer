@@ -13,8 +13,11 @@ unit of visualizer extensibility in this project. See `ARCHITECTURE.md`
 
 Use `AskUserQuestion` to decide:
 
-1. **Pack id and display name** — id is used for the directory name and
-   manifest `id` (lowercase, `[a-z0-9_-]`); name is human-readable.
+1. **Folder slug and display name** — folder slug is the directory name
+   under `src/packs/` (lowercase, `[a-z0-9_-]`, dev-only — the canonical
+   pack id is the SHA-256 of the pack contents and is computed at load
+   time, never written into `manifest.json`); name is the human-readable
+   label shown in the dropdown.
 2. **Tier** — single-select:
    - **Tier 1 (shader-only)** — recommended default. `manifest.json` +
      `shader.wgsl`. Visualizers that depend only on host-provided audio
@@ -46,7 +49,6 @@ The packs directory lives at `<repo>/src/packs/`. Verify it exists with
 ```json
 {
   "schemaVersion": 1,
-  "id": "<id>",
   "name": "<Name>",
   "version": "0.1.0",
   "author": "<author>",
@@ -54,6 +56,10 @@ The packs directory lives at `<repo>/src/packs/`. Verify it exists with
   "shader": "shader.wgsl"
 }
 ```
+
+Do **not** add an `id` field — pack identity is content-addressed
+(SHA-256 of the canonical pack record) and computed by the loader. The
+folder name is just an organizational handle for development.
 
 For Tier 2, add `"wasm": "pack.wasm"`.
 

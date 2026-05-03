@@ -7,22 +7,32 @@ import type {
 	ParamValueMap,
 } from "../../shared/rpc-types";
 import { findBuiltinPacksDir } from "../paths";
+import { computePackHashFromDir } from "./hash";
 
 export type { PackParameter, PackPreset, ParamValue, ParamValueMap };
 export { findBuiltinPacksDir };
 
+export type PackManifestImage = { name: string; file: string };
+export type PackAudioFeatureName =
+	| "rms"
+	| "peak"
+	| "bass"
+	| "mid"
+	| "treble"
+	| "bpm"
+	| "beat_phase";
+
 export type PackManifest = {
 	schemaVersion: number;
-	id: string;
 	name: string;
 	version: string;
 	author?: string;
 	description?: string;
 	shader: string;
 	wasm?: string;
-	audio?: { features?: string[] };
+	audio?: { features?: PackAudioFeatureName[] };
 	parameters?: PackParameter[];
-	images?: Array<Record<string, unknown>>;
+	images?: PackManifestImage[];
 	presets?: PackPreset[];
 	/**
 	 * Optional post-FX chain. Each entry's shader runs after the main pass,
@@ -35,6 +45,7 @@ export type PackManifest = {
 import type { WasmRuntime } from "./runtime";
 
 export type Pack = {
+	/** Content-addressed pack id: lowercase hex SHA-256 of the canonical pack record. */
 	id: string;
 	name: string;
 	version: string;
@@ -58,6 +69,16 @@ export type Pack = {
 };
 
 const PREV_FRAME_GROUP_RE = /@group\s*\(\s*2\s*\)/;
+
+const KNOWN_AUDIO_FEATURES: ReadonlySet<PackAudioFeatureName> = new Set([
+	"rms",
+	"peak",
+	"bass",
+	"mid",
+	"treble",
+	"bpm",
+	"beat_phase",
+]);
 
 function validateParameter(raw: unknown): PackParameter | null {
 	if (typeof raw !== "object" || raw === null) return null;
@@ -109,16 +130,80 @@ function validateParameter(raw: unknown): PackParameter | null {
 	return null;
 }
 
+function validateImages(raw: unknown): PackManifestImage[] | "invalid" {
+	if (!Array.isArray(raw)) return "invalid";
+	const out: PackManifestImage[] = [];
+	const seen = new Set<string>();
+	for (const item of raw) {
+		if (!item || typeof item !== "object") return "invalid";
+		const r = item as Record<string, unknown>;
+		if (typeof r.name !== "string" || !r.name) return "invalid";
+		if (typeof r.file !== "string" || !r.file) return "invalid";
+		// Reject path traversal in declared image filenames.
+		if (r.file.includes("..") || r.file.includes("\\") || r.file.includes("\0") || r.file.startsWith("/")) {
+			return "invalid";
+		}
+		if (seen.has(r.name)) return "invalid";
+		seen.add(r.name);
+		out.push({ name: r.name, file: r.file });
+	}
+	return out;
+}
+
+function validateAudio(raw: unknown): { features?: PackAudioFeatureName[] } | "invalid" {
+	if (!raw || typeof raw !== "object") return "invalid";
+	const r = raw as Record<string, unknown>;
+	const out: { features?: PackAudioFeatureName[] } = {};
+	if (r.features !== undefined) {
+		if (!Array.isArray(r.features)) return "invalid";
+		const feats: PackAudioFeatureName[] = [];
+		const seen = new Set<string>();
+		for (const f of r.features) {
+			if (typeof f !== "string" || !KNOWN_AUDIO_FEATURES.has(f as PackAudioFeatureName)) return "invalid";
+			if (seen.has(f)) continue;
+			seen.add(f);
+			feats.push(f as PackAudioFeatureName);
+		}
+		out.features = feats;
+	}
+	return out;
+}
+
 export function validateManifest(raw: unknown): { ok: true; m: PackManifest } | { ok: false; err: string } {
 	if (typeof raw !== "object" || raw === null) return { ok: false, err: "not an object" };
-	const m = raw as Partial<PackManifest>;
+	const m = raw as Record<string, unknown>;
 	if (m.schemaVersion !== 1) return { ok: false, err: `schemaVersion must be 1 (got ${m.schemaVersion})` };
-	if (typeof m.id !== "string" || !/^[a-z0-9_-]{1,64}$/i.test(m.id))
-		return { ok: false, err: "id must be a short identifier matching [A-Za-z0-9_-]" };
 	if (typeof m.name !== "string" || !m.name) return { ok: false, err: "name required" };
 	if (typeof m.version !== "string" || !m.version) return { ok: false, err: "version required" };
-	if (typeof m.shader !== "string" || !m.shader.endsWith(".wgsl"))
+	if (typeof m.shader !== "string" || !(m.shader as string).endsWith(".wgsl"))
 		return { ok: false, err: "shader must point to a .wgsl file" };
+	if (m.wasm !== undefined && (typeof m.wasm !== "string" || !(m.wasm as string).endsWith(".wasm")))
+		return { ok: false, err: "wasm must point to a .wasm file" };
+	if (m.author !== undefined && typeof m.author !== "string")
+		return { ok: false, err: "author must be a string" };
+	if (m.description !== undefined && typeof m.description !== "string")
+		return { ok: false, err: "description must be a string" };
+
+	const out: PackManifest = {
+		schemaVersion: 1,
+		name: m.name as string,
+		version: m.version as string,
+		shader: m.shader as string,
+	};
+	if (typeof m.author === "string") out.author = m.author;
+	if (typeof m.description === "string") out.description = m.description;
+	if (typeof m.wasm === "string") out.wasm = m.wasm;
+
+	if (m.audio !== undefined) {
+		const a = validateAudio(m.audio);
+		if (a === "invalid") return { ok: false, err: "audio block invalid" };
+		out.audio = a;
+	}
+	if (m.images !== undefined) {
+		const im = validateImages(m.images);
+		if (im === "invalid") return { ok: false, err: "images must be Array<{name, file}>" };
+		out.images = im;
+	}
 	if (m.parameters !== undefined) {
 		if (!Array.isArray(m.parameters)) return { ok: false, err: "parameters must be an array" };
 		const validated: PackParameter[] = [];
@@ -130,7 +215,7 @@ export function validateManifest(raw: unknown): { ok: true; m: PackManifest } | 
 			seen.add(p.name);
 			validated.push(p);
 		}
-		m.parameters = validated;
+		out.parameters = validated;
 	}
 	if (m.passes !== undefined) {
 		if (!Array.isArray(m.passes)) return { ok: false, err: "passes must be an array" };
@@ -143,11 +228,11 @@ export function validateManifest(raw: unknown): { ok: true; m: PackManifest } | 
 				return { ok: false, err: `passes[${i}].shader must point to a .wgsl file` };
 			validatedPasses.push({ shader: raw.shader });
 		}
-		m.passes = validatedPasses;
+		out.passes = validatedPasses;
 	}
 	if (m.presets !== undefined) {
 		if (!Array.isArray(m.presets)) return { ok: false, err: "presets must be an array" };
-		const paramNames = new Set((m.parameters ?? []).map((p) => p.name));
+		const paramNames = new Set((out.parameters ?? []).map((p) => p.name));
 		const validatedPresets: PackPreset[] = [];
 		const seenNames = new Set<string>();
 		for (let i = 0; i < m.presets.length; i++) {
@@ -170,15 +255,18 @@ export function validateManifest(raw: unknown): { ok: true; m: PackManifest } | 
 			}
 			validatedPresets.push({ name: raw.name, values: cleaned });
 		}
-		m.presets = validatedPresets;
+		out.presets = validatedPresets;
 	}
-	return { ok: true, m: m as PackManifest };
+	return { ok: true, m: out };
 }
 
 /**
  * Synchronously load all valid packs found under `dir`. Each pack is one
  * subdirectory containing `manifest.json` and the WGSL file the manifest
  * references. Bad packs are logged and skipped, never thrown.
+ *
+ * Pack id is computed from the canonical hash of the directory contents,
+ * not from any field in the manifest.
  */
 export function loadPacksFromDir(dir: string, source: "builtin" | "user"): Pack[] {
 	if (!existsSync(dir)) return [];
@@ -197,7 +285,7 @@ export function loadPacksFromDir(dir: string, source: "builtin" | "user"): Pack[
 			}
 			const shaderPath = join(packDir, v.m.shader);
 			if (!existsSync(shaderPath)) {
-				console.warn(`[packs] skipping ${v.m.id}: shader file missing (${v.m.shader})`);
+				console.warn(`[packs] skipping ${entry.name}: shader file missing (${v.m.shader})`);
 				continue;
 			}
 			const shaderText = readFileSync(shaderPath, "utf8");
@@ -206,7 +294,7 @@ export function loadPacksFromDir(dir: string, source: "builtin" | "user"): Pack[
 			for (const pass of v.m.passes ?? []) {
 				const pPath = join(packDir, pass.shader);
 				if (!existsSync(pPath)) {
-					console.warn(`[packs] skipping ${v.m.id}: pass shader missing (${pass.shader})`);
+					console.warn(`[packs] skipping ${entry.name}: pass shader missing (${pass.shader})`);
 					extraPassFailed = true;
 					break;
 				}
@@ -219,11 +307,12 @@ export function loadPacksFromDir(dir: string, source: "builtin" | "user"): Pack[
 				if (existsSync(wasmPath)) {
 					wasmBytes = new Uint8Array(readFileSync(wasmPath));
 				} else {
-					console.warn(`[packs] ${v.m.id}: declared wasm "${v.m.wasm}" not found; falling back to Tier 1`);
+					console.warn(`[packs] ${entry.name}: declared wasm "${v.m.wasm}" not found; falling back to Tier 1`);
 				}
 			}
+			const id = computePackHashFromDir(packDir);
 			out.push({
-				id: v.m.id,
+				id,
 				name: v.m.name,
 				version: v.m.version,
 				author: v.m.author,
@@ -249,9 +338,10 @@ export function loadAllPacks(userPacksDir?: string): Pack[] {
 	const builtinsDir = findBuiltinPacksDir();
 	const builtins = builtinsDir ? loadPacksFromDir(builtinsDir, "builtin") : [];
 	const userPacks = userPacksDir ? loadPacksFromDir(userPacksDir, "user") : [];
-	// User packs override built-ins of the same id.
+	// Built-ins win on hash collision (impossible in practice with sha256 but
+	// formalize the precedence so an attacker can't sneak in a duplicate).
 	const byId = new Map<string, Pack>();
-	for (const p of builtins) byId.set(p.id, p);
 	for (const p of userPacks) byId.set(p.id, p);
+	for (const p of builtins) byId.set(p.id, p);
 	return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
 }

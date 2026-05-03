@@ -50,8 +50,15 @@ const windowPrefs = loadWindowPrefs();
 
 const registry = await PackRegistry.create(USER_PACKS_DIR);
 
-const initialActiveId = getPref<string>("active.pack.id", registry.list()[0]!.id);
-const initialActive = registry.byId(initialActiveId) ?? registry.list()[0]!;
+// Pack ids are content-addressed, so a built-in's id rolls every time its
+// shader/manifest is edited. We persist a slug (manifest.name) alongside the
+// id so a saved selection survives those rolls during dev.
+const initialActiveId = getPref<string>("active.pack.id", "");
+const initialActiveSlug = getPref<string>("active.pack.slug", "");
+const initialActive =
+	registry.byId(initialActiveId) ??
+	(initialActiveSlug ? registry.bySlug(initialActiveSlug) : undefined) ??
+	registry.list()[0]!;
 
 const autoSettings: AutoSettings = {
 	enabled: getPref<boolean>("auto.enabled", false),
@@ -59,7 +66,7 @@ const autoSettings: AutoSettings = {
 	shuffle: getPref<boolean>("auto.shuffle", true),
 };
 
-console.log(`[packs] active: ${initialActive.id}`);
+console.log(`[packs] active: ${initialActive.name}`);
 
 const audioBuffer = new RingBuffer(RING_SIZE);
 const audioAnalyzer = new AudioAnalyzer(audioBuffer, 48000, FFT_SIZE);
@@ -186,10 +193,16 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 	},
 });
 
+function persistActivePack(id: string): void {
+	setPref("active.pack.id", id);
+	const p = registry.byId(id);
+	if (p) setPref("active.pack.slug", p.name);
+}
+
 async function reloadAfterImport(): Promise<void> {
 	const fresh = await registry.reload();
 	if (transitions.rebindActive(fresh)) {
-		setPref("active.pack.id", transitions.getActiveId());
+		persistActivePack(transitions.getActiveId());
 	}
 	broadcastPacksChanged();
 }
@@ -290,7 +303,7 @@ const transitions: TransitionController = new TransitionController(initialActive
 	getPacks: () => registry.list(),
 	ensurePipeline: (p) => pipelineCache.ensure(p),
 	onActivePackChanged: (id) => {
-		setPref("active.pack.id", id);
+		persistActivePack(id);
 		try { controlsWin.webview?.rpc?.send?.activePackChanged({ id }); } catch {}
 	},
 });
@@ -331,10 +344,19 @@ transitions.rescheduleAutoTimer();
 // Hot-reload: drop the cached pipeline on shader/manifest/wasm change so the
 // next frame rebuilds; also swap the Pack reference inside the transition
 // state machine if the changed pack happens to be active or transitioning.
+// Pack ids are content-addressed, so the id rolls on every edit — the
+// `prevId` lets us re-target the active selection and invalidate the cached
+// pipeline keyed under the old hash.
 registry.watchForDevReload({
-	onPackUpdated: (fresh) => {
-		transitions.swapPack(fresh);
+	onPackUpdated: (fresh, { prevId }) => {
+		const wasActive = prevId !== null && transitions.getActiveId() === prevId;
+		transitions.swapPack(fresh, prevId);
+		if (prevId && prevId !== fresh.id) pipelineCache.invalidate(prevId);
 		pipelineCache.invalidate(fresh.id);
+		if (wasActive && transitions.getActiveId() === fresh.id) {
+			persistActivePack(fresh.id);
+			try { controlsWin.webview?.rpc?.send?.activePackChanged({ id: fresh.id }); } catch {}
+		}
 	},
 });
 

@@ -3,7 +3,6 @@ import { validateManifest } from "./loader";
 
 const minimal = {
 	schemaVersion: 1,
-	id: "test-pack",
 	name: "Test Pack",
 	version: "1.0.0",
 	shader: "shader.wgsl",
@@ -13,6 +12,14 @@ describe("validateManifest", () => {
 	test("accepts a minimal valid manifest", () => {
 		const r = validateManifest(minimal);
 		expect(r.ok).toBe(true);
+	});
+
+	test("accepts (and ignores) a deprecated manifest.id", () => {
+		const r = validateManifest({ ...minimal, id: "anything-the-publisher-wants" });
+		expect(r.ok).toBe(true);
+		// Authoritative id is the content hash assigned by the loader; the
+		// validator's output has no id field at all.
+		if (r.ok) expect((r.m as Record<string, unknown>).id).toBeUndefined();
 	});
 
 	test("rejects non-objects", () => {
@@ -27,10 +34,9 @@ describe("validateManifest", () => {
 		if (!r.ok) expect(r.err).toMatch(/schemaVersion/);
 	});
 
-	test("rejects invalid id (path traversal, special chars)", () => {
-		expect(validateManifest({ ...minimal, id: "../evil" }).ok).toBe(false);
-		expect(validateManifest({ ...minimal, id: "with space" }).ok).toBe(false);
-		expect(validateManifest({ ...minimal, id: "" }).ok).toBe(false);
+	test("ignores unknown top-level keys (forward-compat)", () => {
+		const r = validateManifest({ ...minimal, futureField: { whatever: 1 } });
+		expect(r.ok).toBe(true);
 	});
 
 	test("rejects shader that isn't .wgsl", () => {
@@ -41,6 +47,11 @@ describe("validateManifest", () => {
 	test("rejects missing name or version", () => {
 		expect(validateManifest({ ...minimal, name: "" }).ok).toBe(false);
 		expect(validateManifest({ ...minimal, version: undefined }).ok).toBe(false);
+	});
+
+	test("rejects wasm field that isn't .wasm", () => {
+		const r = validateManifest({ ...minimal, wasm: "pack.bin" });
+		expect(r.ok).toBe(false);
 	});
 
 	test("validates float parameters with min/max/default", () => {
@@ -156,5 +167,30 @@ describe("validateManifest", () => {
 			presets: [{ name: "X", values: [1, 2, 3] }],
 		});
 		expect(r.ok).toBe(false);
+	});
+
+	test("validates audio.features against the known list", () => {
+		const ok = validateManifest({ ...minimal, audio: { features: ["bass", "mid"] } });
+		expect(ok.ok).toBe(true);
+		const bad = validateManifest({ ...minimal, audio: { features: ["spectrum"] } });
+		expect(bad.ok).toBe(false);
+	});
+
+	test("validates images as Array<{name, file}> and rejects path traversal", () => {
+		const ok = validateManifest({
+			...minimal,
+			images: [{ name: "logo", file: "logo.png" }],
+		});
+		expect(ok.ok).toBe(true);
+		const traversal = validateManifest({
+			...minimal,
+			images: [{ name: "logo", file: "../etc/passwd" }],
+		});
+		expect(traversal.ok).toBe(false);
+		const wrongShape = validateManifest({
+			...minimal,
+			images: [{ name: "logo" }],
+		});
+		expect(wrongShape.ok).toBe(false);
 	});
 });

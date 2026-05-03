@@ -18,6 +18,8 @@ const upsertStmt = db.prepare(
 	"INSERT OR REPLACE INTO preferences (key, value) VALUES (?, ?)",
 );
 const selectStmt = db.prepare("SELECT value FROM preferences WHERE key = ?");
+const deleteStmt = db.prepare("DELETE FROM preferences WHERE key = ?");
+const listLikeStmt = db.prepare("SELECT key FROM preferences WHERE key LIKE ?");
 
 export function getPref<T>(key: string, defaultValue: T): T {
 	const row = selectStmt.get(key) as { value: string } | undefined;
@@ -31,6 +33,15 @@ export function getPref<T>(key: string, defaultValue: T): T {
 
 export function setPref<T>(key: string, value: T): void {
 	upsertStmt.run(key, JSON.stringify(value));
+}
+
+export function deletePref(key: string): void {
+	deleteStmt.run(key);
+}
+
+export function listPrefKeys(prefix: string): string[] {
+	const rows = listLikeStmt.all(prefix + "%") as Array<{ key: string }>;
+	return rows.map((r) => r.key);
 }
 
 export function closeDb(): void {

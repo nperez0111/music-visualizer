@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readdirSync, readFileSync, statSync } from "fs";
 import { join, resolve } from "path";
+import { computePackHashFromDir } from "../bun/packs/hash";
 import { validateManifest } from "../bun/packs/loader";
 
 const PACKS_DIR = resolve(import.meta.dir);
@@ -106,8 +107,9 @@ describe("packs (static checks)", () => {
 			if (!validation.ok) return;
 			const m = validation.m;
 
-			test("manifest id matches directory name", () => {
-				expect(m.id).toBe(dir);
+			test("pack content hash is a 64-char lowercase hex sha256", () => {
+				const id = computePackHashFromDir(packPath);
+				expect(id).toMatch(/^[0-9a-f]{64}$/);
 			});
 
 			test("main shader file exists", () => {

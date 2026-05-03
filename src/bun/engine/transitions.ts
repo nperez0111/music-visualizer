@@ -158,14 +158,19 @@ export class TransitionController {
 	}
 
 	/**
-	 * Hot-reload swap: replace any references to a pack id with a fresh Pack
-	 * object. Used by dev-watch when a pack's manifest/shader/wasm changes.
+	 * Hot-reload swap: replace any references to `prevId` (the pack's id
+	 * before the edit) with a fresh Pack object. Pack ids are content-
+	 * addressed, so editing a pack rolls its id; passing the prior id lets
+	 * us re-target the active selection across that roll. Falls back to
+	 * matching by `fresh.id` when `prevId` isn't supplied (no-op edits or
+	 * non-content changes).
 	 */
-	swapPack(fresh: Pack): void {
-		if (this.active.id === fresh.id) this.active = fresh;
+	swapPack(fresh: Pack, prevId?: string | null): void {
+		const target = prevId ?? fresh.id;
+		if (this.active.id === target) this.active = fresh;
 		if (this.transition.kind === "active") {
-			if (this.transition.from.id === fresh.id) this.transition.from = fresh;
-			if (this.transition.to.id === fresh.id) this.transition.to = fresh;
+			if (this.transition.from.id === target) this.transition.from = fresh;
+			if (this.transition.to.id === target) this.transition.to = fresh;
 		}
 	}
 
