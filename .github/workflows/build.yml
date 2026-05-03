@@ -16,7 +16,7 @@ jobs:
   build:
     name: Build macOS (arm64)
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - uses: actions/checkout@v4
