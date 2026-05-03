@@ -79,6 +79,13 @@ export type RenderPackToPngOptions = {
 	 * The final frame is always written to `outPath` unchanged.
 	 */
 	captureFrames?: number[];
+	/**
+	 * Capture PNGs at these simulated times (in seconds). Each time is
+	 * mapped to the nearest frame index. Output paths use a `_t<N>s`
+	 * suffix (e.g. `/tmp/foo_t1.50s.png`). The total frame count is
+	 * automatically extended to cover the latest capture time if needed.
+	 */
+	captureTimesS?: number[];
 };
 
 /**
@@ -90,7 +97,7 @@ export type RenderPackToPngOptions = {
 export async function renderPackToPng(opts: RenderPackToPngOptions): Promise<void> {
 	const width = opts.width ?? DEFAULT_RENDER_WIDTH;
 	const height = opts.height ?? DEFAULT_RENDER_HEIGHT;
-	const frames = Math.max(1, opts.frames ?? DEFAULT_RENDER_FRAMES);
+	let frames = Math.max(1, opts.frames ?? DEFAULT_RENDER_FRAMES);
 	const dtMs = 1000 / 60;
 	const native = WGPU.native;
 
@@ -152,7 +159,21 @@ export async function renderPackToPng(opts: RenderPackToPngOptions): Promise<voi
 			if (k in paramValues) paramValues[k] = v;
 		}
 	}
-	const captureSet = opts.captureFrames ? new Set(opts.captureFrames) : null;
+	// Build a map of frame-index → capture path suffix for all capture requests.
+	// captureFrames uses `_frame<N>`, captureTimesS uses `_t<seconds>s`.
+	const captureMap = new Map<number, string>();
+	if (opts.captureFrames) {
+		for (const f of opts.captureFrames) captureMap.set(f, `_frame${f}`);
+	}
+	if (opts.captureTimesS) {
+		for (const t of opts.captureTimesS) {
+			const fi = Math.round(t * 60);
+			// Extend frame count to cover this capture time
+			if (fi >= frames) frames = fi + 1;
+			const label = t % 1 === 0 ? `_t${t.toFixed(1)}s` : `_t${t}s`;
+			captureMap.set(fi, label);
+		}
+	}
 
 	const prevCopySrc = opts.pack.usesPrevFrame ? makeTexelCopyTextureInfo(targetTex) : null;
 	const prevCopyDst = opts.pack.usesPrevFrame ? makeTexelCopyTextureInfo(prevTex) : null;
@@ -195,8 +216,9 @@ export async function renderPackToPng(opts: RenderPackToPngOptions): Promise<voi
 			// keeps framesPending under the deadline (see runtime.ts:128).
 			if (opts.pack.wasmRuntime) await Bun.sleep(8);
 
-			if (captureSet?.has(frameIdx)) {
-				const capPath = captureFramePath(opts.outPath, frameIdx);
+			const capSuffix = captureMap.get(frameIdx);
+			if (capSuffix !== undefined) {
+				const capPath = captureSuffixPath(opts.outPath, capSuffix);
 				await readbackAndWritePng(renderer, targetTex, width, height, capPath);
 			}
 		}
@@ -472,13 +494,15 @@ async function readbackAndWritePng(
 }
 
 /**
- * Build the output path for a mid-render capture frame.
- * `/tmp/foo.png` + frame 30 → `/tmp/foo_frame30.png`
+ * Build the output path for a mid-render capture by inserting `suffix`
+ * before the file extension.
+ * `/tmp/foo.png` + `_frame30` → `/tmp/foo_frame30.png`
+ * `/tmp/foo.png` + `_t1.50s` → `/tmp/foo_t1.50s.png`
  */
-function captureFramePath(basePath: string, frameIdx: number): string {
+function captureSuffixPath(basePath: string, suffix: string): string {
 	const dot = basePath.lastIndexOf(".");
-	if (dot === -1) return `${basePath}_frame${frameIdx}`;
-	return `${basePath.slice(0, dot)}_frame${frameIdx}${basePath.slice(dot)}`;
+	if (dot === -1) return `${basePath}${suffix}`;
+	return `${basePath.slice(0, dot)}${suffix}${basePath.slice(dot)}`;
 }
 
 /**

@@ -10,6 +10,8 @@
 //   --frames <n>              Total frames to simulate (default 120)
 //   --time <seconds>          Capture at a specific simulated time (overrides --frames)
 //   --capture-frames <list>   Comma-separated frame indices for mid-render captures
+//   --capture-times <list>    Comma-separated times (seconds) for mid-render captures
+//   --capture-every <sec>     Capture every N seconds (use with --time or --frames)
 //   --webp                    Output an animated WebP instead of a PNG
 //   --webp-frames <n>         Number of frames to capture for the WebP (default 20)
 //   --webp-duration <ms>      Duration of each WebP frame in ms (default 100)
@@ -26,6 +28,8 @@
 //   bun scripts/render-pack-debug.ts bloom-pulse --param rings=20 --param bloomAmt=1.2
 //   bun scripts/render-pack-debug.ts bloom-pulse --preset Inferno --out /tmp/inferno.png
 //   bun scripts/render-pack-debug.ts bloom-pulse --capture-frames 0,30,60,90,119
+//   bun scripts/render-pack-debug.ts bloom-pulse --capture-times 0,0.5,1.0,1.5,2.0
+//   bun scripts/render-pack-debug.ts bloom-pulse --capture-every 0.5 --time 3.0
 //   bun scripts/render-pack-debug.ts bloom-pulse --audio bass=1.0 --audio treble=0
 //   bun scripts/render-pack-debug.ts bloom-pulse --webp --webp-frames 30 --webp-duration 80
 //   bun scripts/render-pack-debug.ts --list-packs
@@ -116,6 +120,8 @@ const heightOpt = option("--height");
 const framesOpt = option("--frames");
 const timeOpt = option("--time");
 const captureFramesOpt = option("--capture-frames");
+const captureTimesOpt = option("--capture-times");
+const captureEveryOpt = option("--capture-every");
 const webpFramesOpt = option("--webp-frames");
 const webpDurationOpt = option("--webp-duration");
 const webpQualityOpt = option("--webp-quality");
@@ -237,6 +243,34 @@ if (captureFramesOpt) {
 	});
 }
 
+// Capture times (--capture-times 0,0.5,1.0 and --capture-every 0.5)
+let captureTimesS: number[] | undefined;
+if (captureTimesOpt) {
+	captureTimesS = captureTimesOpt.split(",").map((s) => {
+		const n = Number(s.trim());
+		if (!Number.isFinite(n) || n < 0) {
+			console.error(`invalid capture time: "${s}"`);
+			process.exit(2);
+		}
+		return n;
+	});
+}
+if (captureEveryOpt) {
+	const interval = Number(captureEveryOpt);
+	if (!Number.isFinite(interval) || interval <= 0) {
+		console.error(`invalid --capture-every interval: "${captureEveryOpt}"`);
+		process.exit(2);
+	}
+	// Determine the total duration to cover
+	const totalSec = timeOpt ? Number(timeOpt) : frames / 60;
+	if (!captureTimesS) captureTimesS = [];
+	for (let t = 0; t <= totalSec + 1e-9; t += interval) {
+		// Round to avoid floating-point drift (e.g. 0.30000000000000004)
+		const rounded = Math.round(t * 1000) / 1000;
+		captureTimesS.push(rounded);
+	}
+}
+
 // Parameter overrides (--param name=value and --preset)
 let paramOverrides: Record<string, any> | undefined;
 if (presetOpt && pack.presets?.length) {
@@ -335,6 +369,7 @@ if (timeOpt) console.log(`[render-debug] target time: ${timeOpt}s (frame ${frame
 if (paramOverrides) console.log(`[render-debug] param overrides: ${JSON.stringify(paramOverrides)}`);
 if (audioOverrides) console.log(`[render-debug] audio overrides: ${JSON.stringify(audioOverrides)}`);
 if (captureFrames && !webpMode) console.log(`[render-debug] capture frames: ${captureFrames.join(", ")}`);
+if (captureTimesS && !webpMode) console.log(`[render-debug] capture times: ${captureTimesS.map((t) => `${t}s`).join(", ")}`);
 if (webpMode) {
 	const wf = webpFramesOpt ? Number(webpFramesOpt) : 20;
 	const wd = webpDurationOpt ? Number(webpDurationOpt) : 100;
@@ -371,17 +406,26 @@ if (webpMode) {
 		paramOverrides,
 		audioOverrides,
 		captureFrames,
+		captureTimesS,
 	});
 }
 
 const ms = Math.round(performance.now() - t0);
 
 console.log(`[render-debug] done in ${ms}ms`);
-if (!webpMode && captureFrames) {
+if (!webpMode) {
 	const ext = outPath.match(/(\.[^.]+)$/)?.[1] ?? ".png";
 	const base = outPath.slice(0, outPath.length - ext.length);
-	for (const f of captureFrames) {
-		console.log(`[render-debug] captured: ${base}_frame${f}${ext}`);
+	if (captureFrames) {
+		for (const f of captureFrames) {
+			console.log(`[render-debug] captured: ${base}_frame${f}${ext}`);
+		}
+	}
+	if (captureTimesS) {
+		for (const t of captureTimesS) {
+			const label = t % 1 === 0 ? `${t.toFixed(1)}` : `${t}`;
+			console.log(`[render-debug] captured: ${base}_t${label}s${ext}`);
+		}
 	}
 }
 console.log(`[render-debug] output: ${outPath}`);

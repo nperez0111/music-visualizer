@@ -34,6 +34,8 @@ Read [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design. Keep both 
 | **Built-in packs** | `src/packs/<name>/manifest.json` + `shader.wgsl` |
 | **Build scripts** | `scripts/build-audiocap.ts`, `scripts/build-packs.ts` |
 | **Headless pack render** | `scripts/render-pack.ts` (CI), `scripts/render-pack-debug.ts` (debug) |
+| **Shader compilation check** | `scripts/check-shader.ts` |
+| **PNG diff / comparison** | `scripts/diff-png.ts` |
 | **Roadmap** | `FUTURE.md` |
 
 ## Conventions
