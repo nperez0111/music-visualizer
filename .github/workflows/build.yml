@@ -60,6 +60,16 @@ jobs:
           security list-keychains -s build.keychain
           rm certificate.p12
 
+      - name: Sign audiocap binary
+        env:
+          DEVELOPER_ID: ${{ secrets.ELECTROBUN_DEVELOPER_ID }}
+        run: |
+          codesign --sign "Developer ID Application: $DEVELOPER_ID" \
+            --options runtime \
+            --timestamp \
+            --force \
+            src/native/audiocap/audiocap
+
       - name: bun install
         run: bun install --frozen-lockfile
 
