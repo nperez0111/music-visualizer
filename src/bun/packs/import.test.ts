@@ -81,7 +81,7 @@ describe("importVizFile", () => {
 		if (a.ok && b.ok) expect(a.id).toBe(b.id);
 	});
 
-	test("two packs that differ only in publisher-claimed manifest.id share a hash", () => {
+	test("two packs that differ only in publisher-claimed manifest.id get different hashes", () => {
 		const a: Zippable = {
 			"manifest.json": new TextEncoder().encode(
 				JSON.stringify({ ...MIN_MANIFEST, id: "i-am-alice" }),

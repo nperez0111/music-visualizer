@@ -115,11 +115,13 @@ process.exit(failures.length > 0 ? 1 : 0);
 async function loadPackIds(): Promise<string[]> {
 	const { readdirSync, statSync, existsSync } = await import("fs");
 	const { join, resolve } = await import("path");
+	const { computePackHashFromDir } = await import("../src/bun/packs/hash");
 	const packsDir = resolve(import.meta.dir, "..", "src", "packs");
 	return readdirSync(packsDir)
 		.filter((name) => {
 			const full = join(packsDir, name);
 			return statSync(full).isDirectory() && existsSync(join(full, "manifest.json"));
 		})
+		.map((name) => computePackHashFromDir(join(packsDir, name)))
 		.sort();
 }
