@@ -59,6 +59,14 @@ jobs:
           printf '#!/bin/sh\nexit 1\n' > src/native/audiocap/audiocap
           chmod +x src/native/audiocap/audiocap
 
+      - name: Install naga-cli (GLSL → WGSL transpiler)
+        # GLSL packs need `naga` on PATH to transpile .glsl → .wgsl during
+        # the build:packs step. cargo-binstall grabs a pre-compiled binary
+        # when one exists, falling back to source only if needed.
+        run: |
+          curl -L --proto '=https' --tlsv1.2 -sSf https://raw.githubusercontent.com/cargo-bins/cargo-binstall/main/install-from-binstall-release.sh | bash
+          cargo binstall naga-cli --no-confirm
+
       - name: bun install
         run: bun install --frozen-lockfile
 
