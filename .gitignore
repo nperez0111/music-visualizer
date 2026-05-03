@@ -23,6 +23,9 @@ docker-out/
 # Gallery build output (produced by `bun run build:gallery`)
 site/
 
+# Signing certificates
+*.p12
+
 # Local agent state
 .claude/settings.local.json
 .opencode/

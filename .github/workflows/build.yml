@@ -47,6 +47,19 @@ jobs:
           cargo build --release --target aarch64-apple-darwin
           cp target/aarch64-apple-darwin/release/audiocap audiocap
 
+      - name: Import signing certificate
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.MACOS_CERTIFICATE }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          echo "$CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+          security create-keychain -p "" build.keychain
+          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "" build.keychain
+          security default-keychain -s build.keychain
+          security list-keychains -s build.keychain
+          rm certificate.p12
+
       - name: bun install
         run: bun install --frozen-lockfile
 
@@ -54,6 +67,11 @@ jobs:
         run: bun run build:packs
 
       - name: Build app (canary)
+        env:
+          ELECTROBUN_DEVELOPER_ID: ${{ secrets.ELECTROBUN_DEVELOPER_ID }}
+          ELECTROBUN_TEAMID: ${{ secrets.ELECTROBUN_TEAMID }}
+          ELECTROBUN_APPLEID: ${{ secrets.ELECTROBUN_APPLEID }}
+          ELECTROBUN_APPLEIDPASS: ${{ secrets.ELECTROBUN_APPLEIDPASS }}
         run: bunx electrobun build --env=canary
 
       - name: Upload build artifacts

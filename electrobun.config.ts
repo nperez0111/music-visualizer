@@ -32,6 +32,14 @@ export default {
 		mac: {
 			bundleCEF: false,
 			bundleWGPU: true,
+			codesign: true,
+			notarize: true,
+			entitlements: {
+				// Required for Bun's JIT compilation under hardened runtime
+				"com.apple.security.cs.allow-jit": true,
+				"com.apple.security.cs.allow-unsigned-executable-memory": true,
+				"com.apple.security.cs.disable-library-validation": true,
+			},
 		},
 		linux: {
 			bundleCEF: false,
