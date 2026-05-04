@@ -109,9 +109,12 @@ function applyCollapsed(collapsed: boolean) {
 	document.documentElement.classList.toggle("collapsed", collapsed);
 	toggleBtn.textContent = collapsed ? "\u25BD" : "\u25B3";
 	toggleBtn.title = collapsed ? "Show controls" : "Hide controls";
-	// After panel layout changes, force the WGPU overlay to re-sync its
-	// position, size, and mask regions so the GPU surface is reconfigured.
-	requestAnimationFrame(() => wgpuTag?.syncDimensions(true));
+
+	if (collapsed) {
+		wgpuTag?.removeMaskSelector(".sidebar");
+	} else {
+		wgpuTag?.addMaskSelector(".sidebar");
+	}
 }
 
 function updateStatus(status: CaptureStatus, detail?: string) {
@@ -394,20 +397,6 @@ if (importBtn) {
 			importBtn.disabled = false;
 		}
 	});
-}
-
-// ---------- Mask resize observer ----------
-// The Electrobun mask system polls element bounds, but the polling interval
-// can miss rapid size changes (e.g. params panel appearing/disappearing).
-// A ResizeObserver forces an immediate mask resync whenever the sidebar's
-// bounding box changes.
-
-const sidebar = document.getElementById("sidebar");
-if (sidebar && wgpuTag) {
-	const ro = new ResizeObserver(() => {
-		wgpuTag!.syncDimensions(true);
-	});
-	ro.observe(sidebar);
 }
 
 // ---------- Sidebar toggle ----------

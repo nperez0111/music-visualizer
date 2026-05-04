@@ -51,24 +51,14 @@ html.loading .panel { visibility: hidden; }
 
 	overflow: hidden;
 	z-index: 1;
-
-	/* Smooth expand/collapse animation */
-	transition:
-		opacity 0.25s ease,
-		transform 0.25s ease;
-	transform-origin: top right;
+	/* No CSS transition — expand/collapse uses FLIP animation in JS
+	   so the layout is final before the mask is measured. */
 }
 
-/* ---------- Collapsed state: panel shrinks away ---------- */
+/* ---------- Collapsed state ---------- */
 
 html.collapsed .sidebar {
-	opacity: 0;
-	transform: scale(0.92) translateX(8px);
-	pointer-events: none;
-	max-height: 0;
-	padding: 0;
-	border-color: transparent;
-	box-shadow: none;
+	display: none;
 }
 
 /* Floating toggle pill when sidebar is collapsed */
@@ -77,16 +67,19 @@ html.collapsed .sidebar {
 	position: fixed;
 	top: 42px;
 	right: 12px;
-	height: 32px;
-	padding: 0 12px;
+	width: 40px;
+	height: 40px;
+	padding: 0;
 	/* No border-radius — must match rectangular mask exactly */
 	border-radius: 0;
 	border: 1px solid rgba(255, 255, 255, 0.08);
 	background: rgba(22, 24, 30, 0.94);
 	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
 	color: #f0f0f5;
-	font-size: 12px;
+	font-size: 32px;
+	line-height: 1;
 	font-family: inherit;
+	padding-bottom: 4px;
 	cursor: pointer;
 	align-items: center;
 	justify-content: center;
