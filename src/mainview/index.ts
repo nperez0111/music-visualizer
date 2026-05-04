@@ -96,9 +96,13 @@ function showRenderError(message: string) {
 	if (!errorBanner) return;
 	errorBanner.textContent = `render error: ${message}`;
 	errorBanner.hidden = false;
+	requestAnimationFrame(() => wgpuTag?.syncDimensions(true));
 	if (errorBannerTimer) clearTimeout(errorBannerTimer);
 	errorBannerTimer = setTimeout(() => {
-		if (errorBanner) errorBanner.hidden = true;
+		if (errorBanner) {
+			errorBanner.hidden = true;
+			requestAnimationFrame(() => wgpuTag?.syncDimensions(true));
+		}
 	}, 8000);
 }
 
@@ -368,6 +372,7 @@ function renderParamsPanel() {
 	const pack = allPacks.find((p) => p.id === currentPackId);
 	if (!pack || (pack.parameters.length === 0 && pack.presets.length === 0)) {
 		paramsPanel.hidden = true;
+		requestAnimationFrame(() => wgpuTag?.syncDimensions(true));
 		return;
 	}
 	paramsPanel.hidden = false;
@@ -377,6 +382,7 @@ function renderParamsPanel() {
 	for (const param of pack.parameters) {
 		paramsPanel.appendChild(buildWidget(pack.id, param, pack.parameterValues[param.name] ?? param.default));
 	}
+	requestAnimationFrame(() => wgpuTag?.syncDimensions(true));
 }
 
 packSelect.addEventListener("change", () => {
