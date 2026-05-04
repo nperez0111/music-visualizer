@@ -1,20 +1,25 @@
-# Headless visualizer-pack render in Linux. Produces a PNG without a window
-# server using Mesa's lavapipe (CPU Vulkan ICD), so it works on any container
-# host without GPU passthrough.
+# CI headless render environment for visualizer packs.
 #
-# Build:
-#   docker build -t cat-nip-headless .
-# Run:
-#   mkdir -p docker-out
-#   docker run --rm -v $PWD/docker-out:/out cat-nip-headless truchet-flow
+# Used as the `container:` image by the render-packs GitHub Actions workflow.
+# Contains all system deps needed to render packs via Mesa lavapipe (CPU
+# Vulkan), including GTK/WebKit runtime libs that electrobun's native wrapper
+# eagerly resolves at dlopen time. No GPU passthrough required.
+#
+# Pre-bakes the electrobun native libraries, the wgpu ABI shim, and the
+# version.json shim so the CI workflow only needs: checkout → bun install →
+# build:packs → run test. No compilation or electrobun build at CI time.
+#
+# Published to GHCR by the docker-image workflow on changes to this file.
+# See .github/workflows/docker-image.yml.
 
 FROM oven/bun:1.3.13-debian
 
-# Mesa's lavapipe = CPU Vulkan ICD; libvulkan1 is the loader.
-# libNativeWrapper.so is electrobun's GTK-only variant, so we need GTK + WebKit
-# at dlopen time even though we never instantiate any windows or web views —
-# the dynamic loader resolves DT_NEEDED entries eagerly. Same story for the
-# xkb / wayland packages which Dawn links against.
+# ── System packages ──────────────────────────────────────────────────────────
+# Mesa lavapipe  = CPU Vulkan ICD (no GPU needed)
+# GTK/WebKit     = electrobun's libNativeWrapper.so eagerly resolves these
+# GCC            = compile the wgpu by-value-CallbackInfo shim
+# curl           = fetch rustup installer
+# git            = needed by actions/checkout inside container jobs
 RUN apt-get update && apt-get install -y --no-install-recommends \
 		mesa-vulkan-drivers libvulkan1 \
 		libgtk-3-0 libwebkit2gtk-4.1-0 libsoup-3.0-0 \
@@ -22,65 +27,79 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 		libxkbcommon0 libgl1 libegl1 \
 		libwayland-client0 libwayland-server0 \
 		libxcb1 libx11-6 libxext6 \
-		ca-certificates \
+		ca-certificates curl git \
 		gcc libc6-dev \
 	&& rm -rf /var/lib/apt/lists/*
 
-# Force Vulkan to use lavapipe (Mesa's CPU rasterizer). The container has no
-# GPU and only the lvp ICD is functional; pinning here avoids the loader
-# probing other ICDs that aren't backed by hardware.
-ENV VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json
+# ── Rust + naga-cli ──────────────────────────────────────────────────────────
+# naga-cli transpiles GLSL → WGSL for GLSL packs. cargo-binstall may not have
+# a prebuilt binary for every arch (e.g. aarch64-linux), so we install the
+# full Rust toolchain and compile from source as a fallback.
+ENV RUSTUP_HOME="/usr/local/rustup" \
+	CARGO_HOME="/usr/local/cargo" \
+	PATH="/usr/local/cargo/bin:${PATH}"
 
-# electrobun's libs aren't built with $ORIGIN in their RUNPATH, so the dynamic
-# loader can't find sibling .so files (libasar.so etc.) without help. Set the
-# search path explicitly. We point it at both arches for safety.
-ENV LD_LIBRARY_PATH=/app/node_modules/electrobun/dist-linux-arm64:/app/node_modules/electrobun/dist-linux-x64
-ENV VIZ_BUNDLE_NATIVE_DIR=/app/node_modules/electrobun/dist-linux-arm64
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+		| sh -s -- -y --profile minimal --default-toolchain stable && \
+	cargo install naga-cli && \
+	# Strip debug symbols to save ~100 MB
+	strip /usr/local/cargo/bin/naga && \
+	# Drop everything except the naga binary — rustc/cargo aren't needed at
+	# runtime and the toolchain adds ~500 MB to the image layer.
+	cp /usr/local/cargo/bin/naga /usr/local/bin/naga && \
+	rustup self uninstall -y && \
+	rm -rf /usr/local/cargo /usr/local/rustup
 
-WORKDIR /app
+# ── Electrobun native libs ───────────────────────────────────────────────────
+# We run `bunx electrobun build` solely to populate the dist-linux-x64/
+# directory with bun + libwebgpu_dawn.so + libNativeWrapper.so. The build
+# output itself (a self-extracting installer) is discarded.
+#
+# To make electrobun build succeed we need a minimal project: package.json,
+# bun.lock, electrobun.config.ts, and stubs for every path in `copy:`.
+WORKDIR /tmp/electrobun-setup
 
-COPY package.json bun.lock tsconfig.json electrobun.config.ts ./
-COPY src ./src
-COPY scripts ./scripts
+# Copy only the files needed for bun install + electrobun build.
+# These rarely change, so this layer is well-cached.
+COPY package.json bun.lock electrobun.config.ts ./
+COPY scripts/headless-shim.c ./scripts/headless-shim.c
 
-# audiocap is the macOS-only ScreenCaptureKit child process. The headless path
-# never invokes it, but `electrobun.config.ts` declares it as a copy target so
-# we drop a stub to let the bundler step succeed.
-RUN mkdir -p src/native/audiocap && \
+# Create stubs for everything electrobun.config.ts copy: references.
+RUN mkdir -p src/native/audiocap src/packs src/mainview src/bun/packs && \
 	printf '#!/bin/sh\nexit 1\n' > src/native/audiocap/audiocap && \
-	chmod +x src/native/audiocap/audiocap
+	chmod +x src/native/audiocap/audiocap && \
+	touch src/mainview/index.html src/mainview/index.css && \
+	touch src/mainview/index.ts src/bun/index.ts && \
+	touch src/bun/packs/runtime-worker.ts
 
-RUN bun install --frozen-lockfile
-
-# `electrobun build` is the easiest way to make the CLI fetch its
-# `dist-linux-<arch>/` payload (libwebgpu_dawn.so, libNativeWrapper.so, the
-# bundled bun, etc.). We don't actually use the build output — Linux electrobun
-# produces a self-extracting installer that's the wrong shape for direct use —
-# so we discard it and run from `node_modules/electrobun/dist-linux-*` instead.
-RUN bunx electrobun build --env=canary && rm -rf build
-
-# Compile the by-pointer shim around wgpu's by-value-CallbackInfo APIs (see
-# scripts/headless-shim.c for the why). On x86_64 SysV the `WGPUCallbackInfo`
-# is passed in memory rather than via implicit indirect pointer, which bun:ffi
-# can't model.
-RUN DIST=$(ls -d node_modules/electrobun/dist-linux-* | head -1) && \
+# Install deps, run electrobun build to fetch native libs, compile shim.
+RUN bun install --frozen-lockfile && \
+	bunx electrobun build --env=canary || true && \
+	# Find the dist dir (arch varies: x64 in CI, arm64 on Apple Silicon host)
+	DIST=$(ls -d node_modules/electrobun/dist-linux-* 2>/dev/null | head -1) && \
+	if [ -z "$DIST" ]; then echo "No electrobun dist dir found" && exit 1; fi && \
+	# Compile the headless wgpu ABI shim
 	gcc -shared -fPIC -O2 \
 		-o "$DIST/libheadlessshim.so" \
 		scripts/headless-shim.c \
 		-L"$DIST" -lwebgpu_dawn \
-		-Wl,-rpath,'$ORIGIN'
+		-Wl,-rpath,'$ORIGIN' && \
+	# Move native libs to a fixed well-known path
+	mkdir -p /opt/electrobun && \
+	cp -a "$DIST"/. /opt/electrobun/ && \
+	# Create the version.json shim that electrobun reads at module load
+	# (resolved as ../Resources/version.json relative to the native dir)
+	mkdir -p /opt/Resources && \
+	echo '{"version":"0.0.1","hash":"ci","channel":"canary","baseUrl":"","name":"cat-nip","identifier":"cat-nip.nickthesick.com"}' \
+		> /opt/Resources/version.json && \
+	# Clean up the entire setup directory
+	rm -rf /tmp/electrobun-setup
 
-# Shim ../Resources/version.json relative to the dist dir. electrobun's
-# BrowserView import does `Bun.file('../Resources/version.json').json()` at
-# module load and crashes if it's missing. The script chdir's into
-# `node_modules/electrobun/dist-linux-<arch>` before importing, so a single
-# Resources dir at the parent satisfies it for any arch.
-RUN mkdir -p node_modules/electrobun/Resources && \
-	printf '{"version":"0.0.1","hash":"docker","channel":"canary","baseUrl":"","name":"cat-nip","identifier":"cat-nip.nickthesick.com"}\n' \
-		> node_modules/electrobun/Resources/version.json
+# ── Environment ──────────────────────────────────────────────────────────────
+# Force Vulkan to use lavapipe (Mesa's CPU rasterizer).
+ENV VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json
+# Point the render test at the pre-built native libs.
+ENV VIZ_BUNDLE_NATIVE_DIR=/opt/electrobun
+ENV LD_LIBRARY_PATH=/opt/electrobun
 
-# Bind-mount target for the rendered PNG.
-RUN mkdir -p /out
-
-ENTRYPOINT ["bun", "scripts/render-pack.ts"]
-CMD ["truchet-flow", "/out/truchet-flow.png"]
+WORKDIR /app
