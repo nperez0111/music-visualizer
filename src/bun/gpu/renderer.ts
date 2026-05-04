@@ -1,4 +1,4 @@
-import { WGPU, WGPUBridge, asPtr, type GpuWindow } from "./electrobun-gpu";
+import { WGPU, WGPUBridge, asPtr } from "./electrobun-gpu";
 import { dlopen, FFIType, JSCallback, ptr, toArrayBuffer } from "bun:ffi";
 import { existsSync } from "fs";
 import { join } from "path";
@@ -8,6 +8,7 @@ import {
 	PresentMode_Fifo,
 	TextureFormat_BGRA8Unorm,
 } from "./wgpu-helpers";
+import { Screen } from "electrobun/bun";
 
 export type Renderer = {
 	instance: number;
@@ -23,10 +24,22 @@ export type Renderer = {
 };
 
 /**
- * Boots wgpu-native against the GpuWindow's native surface. Throws if
- * `bundleWGPU` was disabled at build time or no compatible adapter exists.
+ * Anything that exposes a native WGPU view pointer and a frame size. This
+ * covers both the legacy `GpuWindow.wgpuView` and the `WGPUView` obtained
+ * from an embedded `<electrobun-wgpu>` tag.
  */
-export function createRenderer(window: GpuWindow): Renderer {
+export type SurfaceSource = {
+	ptr: number;
+	frame: { width: number; height: number };
+};
+
+/**
+ * Boots wgpu-native against a native WGPU view surface. Accepts any object
+ * that provides a native view pointer (`.ptr`) and a frame size — works with
+ * both a `GpuWindow.wgpuView` and a standalone `WGPUView` from an embedded
+ * `<electrobun-wgpu>` tag.
+ */
+export function createRenderer(view: SurfaceSource): Renderer {
 	const native = WGPU.native;
 	if (!native.available) {
 		throw new Error("wgpu-native not available — enable bundleWGPU in electrobun.config.ts");
@@ -37,7 +50,7 @@ export function createRenderer(window: GpuWindow): Renderer {
 
 	const surface = WGPUBridge.createSurfaceForView(
 		instance,
-		window.wgpuView.ptr as number,
+		view.ptr as number,
 	) as number;
 	if (!surface) throw new Error("createSurfaceForView returned null");
 
@@ -72,7 +85,19 @@ export function createRenderer(window: GpuWindow): Renderer {
 		lastHeight = height;
 	}
 
-	const initial = window.getSize();
+	// The WGPUView frame is in CSS/point pixels (from getBoundingClientRect).
+	// The GPU surface must be configured at physical/backing pixels, so we
+	// scale by the display's scale factor (2x on Retina Macs).
+	const scaleFactor = Screen.getPrimaryDisplay().scaleFactor || 1;
+
+	function physicalSize(): { width: number; height: number } {
+		return {
+			width: Math.round(view.frame.width * scaleFactor),
+			height: Math.round(view.frame.height * scaleFactor),
+		};
+	}
+
+	const initial = physicalSize();
 	reconfigure(initial.width, initial.height);
 
 	return {
@@ -82,7 +107,7 @@ export function createRenderer(window: GpuWindow): Renderer {
 		queue,
 		surface,
 		surfaceFormat,
-		getSize: () => window.getSize(),
+		getSize: physicalSize,
 		reconfigure,
 	};
 }

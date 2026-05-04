@@ -1,0 +1,14 @@
+diff --git a/dist/api/bun/proc/native.ts b/dist/api/bun/proc/native.ts
+index f0f6c2532ba2eb467ec1d452a25c835b6db72661..0d164286ef6cb3837494b84320d654d959fb127b 100644
+--- a/dist/api/bun/proc/native.ts
++++ b/dist/api/bun/proc/native.ts
+@@ -2887,6 +2887,9 @@ export const internalRpcHandlers = {
+ 			}
+ 
+ 			const { x, y, width, height } = params.frame;
++			// Keep the JS-side frame in sync so consumers (e.g. GPU renderers
++			// reading view.frame) see the current dimensions.
++			view.frame = { x, y, width, height };
+ 			native_.symbols.resizeWebview(
+ 				view.ptr,
+ 				x,

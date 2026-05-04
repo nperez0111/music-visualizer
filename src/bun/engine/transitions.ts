@@ -38,7 +38,7 @@ export class TransitionController {
 	constructor(
 		initial: Pack,
 		autoSettings: AutoSettings,
-		private readonly deps: {
+		private deps: {
 			getPacks: () => Pack[];
 			ensurePipeline: (p: Pack) => unknown;
 			onActivePackChanged: (id: string) => void;
@@ -46,6 +46,18 @@ export class TransitionController {
 	) {
 		this.active = initial;
 		this.autoSettings = { ...autoSettings };
+	}
+
+	/**
+	 * Replace the dependency callbacks. Used when the engine initializes
+	 * after the controller was created (deferred renderer init).
+	 */
+	setCallbacks(deps: {
+		getPacks: () => Pack[];
+		ensurePipeline: (p: Pack) => unknown;
+		onActivePackChanged: (id: string) => void;
+	}): void {
+		this.deps = deps;
 	}
 
 	getActive(): Pack {

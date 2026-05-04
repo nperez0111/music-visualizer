@@ -62,7 +62,6 @@ export type ControlsRPC = {
 					auto: AutoSettings;
 				};
 			};
-			getControlsPosition: { params: {}; response: { x: number; y: number } };
 			listPacks: { params: {}; response: { packs: PackInfo[]; activePackId: string } };
 			importPack: {
 				params: {};
@@ -74,8 +73,8 @@ export type ControlsRPC = {
 			};
 		};
 		messages: {
+			wgpuViewReady: { viewId: number };
 			setCollapsed: { collapsed: boolean };
-			setControlsPosition: { x: number; y: number };
 			setActivePack: { id: string };
 			removePack: { id: string };
 			setPackParameter: { packId: string; name: string; value: ParamValue };

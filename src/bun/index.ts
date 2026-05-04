@@ -3,9 +3,9 @@ import {
 	BrowserView,
 	BrowserWindow,
 	GlobalShortcut,
-	GpuWindow,
 	Utils,
 } from "electrobun/bun";
+import { WGPUView } from "electrobun/bun";
 import { existsSync, mkdirSync, unlinkSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -24,7 +24,7 @@ import { TransitionController } from "./engine/transitions";
 import { FeatureSmoother } from "./engine/feature-smoother";
 import { UniformWriter } from "./engine/uniform-writer";
 import { createRenderDriver } from "./engine/render-frame";
-import { loadWindowPrefs, controlsSizeFor, WindowPrefsManager } from "./window-prefs";
+import { loadWindowPrefs, WindowPrefsManager } from "./window-prefs";
 import type { AudioSource, AutoSettings, ControlsRPC } from "../shared/rpc-types";
 
 if (!existsSync(USER_PACKS_DIR)) mkdirSync(USER_PACKS_DIR, { recursive: true });
@@ -78,7 +78,7 @@ capture.onStatusChange((status, detail) => {
 	console.log(`[audio] status=${status}${detail ? ` (${detail})` : ""}`);
 	if (status === "capturing") audioAnalyzer.sampleRate = capture.sampleRate;
 	try {
-		controlsWin.webview?.rpc?.send?.audioStatus({ status, detail });
+		win.webview?.rpc?.send?.audioStatus({ status, detail });
 	} catch {}
 });
 
@@ -89,17 +89,13 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 	handlers: {
 		requests: {
 			getInitialState: () => ({
-				collapsed: windowPrefs.controlsCollapsed,
+				collapsed: windowPrefs.sidebarCollapsed,
 				audioStatus: capture.status,
 				audioSource: capture.source,
 				packs: registry.allPackInfos(),
 				activePackId: transitions.getActiveId(),
 				auto: transitions.getAutoSettings(),
 			}),
-		getControlsPosition: (): { x: number; y: number } => {
-			const f = controlsWin.getFrame();
-			return { x: f.x, y: f.y };
-		},
 			listPacks: () => ({
 				packs: registry.allPackInfos(),
 				activePackId: transitions.getActiveId(),
@@ -141,8 +137,11 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 			},
 		},
 		messages: {
-			setCollapsed: ({ collapsed }) => windowMgr.setControlsCollapsed(collapsed, false),
-			setControlsPosition: ({ x, y }) => controlsWin.setPosition(x, y),
+			wgpuViewReady: ({ viewId }) => {
+				console.log(`[wgpu] view ready: id=${viewId}`);
+				initEngine(viewId);
+			},
+			setCollapsed: ({ collapsed }) => windowMgr.setSidebarCollapsed(collapsed, false),
 			setActivePack: ({ id }) => {
 				const next = registry.byId(id);
 				if (!next) {
@@ -173,7 +172,7 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 					console.warn(`[packs] cannot remove "${id}": ${result.reason}`);
 					return;
 				}
-				pipelineCache.invalidate(id);
+				pipelineCache?.invalidate(id);
 				void reloadAfterImport();
 			},
 			setPackParameter: ({ packId, name, value }) => {
@@ -185,7 +184,7 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 				setPref("audio.source", source);
 				void capture.switchSource(source);
 				try {
-					controlsWin.webview?.rpc?.send?.audioSourceChanged({ source });
+					win.webview?.rpc?.send?.audioSourceChanged({ source });
 				} catch {}
 			},
 			openScreenCapturePrefs: () => {
@@ -221,47 +220,29 @@ async function reloadAfterImport(): Promise<void> {
 
 function broadcastPacksChanged(): void {
 	try {
-		controlsWin.webview?.rpc?.send?.packsChanged({
+		win.webview?.rpc?.send?.packsChanged({
 			packs: registry.allPackInfos(),
 			activePackId: transitions.getActiveId(),
 		});
 	} catch {}
 }
 
-// ---------- Windows ----------
+// ---------- Window ----------
 
-const renderWin = new GpuWindow({
+const win = new BrowserWindow({
 	title: "Cat Nip",
-	frame: windowPrefs.visualizerBounds,
-	titleBarStyle: "default",
-	transparent: false,
-});
-
-const initialControlsSize = controlsSizeFor(
-	windowPrefs.controlsCollapsed,
-	windowPrefs.controlsExpandedSize,
-);
-const controlsWin = new BrowserWindow({
-	title: "cat-nip-controls",
 	url: "views://mainview/index.html",
-	frame: {
-		x: windowPrefs.controlsPosition.x,
-		y: windowPrefs.controlsPosition.y,
-		width: initialControlsSize.width,
-		height: initialControlsSize.height,
-	},
-	titleBarStyle: "hidden",
-	transparent: true,
+	frame: windowPrefs.windowBounds,
+	titleBarStyle: "hiddenInset",
+	transparent: false,
 	rpc,
 });
-controlsWin.setAlwaysOnTop(true);
 
 const windowMgr = new WindowPrefsManager(
 	windowPrefs,
-	renderWin,
-	controlsWin,
+	win,
 	(collapsed) => {
-		try { controlsWin.webview?.rpc?.send?.collapsedChanged({ collapsed }); } catch {}
+		try { win.webview?.rpc?.send?.collapsedChanged({ collapsed }); } catch {}
 	},
 );
 
@@ -272,7 +253,7 @@ ApplicationMenu.setApplicationMenu([
 	{
 		label: "View",
 		submenu: [
-			{ label: "Toggle Controls", action: "toggleControls", accelerator: "CommandOrControl+Shift+H" },
+			{ label: "Toggle Sidebar", action: "toggleSidebar", accelerator: "CommandOrControl+Shift+H" },
 			{ label: "Toggle Fullscreen", action: "toggleFullscreen", accelerator: "CommandOrControl+Control+F" },
 		],
 	},
@@ -280,7 +261,7 @@ ApplicationMenu.setApplicationMenu([
 
 ApplicationMenu.on("application-menu-clicked", (event: unknown) => {
 	const action = (event as { action?: string } | undefined)?.action;
-	if (action === "toggleControls") windowMgr.toggleCollapsed();
+	if (action === "toggleSidebar") windowMgr.toggleCollapsed();
 	else if (action === "toggleFullscreen") windowMgr.toggleFullscreen();
 });
 
@@ -289,157 +270,152 @@ if (!GlobalShortcut.register(SHORTCUT, () => windowMgr.toggleCollapsed())) {
 	console.warn(`[viz] failed to register global shortcut ${SHORTCUT}`);
 }
 
-// ---------- Engine ----------
-
-const renderer = createRenderer(renderWin);
-
-// A/B render targets + composite (crossfade) pipeline. Built first so any
-// pack pipeline can reference the prev-frame view at construction time.
-const transitionRig = createTransitionRig(renderer);
-{
-	const initSize = renderer.getSize();
-	transitionRig.setSize(initSize.width, initSize.height);
-}
-
-// Explicit annotations break the inferential cycle between these two:
-// pipelineCache reads transitions.pinnedIds() at eviction time, and
-// transitions calls pipelineCache.ensure() to pre-build the to-pack.
-const pipelineCache: PipelineCache = new PipelineCache(
-	renderer,
-	transitionRig,
-	UNIFORM_BUFFER_SIZE,
-	() => transitions.pinnedIds(),
-);
+// ---------- Transition controller (needs to exist before RPC handlers fire) ----------
 
 const transitions: TransitionController = new TransitionController(initialActive, autoSettings, {
 	getPacks: () => registry.list(),
-	ensurePipeline: (p) => pipelineCache.ensure(p),
+	ensurePipeline: (p) => pipelineCache?.ensure(p) ?? null,
 	onActivePackChanged: (id) => {
 		persistActivePack(id);
-		try { controlsWin.webview?.rpc?.send?.activePackChanged({ id }); } catch {}
+		try { win.webview?.rpc?.send?.activePackChanged({ id }); } catch {}
 	},
 });
 
 registry.onChange(broadcastPacksChanged);
 
-// Pack pipeline self-test mode (used by `bun run test:gpu`). Builds a real
-// pipeline for every loaded pack so WGSL parse/binding errors surface, then
-// exits. Runs *before* the active-pack pre-build and the render driver, so
-// (a) the very first compile of each pack lives inside its BEGIN/END window
-// and (b) we don't pollute the output with subsequent render-time errors
-// from a broken active pipeline. wgpu-native prints validation errors to
-// stderr synchronously during the FFI call, so the driver script can
-// correlate them by pack id from the merged stream.
-if (process.env["VIZ_PACKS_SELFTEST"] === "1") {
-	const packs = registry.list();
-	let buildFails = 0;
-	console.log(`[selftest] starting pipeline build sweep (${packs.length} pack(s))`);
-	for (const p of packs) {
-		console.log(`[SELFTEST_BEGIN] ${p.id}`);
-		const pp = pipelineCache.ensure(p);
-		if (!pp) buildFails++;
-		console.log(`[SELFTEST_END] ${p.id}`);
-	}
-	console.log(`[selftest] sweep complete (${packs.length - buildFails}/${packs.length} pipelines built)`);
-	// Synchronous exit. Dawn writes uncaptured errors to stderr inline from the
-	// FFI call, so they're already in the pipe buffer by now. Avoid setTimeout +
-	// renderDriver creation, which would stack render-time errors on top.
-	process.exit(buildFails > 0 ? 1 : 0);
-}
+// ---------- Deferred engine init (waits for <electrobun-wgpu> ready) ----------
 
-// Pre-build the active pack's pipeline so the first frame doesn't stall.
-pipelineCache.ensure(initialActive);
-console.log("[visualizer] pipeline ready, surfaceFormat=" + renderer.surfaceFormat);
-void capture.start(savedAudioSource);
-transitions.rescheduleAutoTimer();
-
-// Hot-reload: drop the cached pipeline on shader/manifest/wasm change so the
-// next frame rebuilds; also swap the Pack reference inside the transition
-// state machine if the changed pack happens to be active or transitioning.
-// Pack ids are content-addressed, so the id rolls on every edit — the
-// `prevId` lets us re-target the active selection and invalidate the cached
-// pipeline keyed under the old hash.
-registry.watchForDevReload({
-	onPackUpdated: (fresh, { prevId }) => {
-		const wasActive = prevId !== null && transitions.getActiveId() === prevId;
-		transitions.swapPack(fresh, prevId);
-		if (prevId && prevId !== fresh.id) pipelineCache.invalidate(prevId);
-		pipelineCache.invalidate(fresh.id);
-		if (wasActive && transitions.getActiveId() === fresh.id) {
-			persistActivePack(fresh.id);
-			try { controlsWin.webview?.rpc?.send?.activePackChanged({ id: fresh.id }); } catch {}
-		}
-	},
-});
-
-const smoother = new FeatureSmoother(audioAnalyzer, SPECTRUM_BINS);
-const uniforms = new UniformWriter({
-	bufferSize: UNIFORM_BUFFER_SIZE,
-	packOffset: PACK_UNIFORM_OFFSET,
-	spectrumBins: SPECTRUM_BINS,
-});
-
-const startTimeMs = performance.now();
-const renderDriver = createRenderDriver({
-	renderer,
-	transitionRig,
-	pipelineCache,
-	transitions,
-	smoother,
-	uniforms,
-	registry,
-	capture,
-	startTimeMs,
-	pushAudioLevel: (rms, peak) => {
-		try { controlsWin.webview?.rpc?.send?.audioLevel({ rms, peak }); } catch {}
-	},
-});
-
-// ---------- Render loop ----------
-
-// Render-error surfacing: log once per ~5s window and push a banner to the
-// controls UI so silent stalls are visible. We don't throw out of the loop —
-// the next frame retries.
-const RENDER_ERROR_THROTTLE_MS = 5000;
-let lastRenderErrorAt = 0;
-function reportRenderError(err: unknown): void {
-	const now = performance.now();
-	if (now - lastRenderErrorAt < RENDER_ERROR_THROTTLE_MS) return;
-	lastRenderErrorAt = now;
-	const message = err instanceof Error ? err.message : String(err);
-	console.error("[visualizer] render error:", err);
-	try {
-		controlsWin.webview?.rpc?.send?.renderError({ message });
-	} catch {}
-}
-
-// Self-pacing render loop: aim for ~60fps but subtract real frame cost from
-// the next delay so a slow frame doesn't stack work. setInterval would fire
-// regardless of how long the previous tick took.
-const TARGET_FRAME_MS = 16;
+let pipelineCache: PipelineCache | null = null;
 let stopRenderLoop = false;
-function tickRenderLoop(): void {
-	const start = performance.now();
-	try {
-		renderDriver();
-	} catch (err) {
-		reportRenderError(err);
+
+function initEngine(wgpuViewId: number): void {
+	const wgpuView = WGPUView.getById(wgpuViewId);
+	if (!wgpuView) {
+		console.error(`[wgpu] WGPUView.getById(${wgpuViewId}) returned undefined`);
+		return;
 	}
-	if (stopRenderLoop) return;
-	const wait = Math.max(0, TARGET_FRAME_MS - (performance.now() - start));
-	setTimeout(tickRenderLoop, wait);
+
+	// Pack pipeline self-test mode (used by `bun run test:gpu`).
+	const isSelfTest = process.env["VIZ_PACKS_SELFTEST"] === "1";
+
+	const renderer = createRenderer(wgpuView);
+
+	const transitionRig = createTransitionRig(renderer);
+	{
+		const initSize = renderer.getSize();
+		transitionRig.setSize(initSize.width, initSize.height);
+	}
+
+	pipelineCache = new PipelineCache(
+		renderer,
+		transitionRig,
+		UNIFORM_BUFFER_SIZE,
+		() => transitions.pinnedIds(),
+	);
+
+	// Re-wire the transition controller's ensurePipeline now that the cache exists.
+	transitions.setCallbacks({
+		getPacks: () => registry.list(),
+		ensurePipeline: (p) => pipelineCache!.ensure(p),
+		onActivePackChanged: (id) => {
+			persistActivePack(id);
+			try { win.webview?.rpc?.send?.activePackChanged({ id }); } catch {}
+		},
+	});
+
+	if (isSelfTest) {
+		const packs = registry.list();
+		let buildFails = 0;
+		console.log(`[selftest] starting pipeline build sweep (${packs.length} pack(s))`);
+		for (const p of packs) {
+			console.log(`[SELFTEST_BEGIN] ${p.id}`);
+			const pp = pipelineCache.ensure(p);
+			if (!pp) buildFails++;
+			console.log(`[SELFTEST_END] ${p.id}`);
+		}
+		console.log(`[selftest] sweep complete (${packs.length - buildFails}/${packs.length} pipelines built)`);
+		process.exit(buildFails > 0 ? 1 : 0);
+	}
+
+	// Pre-build the active pack's pipeline so the first frame doesn't stall.
+	pipelineCache.ensure(initialActive);
+	console.log("[visualizer] pipeline ready, surfaceFormat=" + renderer.surfaceFormat);
+	void capture.start(savedAudioSource);
+	transitions.rescheduleAutoTimer();
+
+	// Hot-reload: drop the cached pipeline on shader/manifest/wasm change.
+	registry.watchForDevReload({
+		onPackUpdated: (fresh, { prevId }) => {
+			const wasActive = prevId !== null && transitions.getActiveId() === prevId;
+			transitions.swapPack(fresh, prevId);
+			if (prevId && prevId !== fresh.id) pipelineCache!.invalidate(prevId);
+			pipelineCache!.invalidate(fresh.id);
+			if (wasActive && transitions.getActiveId() === fresh.id) {
+				persistActivePack(fresh.id);
+				try { win.webview?.rpc?.send?.activePackChanged({ id: fresh.id }); } catch {}
+			}
+		},
+	});
+
+	const smoother = new FeatureSmoother(audioAnalyzer, SPECTRUM_BINS);
+	const uniforms = new UniformWriter({
+		bufferSize: UNIFORM_BUFFER_SIZE,
+		packOffset: PACK_UNIFORM_OFFSET,
+		spectrumBins: SPECTRUM_BINS,
+	});
+
+	const startTimeMs = performance.now();
+	const renderDriver = createRenderDriver({
+		renderer,
+		transitionRig,
+		pipelineCache,
+		transitions,
+		smoother,
+		uniforms,
+		registry,
+		capture,
+		startTimeMs,
+		pushAudioLevel: (rms, peak) => {
+			try { win.webview?.rpc?.send?.audioLevel({ rms, peak }); } catch {}
+		},
+	});
+
+	// Render-error surfacing: log once per ~5s window and push a banner to the
+	// controls UI so silent stalls are visible.
+	const RENDER_ERROR_THROTTLE_MS = 5000;
+	let lastRenderErrorAt = 0;
+	function reportRenderError(err: unknown): void {
+		const now = performance.now();
+		if (now - lastRenderErrorAt < RENDER_ERROR_THROTTLE_MS) return;
+		lastRenderErrorAt = now;
+		const message = err instanceof Error ? err.message : String(err);
+		console.error("[visualizer] render error:", err);
+		try {
+			win.webview?.rpc?.send?.renderError({ message });
+		} catch {}
+	}
+
+	// Self-pacing render loop: aim for ~60fps but subtract real frame cost.
+	const TARGET_FRAME_MS = 16;
+	function tickRenderLoop(): void {
+		const start = performance.now();
+		try {
+			renderDriver();
+		} catch (err) {
+			reportRenderError(err);
+		}
+		if (stopRenderLoop) return;
+		const wait = Math.max(0, TARGET_FRAME_MS - (performance.now() - start));
+		setTimeout(tickRenderLoop, wait);
+	}
+	tickRenderLoop();
 }
-tickRenderLoop();
 
 // ---------- Lifecycle ----------
 
-renderWin.on("close", () => {
+win.on("close", () => {
 	stopRenderLoop = true;
 	transitions.stop();
 	capture.stop();
 	try { GlobalShortcut.unregisterAll(); } catch {}
-	try { controlsWin.close(); } catch {}
-});
-controlsWin.on("close", () => {
-	try { renderWin.close(); } catch {}
 });

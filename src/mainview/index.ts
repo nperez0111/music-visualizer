@@ -1,4 +1,4 @@
-import Electrobun, { Electroview } from "electrobun/view";
+import Electrobun, { Electroview, type WgpuTagElement } from "electrobun/view";
 import type {
 	AudioSource,
 	AutoSettings,
@@ -64,7 +64,18 @@ const rpc = Electroview.defineRPC<ControlsRPC>({
 
 const electrobun = new Electrobun.Electroview({ rpc });
 
-const headerEl = document.querySelector("header") as HTMLElement;
+// ---------- WGPU view initialization ----------
+
+const wgpuTag = document.querySelector("electrobun-wgpu") as WgpuTagElement | null;
+if (wgpuTag) {
+	wgpuTag.on("ready", (event: CustomEvent) => {
+		const viewId = (event.detail as { id: number }).id;
+		electrobun.rpc?.send?.wgpuViewReady({ viewId });
+	});
+}
+
+// ---------- DOM references ----------
+
 const toggleBtn = document.getElementById("toggleBtn") as HTMLButtonElement;
 const meterBar = document.getElementById("meterBar") as HTMLElement;
 const audioStatusEl = document.getElementById("audioStatus") as HTMLElement;
@@ -96,8 +107,11 @@ let currentPackId: string | null = null;
 
 function applyCollapsed(collapsed: boolean) {
 	document.documentElement.classList.toggle("collapsed", collapsed);
-	toggleBtn.textContent = collapsed ? "▸" : "▾";
-	toggleBtn.title = collapsed ? "Expand" : "Collapse";
+	toggleBtn.textContent = collapsed ? "\u25C2" : "\u25B8";
+	toggleBtn.title = collapsed ? "Show sidebar" : "Hide sidebar";
+	// After sidebar layout changes, force the WGPU overlay to re-sync its
+	// position, size, and mask regions so the GPU surface is reconfigured.
+	requestAnimationFrame(() => wgpuTag?.syncDimensions(true));
 }
 
 function updateStatus(status: CaptureStatus, detail?: string) {
@@ -166,7 +180,7 @@ function populatePacks(packs: PackInfo[], activeId: string) {
 	for (const p of packs) {
 		const opt = document.createElement("option");
 		opt.value = p.id;
-		const badge = p.runtimeBroken ? " ⚠ broken" : (p.source === "user" ? " ★" : "");
+		const badge = p.runtimeBroken ? " \u26A0 broken" : (p.source === "user" ? " \u2605" : "");
 		opt.textContent = `${p.name}${badge}`;
 		if (p.runtimeBroken) opt.disabled = true;
 		if (p.id === activeId) opt.selected = true;
@@ -326,7 +340,7 @@ function buildPresetRow(pack: PackInfo): HTMLElement {
 	sel.className = "select";
 	const placeholder = document.createElement("option");
 	placeholder.value = "";
-	placeholder.textContent = "—";
+	placeholder.textContent = "\u2014";
 	sel.appendChild(placeholder);
 	for (const pr of pack.presets) {
 		const opt = document.createElement("option");
@@ -382,65 +396,20 @@ if (importBtn) {
 	});
 }
 
+// ---------- Sidebar toggle ----------
+
+const sidebarTab = document.getElementById("sidebarTab") as HTMLButtonElement | null;
+
 toggleBtn.addEventListener("click", () => {
 	const next = !document.documentElement.classList.contains("collapsed");
 	applyCollapsed(next);
 	electrobun.rpc?.send?.setCollapsed({ collapsed: next });
 });
 
-// ---------- Window drag (pointer-driven; views ignore -webkit-app-region) ----------
-
-type DragOrigin = { mouseX: number; mouseY: number; winX: number; winY: number };
-let drag: DragOrigin | null = null;
-let pendingPos: { x: number; y: number } | null = null;
-let pendingScheduled = false;
-
-function flushPosition() {
-	pendingScheduled = false;
-	if (pendingPos) {
-		electrobun.rpc?.send?.setControlsPosition(pendingPos);
-		pendingPos = null;
-	}
-}
-
-headerEl.addEventListener("pointerdown", async (e: PointerEvent) => {
-	if ((e.target as HTMLElement).closest(".no-drag")) return;
-	if (e.button !== 0) return;
-	e.preventDefault();
-	try {
-		const pos = await electrobun.rpc?.request?.getControlsPosition({});
-		if (!pos) return;
-		drag = { mouseX: e.screenX, mouseY: e.screenY, winX: pos.x, winY: pos.y };
-		headerEl.setPointerCapture(e.pointerId);
-		document.body.style.cursor = "grabbing";
-	} catch (err) {
-		console.warn("drag start failed", err);
-	}
+sidebarTab?.addEventListener("click", () => {
+	applyCollapsed(false);
+	electrobun.rpc?.send?.setCollapsed({ collapsed: false });
 });
-
-headerEl.addEventListener("pointermove", (e: PointerEvent) => {
-	if (!drag) return;
-	const dx = e.screenX - drag.mouseX;
-	const dy = e.screenY - drag.mouseY;
-	pendingPos = { x: drag.winX + dx, y: drag.winY + dy };
-	if (!pendingScheduled) {
-		pendingScheduled = true;
-		requestAnimationFrame(flushPosition);
-	}
-});
-
-function endDrag(e: PointerEvent) {
-	if (!drag) return;
-	drag = null;
-	try { headerEl.releasePointerCapture(e.pointerId); } catch {}
-	document.body.style.cursor = "";
-	if (pendingPos) {
-		electrobun.rpc?.send?.setControlsPosition(pendingPos);
-		pendingPos = null;
-	}
-}
-headerEl.addEventListener("pointerup", endDrag);
-headerEl.addEventListener("pointercancel", endDrag);
 
 // ---------- Drag-drop .viz import ----------
 // WKWebView doesn't expose dropped file paths to JS, so we read bytes in the

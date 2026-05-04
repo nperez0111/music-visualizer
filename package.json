@@ -17,7 +17,7 @@
 		"release": "bumpp"
 	},
 	"dependencies": {
-		"electrobun": "1.16.0",
+		"electrobun": "1.18.1",
 		"fflate": "0.8.2",
 		"pixelmatch": "7.2.0",
 		"pngjs": "7.0.0",
@@ -29,5 +29,8 @@
 		"assemblyscript": "0.28.16",
 		"bumpp": "11.0.1",
 		"typescript": "^5.7.2"
+	},
+	"patchedDependencies": {
+		"electrobun@1.18.1": "patches/electrobun@1.18.1.patch"
 	}
 }

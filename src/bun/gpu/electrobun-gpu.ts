@@ -10,15 +10,11 @@
  *   Instead of importing proc/native.ts (which transitively pulls in
  *   BrowserView → Socket), we dlopen libNativeWrapper ourselves with only
  *   the symbols we actually use.
- * - GpuWindow is re-exported as a type — no runtime import.
  */
 
 // @ts-ignore — relative path into node_modules; not a declared electrobun export
 import _WGPU from "../../../node_modules/electrobun/dist/api/bun/webGPU";
 export const WGPU = _WGPU;
-
-// @ts-ignore — type-only; erased at runtime
-export type { GpuWindow } from "../../../node_modules/electrobun/dist/api/bun/core/GpuWindow";
 
 // ---------------------------------------------------------------------------
 // WGPUBridge — minimal dlopen of libNativeWrapper for wgpu shim symbols only

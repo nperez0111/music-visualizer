@@ -7,7 +7,7 @@ first if you just want to use the app.
 ## High-level diagram
 
 ```
-+--------------------- Bun main process (src/bun/index.ts) ------------------+
++-------------------- Bun main process (src/bun/index.ts) -------------------+
 |                                                                            |
 |  +------------------+   +-------------------+   +----------------------+   |
 |  | audiocap         |   | wgpu-native FFI   |   | pack registry        |   |
@@ -28,46 +28,45 @@ first if you just want to use the app.
 |                         | submit + present                 |               |
 |                         +----------------+-----------------+               |
 |                                          |                                 |
-|                                          v                                 |
-|                                  GpuWindow (visualizer)                    |
+|  +============= single BrowserWindow (hiddenInset) ==============+         |
+|  |                                                               |         |
+|  |  +--- <electrobun-wgpu> ---+  +--- <aside .sidebar> ------+  |         |
+|  |  | native WGPUView overlay |  | pack dropdown             |  |         |
+|  |  | (fills remaining space) |  | audio level meter         |  |         |
+|  |  | masks=".sidebar" for    |  | parameters                |  |         |
+|  |  | click-through on panel  |  | import .viz button        |  |         |
+|  |  +-------------------------+  +----------------------------+  |         |
+|  |                                                               |         |
+|  +---------------------------------------------------------------+         |
 |                                                                            |
 |  +------------- bun:sqlite (~/Library/.../visualizer.db) -------------+    |
 |  |  preferences (key,value JSON)                                      |    |
 |  +--------------------------------------------------------------------+    |
-+----------------------|----------------------------------------|------------+
-                       | defineRPC                              |
-                       v                                        |
-         +---- BrowserWindow (controls overlay) ------+         |
-         |  HTML/CSS/JS, transparent, frameless,      |         |
-         |  always-on-top                             |         |
-         |  - pack dropdown                           |         |
-         |  - audio level meter                       |         |
-         |  - import .viz button                      |         |
-         |  - pointer-driven window drag              |         |
-         +--------------------------------------------+         |
-                                                                |
++----------------------------------------|----------------------------------+
+                                         |
    user packs at ~/Library/Application Support/.../packs/ <-----+
 ```
 
 ## Process model
 
-The app runs as **two macOS windows** owned by the same Bun process:
+The app runs as a **single `BrowserWindow`** (hiddenInset titlebar) owned
+by one Bun process. The HTML layout is a flex row:
 
-- **`GpuWindow`** — visualizer surface. Rendering happens in the Bun main
-  process via `bun:ffi` against `WGPU.native.symbols` (Dawn / wgpu-native).
-- **`BrowserWindow`** — controls overlay. HTML/CSS/JS in WKWebView,
-  always-on-top, transparent, frameless. Talks to Bun via Electrobun's
-  `defineRPC`.
+- **`<electrobun-wgpu>`** — an Electrobun custom element that creates a
+  native `WGPUView` overlay positioned over its DOM bounding rect.
+  Rendering happens in the Bun main process via `bun:ffi` against
+  `WGPU.native.symbols` (Dawn / wgpu-native). The element fires a
+  `"ready"` event with `{ id: wgpuViewId }` which the webview forwards
+  to Bun via the `wgpuViewReady` RPC message; Bun then looks up
+  `WGPUView.getById(id)` and bootstraps the GPU engine.
+- **`<aside class="sidebar">`** — collapsible controls panel (pack
+  dropdown, audio meter, parameters, import). The sidebar is a plain
+  HTML/CSS region; the `<electrobun-wgpu>` element's `masks=".sidebar"`
+  attribute punches through the native GPU overlay so clicks reach
+  the sidebar's DOM elements.
 
-These are technically two NSWindows but the controls window doesn't render
-the visualizer — it only sends control messages and displays state. All
-audio capture, GPU work, pack loading, and persistence happens in Bun.
-
-> **Why not one window?** Electrobun's `BrowserView` add-path explicitly
-> looks up `BrowserWindow.getById(windowId)` only — it can't attach to a
-> `GpuWindow`. So the controls necessarily live in a sibling window. We
-> tried `passthrough: true` (per-pixel hit testing) but it's window-level,
-> not per-pixel; clicks on the panel were eaten too.
+All audio capture, GPU work, pack loading, and persistence happens in Bun.
+The webview only sends control messages and displays state.
 
 ## File layout
 
@@ -91,10 +90,10 @@ src/
 │   └── db/
 │       └── index.ts          # bun:sqlite open + preferences KV
 │
-├── mainview/                 # controls window webview
+├── mainview/                 # single-window webview (sidebar + embedded WGPU)
 │   ├── index.html
 │   ├── index.css
-│   └── index.ts              # RPC, dropdown, drag, meter
+│   └── index.ts              # RPC, sidebar toggle, WGPU ready, meter
 │
 ├── native/audiocap/          # Rust CLI: cpal loopback -> framed PCM
 │   ├── Cargo.toml
@@ -111,10 +110,11 @@ src/
 
 ### Renderer bootstrap (`gpu/renderer.ts`)
 
-`createRenderer(window)` calls into `WGPU.native` and `WGPUBridge` to get
+`createRenderer(view)` calls into `WGPU.native` and `WGPUBridge` to get
 an `instance`, an `adapter`, a `device`, a `queue`, and a `surface` bound
-to the `GpuWindow`'s native view. Surface format is queried from
-capabilities (typically `BGRA8Unorm` on macOS).
+to the `WGPUView`'s native handle (obtained from
+`<electrobun-wgpu>`). Surface format is queried from capabilities
+(typically `BGRA8Unorm` on macOS).
 
 ### Pipeline cache (`gpu/pipeline.ts`)
 
@@ -368,10 +368,8 @@ Known keys:
 
 | Key                              | Value                                  |
 |----------------------------------|----------------------------------------|
-| `window.visualizer.bounds`       | `{x,y,width,height}`                   |
-| `window.controls.position`       | `{x,y}`                                |
-| `window.controls.expandedSize`   | `{width,height}`                       |
-| `window.controls.collapsed`      | `boolean`                              |
+| `window.bounds`                  | `{x,y,width,height}`                   |
+| `sidebar.collapsed`              | `boolean`                              |
 | `active.pack.id`                 | `string`                               |
 | `audio.source`                   | `"system" \| "mic"`                    |
 
@@ -384,20 +382,22 @@ metadata is a future addition.)
 ## IPC
 
 `Electrobun.BrowserView.defineRPC` provides typed bidirectional RPC
-between Bun and the controls webview. Schema lives in `src/bun/index.ts`
-(definition) and `src/mainview/index.ts` (consumer copy).
+between Bun and the webview. Schema lives in `src/shared/rpc-types.ts`
+(single source of truth), consumed by `src/bun/index.ts` and
+`src/mainview/index.ts`.
 
 Bun-side:
 
-- **Requests** (webview → bun): `getInitialState`, `getControlsPosition`,
-  `listPacks`, `importPack`.
-- **Messages** (webview → bun): `setCollapsed`, `setControlsPosition`,
+- **Requests** (webview → bun): `getInitialState`, `listPacks`,
+  `importPack`, `importPackBytes`.
+- **Messages** (webview → bun): `wgpuViewReady`, `setCollapsed`,
   `setActivePack`, `removePack`, `setAudioSource`.
 
 Webview-side:
 
 - **Messages** (bun → webview): `audioStatus`, `audioLevel`,
-  `audioSourceChanged`, `activePackChanged`, `packsChanged`.
+  `audioSourceChanged`, `activePackChanged`, `packsChanged`,
+  `collapsedChanged`, `renderError`.
 
 ## Frame loop (sequence)
 
@@ -436,10 +436,10 @@ encode call.
 | `bun install`            | Pulls Electrobun + AssemblyScript + fflate.       |
 | `bun run build:audiocap` | Builds the Rust+cpal system-audio helper.         |
 | `bun run build:packs`    | Compiles the AssemblyScript sample to `pack.wasm`.|
-| `bun run dev`            | Electrobun dev mode — bundles + opens windows.    |
+| `bun run dev`            | Electrobun dev mode — bundles + opens the window. |
 
 The `electrobun.config.ts` `copy` block ships:
-- `views/mainview/{index.html,index.css}` (controls UI)
+- `views/mainview/{index.html,index.css}` (main window UI)
 - `audiocap` (Rust binary) → `Resources/app/audiocap`
 - `packs/` → `Resources/app/packs/`
 
