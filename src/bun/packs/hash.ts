@@ -4,12 +4,16 @@ import { join } from "path";
 
 // Pack identity is the SHA-256 over the deterministic record:
 //
-//   for each file in pack, sorted by POSIX relative path:
+//   for each file in pack (excluding manifest.json), sorted by POSIX relative path:
 //     sha256(relPath) + ":" + sha256(content) + "\n"
+//
+// manifest.json is excluded because it is metadata (name, description, author,
+// parameters, etc.) that may change independently of the functional pack content
+// (shaders, WASM, etc.). The hash should represent the pack's functional inputs.
 //
 // This is independent of filesystem traversal order and zip stream ordering,
 // so re-importing the same `.viz` produces the same id, and a built-in's id
-// only changes when its bytes change.
+// only changes when its functional content changes.
 
 function listFilesRecursive(
 	root: string,
@@ -39,7 +43,9 @@ function combine(records: Array<{ relPath: string; bytes: Uint8Array }>): string
 export function computePackHashFromDir(dir: string): string {
 	const files: Array<{ relPath: string; fullPath: string }> = [];
 	listFilesRecursive(dir, "", files);
-	const records = files.map((f) => ({ relPath: f.relPath, bytes: readFileSync(f.fullPath) }));
+	const records = files
+		.filter((f) => f.relPath !== "manifest.json")
+		.map((f) => ({ relPath: f.relPath, bytes: readFileSync(f.fullPath) }));
 	return combine(records);
 }
 
@@ -52,7 +58,7 @@ export function computePackHashFromEntries(
 		if (path.endsWith("/")) continue;
 		if (prefix && !path.startsWith(prefix)) continue;
 		const rel = path.slice(prefix.length).replace(/\\/g, "/");
-		if (!rel) continue;
+		if (!rel || rel === "manifest.json") continue;
 		records.push({ relPath: rel, bytes });
 	}
 	return combine(records);

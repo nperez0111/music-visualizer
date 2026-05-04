@@ -81,7 +81,7 @@ describe("importVizFile", () => {
 		if (a.ok && b.ok) expect(a.id).toBe(b.id);
 	});
 
-	test("two packs that differ only in publisher-claimed manifest.id get different hashes", () => {
+	test("two packs that differ only in manifest metadata get the same hash", () => {
 		const a: Zippable = {
 			"manifest.json": new TextEncoder().encode(
 				JSON.stringify({ ...MIN_MANIFEST, id: "i-am-alice" }),
@@ -102,10 +102,10 @@ describe("importVizFile", () => {
 		const ra = importVizFile(va, userPacksDir);
 		const rb = importVizFile(vb, userPacksDir);
 		expect(ra.ok && rb.ok).toBe(true);
-		// Different manifests → different hashes (the id field still affects the
-		// canonical hash of the manifest bytes). The point is *neither* claim
-		// can collide with an existing install named the same thing.
-		if (ra.ok && rb.ok) expect(ra.id).not.toBe(rb.id);
+		// manifest.json is excluded from the hash — only functional content
+		// (shaders, WASM, etc.) determines pack identity. Same shader content
+		// means same hash regardless of manifest metadata differences.
+		if (ra.ok && rb.ok) expect(ra.id).toBe(rb.id);
 	});
 
 	test("rejects archive larger than the cap", () => {
