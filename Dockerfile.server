@@ -1,0 +1,76 @@
+# Minimal production image for the Cat Nip registry server (Nitro + Bun).
+#
+# Multi-stage build:
+#   1. Install monorepo deps (workspace packages needed at build time)
+#   2. Run `nitro build --preset bun` to produce a self-contained .output/
+#   3. Copy only .output/ into an Alpine Bun image (~110 MB total)
+#
+# The Nitro bundle includes all JS dependencies. At runtime only the Bun
+# binary is needed (bun:sqlite is built-in, no native npm modules).
+#
+# Build:
+#   docker build -f Dockerfile.server -t catnip-server .
+#
+# Run:
+#   docker run -p 3000:3000 \
+#     -v catnip-data:/app/data \
+#     -e CATNIP_DATA_DIR=/app/data \
+#     catnip-server
+
+# ── Stage 1: install workspace deps ─────────────────────────────────────────
+FROM oven/bun:1 AS deps
+
+WORKDIR /build
+
+# Copy workspace root files first (cache-friendly layer)
+COPY package.json bun.lock ./
+
+# Copy only the package.json files for workspace packages the server depends on.
+# This lets Docker cache the bun install layer when only source code changes.
+COPY packages/server/package.json ./packages/server/package.json
+COPY packages/shared/package.json ./packages/shared/package.json
+COPY packages/lexicons/package.json ./packages/lexicons/package.json
+# The remaining workspace packages need stubs so bun install doesn't fail
+# on the "packages/*" workspace glob.
+COPY packages/app/package.json ./packages/app/package.json
+COPY packages/cli/package.json ./packages/cli/package.json
+# Bun needs the patch file referenced by packages/app/package.json
+COPY packages/app/patches ./packages/app/patches
+
+RUN bun install --frozen-lockfile
+
+# ── Stage 2: build ──────────────────────────────────────────────────────────
+FROM deps AS builder
+
+# Copy the actual source for workspace deps that Nitro needs to bundle
+COPY packages/shared/src ./packages/shared/src
+COPY packages/shared/tsconfig.json ./packages/shared/tsconfig.json
+COPY packages/lexicons/src ./packages/lexicons/src
+COPY packages/lexicons/tsconfig.json ./packages/lexicons/tsconfig.json
+
+# Copy the full server package
+COPY packages/server ./packages/server
+
+WORKDIR /build/packages/server
+RUN bun run build
+
+# ── Stage 3: production runtime ─────────────────────────────────────────────
+FROM oven/bun:1-alpine AS runtime
+
+WORKDIR /app
+
+# Copy only the self-contained Nitro output (typically ~300 KB)
+COPY --from=builder /build/packages/server/.output ./
+
+# The server stores its SQLite database in $CATNIP_DATA_DIR (default: .data/).
+# Mount a volume here for persistence.
+ENV CATNIP_DATA_DIR=/app/data
+ENV HOST=0.0.0.0
+ENV PORT=3000
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD wget -qO- http://127.0.0.1:3000/api/health || exit 1
+
+CMD ["bun", "run", "server/index.mjs"]

@@ -18,8 +18,8 @@ on:
       - .github/workflows/docker-image.yml
       - package.json
       - bun.lock
-      - electrobun.config.ts
-      - scripts/headless-shim.c
+      - packages/app/electrobun.config.ts
+      - packages/app/scripts/headless-shim.c
 
 permissions:
   contents: read

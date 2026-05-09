@@ -57,7 +57,7 @@ jobs:
         # resolves dlopen'd .so files via that binary's RUNPATH.
         env:
           VIZ_PACKS_RENDER_TEST: "1"
-        run: /opt/electrobun/bun test src/packs/render.test.ts
+        run: cd packages/app && /opt/electrobun/bun test src/packs/render.test.ts
 
       - name: Upload pack snapshots
         # Always upload, even on test failure — a failed pack with a corrupt
@@ -67,8 +67,8 @@ jobs:
         with:
           name: pack-snapshots
           path: |
-            tests/snapshots/packs/*.png
-            tests/snapshots/packs/*.webp
+            packages/app/tests/snapshots/packs/*.png
+            packages/app/tests/snapshots/packs/*.webp
           retention-days: 14
           if-no-files-found: warn
 
@@ -96,7 +96,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: pack-snapshots
-          path: tests/snapshots/packs
+          path: packages/app/tests/snapshots/packs
 
       - name: Build gallery site
         run: bun run build:gallery

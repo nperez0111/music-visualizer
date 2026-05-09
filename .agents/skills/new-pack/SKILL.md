@@ -5,7 +5,7 @@ description: Scaffold a new visualizer pack for the Cat Nip project. Use when th
 
 # Create a new visualizer pack
 
-This skill scaffolds a new pack inside `src/packs/<id>/`. Packs are the
+This skill scaffolds a new pack inside `packages/app/src/packs/<id>/`. Packs are the
 unit of visualizer extensibility in this project. See `ARCHITECTURE.md`
 (sibling of this skill in the repo) for the full contract.
 
@@ -14,7 +14,7 @@ unit of visualizer extensibility in this project. See `ARCHITECTURE.md`
 Use `AskUserQuestion` to decide:
 
 1. **Folder slug and display name** — folder slug is the directory name
-   under `src/packs/` (lowercase, `[a-z0-9_-]`, dev-only — the canonical
+   under `packages/app/src/packs/` (lowercase, `[a-z0-9_-]`, dev-only — the canonical
    pack id is the SHA-256 of the pack contents and is computed at load
    time, never written into `manifest.json`); name is the human-readable
    label shown in the dropdown.
@@ -55,7 +55,7 @@ If any of those are obvious from the conversation, skip asking.
 
 ## Step 2 — confirm the working directory
 
-The packs directory lives at `<repo>/src/packs/`. Verify it exists with
+The packs directory lives at `<repo>/packages/app/src/packs/`. Verify it exists with
 `ls`.
 
 ## Step 3 — scaffold files
@@ -200,7 +200,7 @@ adjustments — at minimum a speed multiplier and a tint, plus whatever
 extra knobs match the visual idea.
 
 Optional: include the standard spectrum strip at the bottom (see
-`src/packs/gradient/shader.wgsl` for the canonical block) by copy-paste.
+`packages/app/src/packs/gradient/shader.wgsl` for the canonical block) by copy-paste.
 Skip it if the user wants a clean fullscreen visual.
 
 ### For GLSL packs: `shader.glsl`
@@ -439,7 +439,7 @@ Constraints / gotchas:
   frame.
 - Intermediate textures are allocated at full surface size and recreated
   on resize. There's one intermediate per extra pass.
-- See `src/packs/bloom-pulse/` for a worked example (concentric rings
+- See `packages/app/src/packs/bloom-pulse/` for a worked example (concentric rings
   base + brightness-threshold bloom).
 
 ### Tier 2 only: `pack.ts` (AssemblyScript)
@@ -484,13 +484,13 @@ export function viz_dispose(_handle: u32): void {}
 Then update `package.json`'s `build:packs` script so the new `pack.ts`
 gets compiled. The current script chains `bunx asc ...` invocations for
 each Tier-2 pack (today: `wasm-color` and `particle-fountain`). Append
-another `&& bunx asc src/packs/<id>/pack.ts --target release --runtime
-stub --exportRuntime -o src/packs/<id>/pack.wasm`.
+another `&& bunx asc packages/app/src/packs/<id>/pack.ts --target release --runtime
+stub --exportRuntime -o packages/app/src/packs/<id>/pack.wasm`.
 
 If the chain gets long, refactor to a loop:
 
 ```bash
-"build:packs": "for d in src/packs/*/; do test -f \"$d/pack.ts\" && bunx asc \"$d/pack.ts\" --target release --runtime stub --exportRuntime -o \"$d/pack.wasm\"; done"
+"build:packs": "for d in packages/app/src/packs/*/; do test -f \"$d/pack.ts\" && bunx asc \"$d/pack.ts\" --target release --runtime stub --exportRuntime -o \"$d/pack.wasm\"; done"
 ```
 
 Run `bun run build:packs` from the repo root to compile.
@@ -522,9 +522,9 @@ Before launching the app, verify the GLSL transpiles and compiles:
 # Quick transpilation check — does Naga accept it?
 # The loader does this automatically, but you can test manually:
 bun -e "
-  const { transpileGlslToWgsl } = require('./src/bun/packs/glsl-transpile');
+  const { transpileGlslToWgsl } = require('./packages/app/src/bun/packs/glsl-transpile');
   const fs = require('fs');
-  const glsl = fs.readFileSync('src/packs/<slug>/shader.glsl', 'utf8');
+  const glsl = fs.readFileSync('packages/app/src/packs/<slug>/shader.glsl', 'utf8');
   const result = transpileGlslToWgsl(glsl);
   if (!result.ok) { console.error('FAIL:', result.error); process.exit(1); }
   console.log('Transpiled OK (' + result.wgsl.length + ' chars)');
@@ -532,7 +532,7 @@ bun -e "
 "
 
 # Then validate the transpiled WGSL compiles on the GPU:
-bun scripts/check-shader.ts --file /tmp/<slug>-transpiled.wgsl
+bun packages/app/scripts/check-shader.ts --file /tmp/<slug>-transpiled.wgsl
 ```
 
 If transpilation fails, common fixes:
@@ -561,7 +561,7 @@ Switch to it; confirm:
 - For GLSL: the host log shows the transpilation succeeded during load.
 
 **Hot-reload (dev only).** While `bun run dev` is running, saving a
-`.wgsl`, `.glsl`, `manifest.json`, or `pack.wasm` under `src/packs/<id>/`
+`.wgsl`, `.glsl`, `manifest.json`, or `pack.wasm` under `packages/app/src/packs/<id>/`
 rebuilds that pack's pipeline within ~80 ms — no app restart needed.
 The host logs `[packs] hot-reloaded "<id>" (...)` on success or warns
 if revalidation fails (the previous version stays loaded). GLSL packs
@@ -580,7 +580,7 @@ the full app.
 Render a quick screenshot with defaults and inspect it:
 
 ```bash
-bun scripts/render-pack-debug.ts <slug> --width 640 --height 480 --frames 60
+bun packages/app/scripts/render-pack-debug.ts <slug> --width 640 --height 480 --frames 60
 open /tmp/<slug>.png   # macOS
 ```
 
@@ -593,7 +593,7 @@ Repeat this loop until the visual looks right:
 
 1. Edit `shader.wgsl` or `shader.glsl` (or extra-pass shaders)
 2. For GLSL: verify transpilation passes (see Step 5)
-3. Re-render: `bun scripts/render-pack-debug.ts <slug> --width 640 --height 480 --frames 60`
+3. Re-render: `bun packages/app/scripts/render-pack-debug.ts <slug> --width 640 --height 480 --frames 60`
 4. Inspect the output PNG
 5. If wrong, go back to step 1
 
@@ -603,11 +603,11 @@ Verify that each parameter actually changes the output:
 
 ```bash
 # Render with default params
-bun scripts/render-pack-debug.ts <slug> --out /tmp/<slug>-default.png
+bun packages/app/scripts/render-pack-debug.ts <slug> --out /tmp/<slug>-default.png
 
 # Render with a parameter cranked to its extreme
-bun scripts/render-pack-debug.ts <slug> --param speed=4.0 --out /tmp/<slug>-fast.png
-bun scripts/render-pack-debug.ts <slug> --param speed=0.1 --out /tmp/<slug>-slow.png
+bun packages/app/scripts/render-pack-debug.ts <slug> --param speed=4.0 --out /tmp/<slug>-fast.png
+bun packages/app/scripts/render-pack-debug.ts <slug> --param speed=0.1 --out /tmp/<slug>-slow.png
 ```
 
 If a parameter doesn't visibly change the output, the shader isn't
@@ -619,7 +619,7 @@ Use `--capture-frames` or `--time` to verify the visual changes over
 time (not frozen):
 
 ```bash
-bun scripts/render-pack-debug.ts <slug> --capture-frames 0,30,60,90,119
+bun packages/app/scripts/render-pack-debug.ts <slug> --capture-frames 0,30,60,90,119
 ```
 
 Compare the captured frames — they should look different from each
@@ -632,10 +632,10 @@ Override audio features to verify the shader responds:
 
 ```bash
 # High bass
-bun scripts/render-pack-debug.ts <slug> --audio bass=1.0 --audio rms=0.9 --out /tmp/<slug>-loud.png
+bun packages/app/scripts/render-pack-debug.ts <slug> --audio bass=1.0 --audio rms=0.9 --out /tmp/<slug>-loud.png
 
 # Silent
-bun scripts/render-pack-debug.ts <slug> --audio rms=0 --audio bass=0 --audio mid=0 --audio treble=0 --out /tmp/<slug>-silent.png
+bun packages/app/scripts/render-pack-debug.ts <slug> --audio rms=0 --audio bass=0 --audio mid=0 --audio treble=0 --out /tmp/<slug>-silent.png
 ```
 
 The loud vs silent renders should look noticeably different.
@@ -645,8 +645,8 @@ The loud vs silent renders should look noticeably different.
 If the pack has presets, verify each one renders distinctly:
 
 ```bash
-bun scripts/render-pack-debug.ts <slug> --preset Calm --out /tmp/<slug>-calm.png
-bun scripts/render-pack-debug.ts <slug> --preset Wild --out /tmp/<slug>-wild.png
+bun packages/app/scripts/render-pack-debug.ts <slug> --preset Calm --out /tmp/<slug>-calm.png
+bun packages/app/scripts/render-pack-debug.ts <slug> --preset Wild --out /tmp/<slug>-wild.png
 ```
 
 ### Summary checklist
@@ -688,34 +688,34 @@ Before declaring the pack done, confirm:
 When unsure, read these first:
 
 ### GLSL (Shadertoy convention)
-- `src/packs/glsl-plasma/{manifest.json, shader.glsl}` — **start here
+- `packages/app/src/packs/glsl-plasma/{manifest.json, shader.glsl}` — **start here
   for GLSL packs.** Classic plasma effect using Shadertoy convention
   (`mainImage`, `iTime`, `iResolution`) plus Cat Nip audio uniforms
   (`bass`, `mid`, `treble`, `beat_phase`). Shows the minimal GLSL pack
   structure.
 
 ### WGSL (native)
-- `src/packs/gradient/{manifest.json, shader.wgsl}` — clean Tier-1
+- `packages/app/src/packs/gradient/{manifest.json, shader.wgsl}` — clean Tier-1
   example showing the `parameters` manifest block and `@group(1)`
   binding (speed + warmth tint).
-- `src/packs/plasma/shader.wgsl` — Tier-1 plasma effect with bass-driven
+- `packages/app/src/packs/plasma/shader.wgsl` — Tier-1 plasma effect with bass-driven
   hue swap.
-- `src/packs/feedback-trails/shader.wgsl` — Tier-1 with prev-frame
+- `packages/app/src/packs/feedback-trails/shader.wgsl` — Tier-1 with prev-frame
   feedback (`@group(2)`). Beat-triggered starbursts smear into trails.
-- `src/packs/fire/manifest.json` — example of `presets` (named
+- `packages/app/src/packs/fire/manifest.json` — example of `presets` (named
   parameter snapshots). `tunnel` ships them too.
-- `src/packs/bloom-pulse/{manifest.json, shader.wgsl, bloom.wgsl}` —
+- `packages/app/src/packs/bloom-pulse/{manifest.json, shader.wgsl, bloom.wgsl}` —
   multi-pass example: pulse rings + a brightness-threshold bloom
   post-FX pass that samples the main pass via `@group(3)`.
 
 ### Tier 2 (WASM)
-- `src/packs/wasm-color/{pack.ts, shader.wgsl}` — minimal Tier-2 example;
+- `packages/app/src/packs/wasm-color/{pack.ts, shader.wgsl}` — minimal Tier-2 example;
   WASM produces RGB + accumulated energy each frame.
-- `src/packs/particle-fountain/{pack.ts, shader.wgsl}` — Tier-2 with
+- `packages/app/src/packs/particle-fountain/{pack.ts, shader.wgsl}` — Tier-2 with
   per-frame Verlet state (16 particles, beat-spawned, gravity + treble
   wind).
 
-Browse `src/packs/` for the full set (~36 packs at last count) when
+Browse `packages/app/src/packs/` for the full set (~36 packs at last count) when
 looking for a stylistic reference close to the user's seed.
 
 ## Distribution
@@ -757,8 +757,8 @@ final WGSL                   ← fed to createPackPipeline() like any
 ```
 
 Key source files:
-- `src/bun/packs/glsl-preprocess.ts` — GLSL preprocessor
-- `src/bun/packs/glsl-transpile.ts` — transpiler orchestrator
-- `src/bun/paths.ts` — `findNagaBinary()` resolution
-- `src/bun/packs/loader.ts` — integration into pack loading
-- `src/bun/packs/import.ts` — integration into `.viz` import
+- `packages/app/src/bun/packs/glsl-preprocess.ts` — GLSL preprocessor
+- `packages/app/src/bun/packs/glsl-transpile.ts` — transpiler orchestrator
+- `packages/app/src/bun/paths.ts` — `findNagaBinary()` resolution
+- `packages/app/src/bun/packs/loader.ts` — integration into pack loading
+- `packages/app/src/bun/packs/import.ts` — integration into `.viz` import

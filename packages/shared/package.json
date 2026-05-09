@@ -1,0 +1,13 @@
+{
+	"name": "@catnip/shared",
+	"version": "0.0.1",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts",
+		"./limits": "./src/limits.ts",
+		"./manifest": "./src/manifest.ts",
+		"./hash": "./src/hash.ts",
+		"./types": "./src/types.ts"
+	},
+	"files": ["src"]
+}

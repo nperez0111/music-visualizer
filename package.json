@@ -1,36 +1,28 @@
 {
 	"name": "cat-nip",
 	"version": "0.0.1",
-	"type": "module",
+	"private": true,
 	"description": "Your music on catnip",
 	"license": "MIT",
+	"workspaces": ["packages/*"],
 	"scripts": {
-		"start": "electrobun dev",
-		"dev": "electrobun dev --watch",
-		"build:canary": "electrobun build --env=canary",
-		"build:audiocap": "bun run scripts/build-audiocap.ts",
-		"build:packs": "bun run scripts/build-packs.ts",
+		"dev": "bun run --cwd packages/app dev",
+		"start": "bun run --cwd packages/app start",
+		"build:canary": "bun run --cwd packages/app build:canary",
+		"build:audiocap": "bun run --cwd packages/app build:audiocap",
+		"build:packs": "bun run --cwd packages/app build:packs",
+		"build:gallery": "bun run --cwd packages/app build:gallery",
 		"test": "bun test",
-		"test:gpu": "bun run scripts/test-packs-gpu.ts",
-		"render-pack": "bun run scripts/render-pack.ts",
-		"build:gallery": "bun run scripts/build-gallery.ts",
-		"release": "bumpp"
-	},
-	"dependencies": {
-		"electrobun": "1.18.1",
-		"fflate": "0.8.2",
-		"pixelmatch": "7.2.0",
-		"pngjs": "7.0.0",
-		"wasm-webp": "0.1.0"
+		"test:app": "bun run --cwd packages/app test",
+		"test:gpu": "bun run --cwd packages/app test:gpu",
+		"render-pack": "bun run --cwd packages/app render-pack",
+		"dev:server": "bun run --cwd packages/server dev",
+		"release": "bumpp",
+		"lexgen": "lex-cli generate"
 	},
 	"devDependencies": {
-		"@types/bun": "latest",
-		"@types/pngjs": "6.0.5",
-		"assemblyscript": "0.28.16",
+		"@atcute/lex-cli": "2.8.1",
 		"bumpp": "11.0.1",
-		"typescript": "^5.7.2"
-	},
-	"patchedDependencies": {
-		"electrobun@1.18.1": "patches/electrobun@1.18.1.patch"
+		"typescript": "6.0.3"
 	}
 }

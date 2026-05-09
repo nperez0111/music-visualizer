@@ -61,27 +61,34 @@ WORKDIR /tmp/electrobun-setup
 
 # Copy only the files needed for bun install + electrobun build.
 # These rarely change, so this layer is well-cached.
-COPY package.json bun.lock electrobun.config.ts ./
-COPY scripts/headless-shim.c ./scripts/headless-shim.c
+COPY package.json bun.lock ./
+COPY packages/app/package.json ./packages/app/package.json
+COPY packages/app/electrobun.config.ts ./packages/app/electrobun.config.ts
+COPY packages/app/scripts/headless-shim.c ./packages/app/scripts/headless-shim.c
+COPY packages/shared/package.json ./packages/shared/package.json
+COPY packages/lexicons/package.json ./packages/lexicons/package.json
+COPY packages/cli/package.json ./packages/cli/package.json
+COPY packages/server/package.json ./packages/server/package.json
 
 # Create stubs for everything electrobun.config.ts copy: references.
-RUN mkdir -p src/native/audiocap src/packs src/mainview src/bun/packs && \
-	printf '#!/bin/sh\nexit 1\n' > src/native/audiocap/audiocap && \
-	chmod +x src/native/audiocap/audiocap && \
-	touch src/mainview/index.html src/mainview/index.css && \
-	touch src/mainview/index.ts src/bun/index.ts && \
-	touch src/bun/packs/runtime-worker.ts
+RUN mkdir -p packages/app/src/native/audiocap packages/app/src/packs \
+		packages/app/src/mainview packages/app/src/bun/packs && \
+	printf '#!/bin/sh\nexit 1\n' > packages/app/src/native/audiocap/audiocap && \
+	chmod +x packages/app/src/native/audiocap/audiocap && \
+	touch packages/app/src/mainview/index.html packages/app/src/mainview/index.css && \
+	touch packages/app/src/mainview/index.ts packages/app/src/bun/index.ts && \
+	touch packages/app/src/bun/packs/runtime-worker.ts
 
 # Install deps, run electrobun build to fetch native libs, compile shim.
 RUN bun install --frozen-lockfile && \
-	bunx electrobun build --env=canary || true && \
+	(cd packages/app && bunx electrobun build --env=canary || true) && \
 	# Find the dist dir (arch varies: x64 in CI, arm64 on Apple Silicon host)
 	DIST=$(ls -d node_modules/electrobun/dist-linux-* 2>/dev/null | head -1) && \
 	if [ -z "$DIST" ]; then echo "No electrobun dist dir found" && exit 1; fi && \
 	# Compile the headless wgpu ABI shim
 	gcc -shared -fPIC -O2 \
 		-o "$DIST/libheadlessshim.so" \
-		scripts/headless-shim.c \
+		packages/app/scripts/headless-shim.c \
 		-L"$DIST" -lwebgpu_dawn \
 		-Wl,-rpath,'$ORIGIN' && \
 	# Move native libs to a fixed well-known path

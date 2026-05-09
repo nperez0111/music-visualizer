@@ -103,13 +103,17 @@ or run `/new-pack` in Claude Code if you have the project's skill installed.
 ## What's where
 
 ```
-src/
-├── bun/             # main process (Bun): rendering, audio, packs, IPC
-├── mainview/        # controls panel HTML/CSS/JS
-├── native/audiocap/ # Rust CLI: cross-platform system-audio loopback (cpal)
-└── packs/           # built-in visualizer packs
-electrobun.config.ts
-package.json
+packages/
+├── app/             # Electrobun desktop visualizer
+│   └── src/
+│       ├── bun/             # main process: rendering, audio, packs, IPC
+│       ├── mainview/        # controls panel HTML/CSS/JS
+│       ├── native/audiocap/ # Rust CLI: system-audio loopback (cpal)
+│       └── packs/           # built-in visualizer packs
+├── shared/          # manifest types, validation, hashing, limits
+├── cli/             # CLI tool (catnip)
+├── server/          # registry server (Nitro)
+└── lexicons/        # AT Protocol schemas
 ```
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for how the pieces fit together.

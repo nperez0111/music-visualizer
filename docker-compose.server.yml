@@ -1,0 +1,51 @@
+# Docker Compose for the Cat Nip registry server.
+#
+# Usage:
+#   docker compose -f docker-compose.server.yml up -d          # start
+#   docker compose -f docker-compose.server.yml logs -f        # tail logs
+#   docker compose -f docker-compose.server.yml down            # stop
+#
+# Build locally instead of pulling from GHCR:
+#   docker compose -f docker-compose.server.yml up -d --build
+#
+# The server stores its SQLite database in a named volume so data
+# persists across container restarts and image upgrades.
+
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile.server
+    image: ghcr.io/nperez0111/music-visualizer-server:latest
+    container_name: catnip-server
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - catnip-data:/app/data
+    environment:
+      # ── Required in production ────────────────────────────────────
+      # Public URL where the server is reachable (used for OAuth redirects)
+      CATNIP_PUBLIC_URL: "https://catnip.example.com"
+      # OAuth confidential client private key (JWK format)
+      # PRIVATE_KEY_JWK: '{"kty":"EC","crv":"P-256",...}'
+      # HMAC secret for sealing session tokens (any random string)
+      # COOKIE_SECRET: "change-me-to-a-random-secret"
+
+      # ── Set by Dockerfile (override if needed) ────────────────────
+      # CATNIP_DATA_DIR: /app/data
+      # HOST: 0.0.0.0
+      # PORT: 3000
+
+      # ── Optional ──────────────────────────────────────────────────
+      # Set to "1" to disable the AT Protocol Jetstream indexer
+      # CATNIP_DISABLE_INDEXER: "1"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
+
+volumes:
+  catnip-data:

@@ -24,9 +24,9 @@ bunx electrobun build --env=canary
 ## Quick Reference
 
 ```
-bun scripts/check-shader.ts <slug>              # check a built-in pack
-bun scripts/check-shader.ts --file <path.wgsl>  # check a raw WGSL file
-bun scripts/check-shader.ts --list-packs         # list available packs
+bun packages/app/scripts/check-shader.ts <slug>              # check a built-in pack
+bun packages/app/scripts/check-shader.ts --file <path.wgsl>  # check a raw WGSL file
+bun packages/app/scripts/check-shader.ts --list-packs         # list available packs
 ```
 
 | Exit code | Meaning |
@@ -54,13 +54,13 @@ After every shader edit, run the check before doing a full render:
 
 ```bash
 # Edit the shader
-vim src/packs/my-pack/shader.wgsl
+vim packages/app/src/packs/my-pack/shader.wgsl
 
 # Fast compile check (~100ms)
-bun scripts/check-shader.ts my-pack
+bun packages/app/scripts/check-shader.ts my-pack
 
 # Only render if compilation passes
-bun scripts/render-pack-debug.ts my-pack
+bun packages/app/scripts/render-pack-debug.ts my-pack
 ```
 
 ### Checking a standalone WGSL file
@@ -68,7 +68,7 @@ bun scripts/render-pack-debug.ts my-pack
 If you're writing a shader outside the pack system (e.g., a scratch file or a template):
 
 ```bash
-bun scripts/check-shader.ts --file /tmp/experiment.wgsl
+bun packages/app/scripts/check-shader.ts --file /tmp/experiment.wgsl
 ```
 
 Note: `--file` mode doesn't know about parameters, so `@group(1)` bindings won't be validated. It does detect `@group(2)` usage and creates a dummy prev-frame texture.
@@ -78,9 +78,9 @@ Note: `--file` mode doesn't know about parameters, so `@group(1)` bindings won't
 The recommended workflow when creating or modifying a pack:
 
 1. **Write** the shader code
-2. **Check** with `bun scripts/check-shader.ts <slug>` — fast, catches most errors
-3. **Render** with `bun scripts/render-pack-debug.ts <slug>` — only if step 2 passes
-4. **Diff** with `bun scripts/diff-png.ts` — compare before/after if modifying
+2. **Check** with `bun packages/app/scripts/check-shader.ts <slug>` — fast, catches most errors
+3. **Render** with `bun packages/app/scripts/render-pack-debug.ts <slug>` — only if step 2 passes
+4. **Diff** with `bun packages/app/scripts/diff-png.ts` — compare before/after if modifying
 
 This avoids wasting ~300ms on a full render cycle when the shader has a typo.
 
@@ -115,7 +115,7 @@ The shader source contains `@group(2)` references that the loader detected, but 
 
 | File | Role |
 |------|------|
-| `scripts/check-shader.ts` | The CLI script |
-| `src/bun/gpu/pipeline.ts` | `createPackPipeline()` — what the check actually exercises |
-| `src/bun/gpu/renderer.ts` | `createHeadlessRenderer()` — boots wgpu without a window |
-| `src/bun/packs/loader.ts` | Pack manifest loading and validation |
+| `packages/app/scripts/check-shader.ts` | The CLI script |
+| `packages/app/src/bun/gpu/pipeline.ts` | `createPackPipeline()` — what the check actually exercises |
+| `packages/app/src/bun/gpu/renderer.ts` | `createHeadlessRenderer()` — boots wgpu without a window |
+| `packages/app/src/bun/packs/loader.ts` | Pack manifest loading and validation |

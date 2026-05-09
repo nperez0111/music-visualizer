@@ -1,0 +1,43 @@
+{
+	"lexicon": 1,
+	"id": "com.nickthesick.catnip.pack",
+	"defs": {
+		"main": {
+			"type": "record",
+			"key": "any",
+			"description": "Immutable version record. Each publish creates a new pack record referencing its parent release and carrying the .viz blob.",
+			"record": {
+				"type": "object",
+				"required": ["release", "version", "viz", "createdAt"],
+				"properties": {
+					"release": {
+						"type": "string",
+						"format": "at-uri",
+						"description": "AT-URI of the parent com.nickthesick.catnip.release record"
+					},
+					"version": {
+						"type": "string",
+						"description": "Semver version string",
+						"minLength": 1,
+						"maxLength": 64
+					},
+					"viz": {
+						"type": "blob",
+						"description": "The .viz archive (ZIP containing the pack)",
+						"accept": ["application/zip"],
+						"maxSize": 16777216
+					},
+					"changelog": {
+						"type": "string",
+						"description": "What changed in this version",
+						"maxLength": 4096
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "datetime"
+					}
+				}
+			}
+		}
+	}
+}

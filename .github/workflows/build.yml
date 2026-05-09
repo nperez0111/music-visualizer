@@ -36,13 +36,13 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            src/native/audiocap/target
-          key: cargo-arm64-${{ hashFiles('src/native/audiocap/Cargo.lock') }}
+            packages/app/src/native/audiocap/target
+          key: cargo-arm64-${{ hashFiles('packages/app/src/native/audiocap/Cargo.lock') }}
           restore-keys: cargo-arm64-
 
       - name: Build audiocap (native arch)
         run: |
-          cd src/native/audiocap
+          cd packages/app/src/native/audiocap
           cargo build --release --target aarch64-apple-darwin
           cp target/aarch64-apple-darwin/release/audiocap audiocap
 
@@ -67,7 +67,7 @@ jobs:
             --options runtime \
             --timestamp \
             --force \
-            src/native/audiocap/audiocap
+            packages/app/src/native/audiocap/audiocap
 
       - name: bun install
         run: bun install --frozen-lockfile
@@ -81,13 +81,13 @@ jobs:
           ELECTROBUN_TEAMID: ${{ secrets.ELECTROBUN_TEAMID }}
           ELECTROBUN_APPLEID: ${{ secrets.ELECTROBUN_APPLEID }}
           ELECTROBUN_APPLEIDPASS: ${{ secrets.ELECTROBUN_APPLEIDPASS }}
-        run: bunx electrobun build --env=canary
+        run: cd packages/app && bunx electrobun build --env=canary
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: cat-nip-macos-arm64
-          path: artifacts/
+          path: packages/app/artifacts/
           retention-days: 30
           if-no-files-found: error
 
@@ -99,4 +99,4 @@ jobs:
           gh release create "${{ github.ref_name }}" \
             --title "${{ github.ref_name }}" \
             --generate-notes \
-            artifacts/*.dmg
+            packages/app/artifacts/*.dmg

@@ -1,0 +1,47 @@
+{
+	"lexicon": 1,
+	"id": "com.nickthesick.catnip.release",
+	"defs": {
+		"main": {
+			"type": "record",
+			"key": "any",
+			"description": "Identity record for a pack project. One per project per author. The rkey is the pack slug.",
+			"record": {
+				"type": "object",
+				"required": ["name", "slug", "createdAt"],
+				"properties": {
+					"name": {
+						"type": "string",
+						"description": "Human-readable pack name",
+						"minLength": 1,
+						"maxLength": 256
+					},
+					"slug": {
+						"type": "string",
+						"description": "URL-safe pack slug, used as the rkey",
+						"minLength": 1,
+						"maxLength": 128
+					},
+					"description": {
+						"type": "string",
+						"description": "Short description of the pack",
+						"maxLength": 2048
+					},
+				"tags": {
+					"type": "array",
+					"description": "Categorization tags",
+					"maxLength": 10,
+					"items": {
+						"type": "string",
+						"maxLength": 64
+					}
+				},
+				"createdAt": {
+					"type": "string",
+					"format": "datetime"
+				}
+			}
+		}
+	}
+}
+}
