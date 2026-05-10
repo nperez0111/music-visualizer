@@ -94,6 +94,8 @@ jobs:
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            GIT_SHA=${{ github.sha }}
           cache-from: type=gha,scope=server
           cache-to: type=gha,mode=max,scope=server
 
@@ -113,6 +115,6 @@ jobs:
           push-to-registry: true
 
       - name: Deploy via Portainer webhook
-        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/server-docker') && github.event_name == 'push'
         run: |
           curl -fsSL -X POST "${{ secrets.PORTAINER_WEBHOOK_URL }}"

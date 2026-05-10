@@ -122,6 +122,9 @@ RUN bun run build
 # lavapipe for CPU Vulkan rendering and curl for the healthcheck.
 FROM oven/bun:1-slim AS runtime
 
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
+
 # Mesa lavapipe (CPU Vulkan ICD) + Vulkan loader + curl for healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends \
         mesa-vulkan-drivers libvulkan1 \

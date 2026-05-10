@@ -14,7 +14,7 @@ export default defineHandler(() => {
 		const db = getDb();
 		// Quick read-only query to verify the database is functional
 		db.query("SELECT 1").get();
-		return { status: "ok" };
+		return { status: "ok", version: process.env.GIT_SHA ?? "dev" };
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		throw createError({ statusCode: 503, data: { status: "error", error: message } });
