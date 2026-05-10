@@ -3,6 +3,7 @@ import { join, resolve } from "path";
 import { parseArgs } from "util";
 import { unzipSync } from "fflate";
 import { validateManifest } from "@catnip/shared/manifest";
+import { PACK_LIMITS } from "@catnip/shared/limits";
 import { computePackHash, computePackHashFromDir } from "@catnip/shared/hash";
 import type { PackManifest } from "@catnip/shared/types";
 
@@ -70,6 +71,11 @@ export async function run(args: string[]): Promise<void> {
 			throw new Error(`File not found: ${target}`);
 		}
 		const archiveBytes = new Uint8Array(readFileSync(target));
+		if (archiveBytes.byteLength > PACK_LIMITS.MAX_ARCHIVE_BYTES) {
+			throw new Error(
+				`Archive too large (${archiveBytes.byteLength} > ${PACK_LIMITS.MAX_ARCHIVE_BYTES} bytes)`,
+			);
+		}
 		const entries = unzipSync(archiveBytes);
 
 		// Find manifest.json (root or one level deep)

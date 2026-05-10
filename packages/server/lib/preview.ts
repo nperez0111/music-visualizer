@@ -10,8 +10,20 @@ import { join, resolve } from "path";
 import { Client, simpleFetchHandler } from "@atcute/client";
 import { getDb, setVersionPreview, setVersionTags } from "./db.ts";
 import { validateManifest } from "@catnip/shared/manifest";
+import { PACK_LIMITS } from "@catnip/shared/limits";
 import { unzipSync } from "fflate";
 import { useStorage } from "nitro/storage";
+
+const UNSAFE_PATH = /(^|[\\\/])\.\.([\\\/]|$)|\\|\0/;
+
+function isUnsafePath(rel: string): boolean {
+	if (!rel) return true;
+	if (rel.startsWith("/")) return true;
+	if (rel.includes("..")) return true;
+	if (rel.includes("\\")) return true;
+	if (rel.includes("\0")) return true;
+	return UNSAFE_PATH.test(rel);
+}
 
 const DATA_DIR = process.env.CATNIP_DATA_DIR ?? ".data";
 
@@ -51,6 +63,14 @@ export async function renderVersionPreview(opts: {
 		return;
 	}
 
+	// Enforce archive size limit before decompression
+	if (vizBytes.byteLength > PACK_LIMITS.MAX_ARCHIVE_BYTES) {
+		console.error(
+			`[preview] archive too large for ${did}/${rkey}: ${vizBytes.byteLength} > ${PACK_LIMITS.MAX_ARCHIVE_BYTES}`,
+		);
+		return;
+	}
+
 	// Extract to temp dir
 	const tmpDir = join(DATA_DIR, "tmp", `${did.replace(/:/g, "_")}_${rkey}`);
 	mkdirSync(tmpDir, { recursive: true });
@@ -58,12 +78,52 @@ export async function renderVersionPreview(opts: {
 	try {
 		const entries = unzipSync(vizBytes);
 
+		// Enforce entry count and size limits
+		const allKeys = Object.keys(entries);
+		const fileKeys = allKeys.filter((k) => !k.endsWith("/"));
+		if (fileKeys.length > PACK_LIMITS.MAX_ENTRY_COUNT) {
+			console.error(
+				`[preview] too many entries for ${did}/${rkey}: ${fileKeys.length} > ${PACK_LIMITS.MAX_ENTRY_COUNT}`,
+			);
+			return;
+		}
+
+		let totalUncompressed = 0;
+		for (const k of fileKeys) {
+			const sz = entries[k]!.byteLength;
+			if (sz > PACK_LIMITS.MAX_ENTRY_BYTES) {
+				console.error(
+					`[preview] entry "${k}" too large for ${did}/${rkey}: ${sz} > ${PACK_LIMITS.MAX_ENTRY_BYTES}`,
+				);
+				return;
+			}
+			totalUncompressed += sz;
+			if (totalUncompressed > PACK_LIMITS.MAX_TOTAL_UNCOMPRESSED_BYTES) {
+				console.error(
+					`[preview] total uncompressed size exceeds limit for ${did}/${rkey}`,
+				);
+				return;
+			}
+		}
+
 		// Find manifest prefix (handle wrapper dirs)
 		let prefix = "";
 		for (const path of Object.keys(entries)) {
 			if (path === "manifest.json" || path.endsWith("/manifest.json")) {
 				prefix = path.replace("manifest.json", "");
 				break;
+			}
+		}
+
+		// Validate all paths before writing anything to disk
+		for (const path of fileKeys) {
+			if (prefix && !path.startsWith(prefix)) continue;
+			const rel = path.slice(prefix.length);
+			if (isUnsafePath(rel)) {
+				console.error(
+					`[preview] unsafe path in archive for ${did}/${rkey}: "${path}"`,
+				);
+				return;
 			}
 		}
 
@@ -75,6 +135,7 @@ export async function renderVersionPreview(opts: {
 			if (path.endsWith("/")) continue;
 			const rel = path.startsWith(prefix) ? path.slice(prefix.length) : path;
 			if (!rel) continue;
+			if (isUnsafePath(rel)) return; // Belt-and-suspenders
 			const dest = join(packDir, rel);
 			mkdirSync(join(dest, ".."), { recursive: true });
 			writeFileSync(dest, data);

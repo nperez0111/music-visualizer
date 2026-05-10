@@ -9,5 +9,8 @@
 		"./hash": "./src/hash.ts",
 		"./types": "./src/types.ts"
 	},
-	"files": ["src"]
+	"files": ["src"],
+	"dependencies": {
+		"valibot": "1.4.0"
+	}
 }

@@ -13,11 +13,13 @@ function collectFiles(
 	prefix: string,
 	out: Array<{ relPath: string; bytes: Uint8Array }>,
 ): void {
-	const { readdirSync, statSync } = require("fs") as typeof import("fs");
+	const { readdirSync, lstatSync } = require("fs") as typeof import("fs");
 	for (const name of readdirSync(dir)) {
 		const full = join(dir, name);
 		const rel = prefix ? `${prefix}/${name}` : name;
-		const st = statSync(full);
+		const st = lstatSync(full);
+		// Skip symlinks to prevent exfiltration of arbitrary files
+		if (st.isSymbolicLink()) continue;
 		if (st.isDirectory()) {
 			collectFiles(full, rel, out);
 		} else if (st.isFile()) {

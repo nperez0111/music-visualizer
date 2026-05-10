@@ -171,28 +171,40 @@ function requireCookieSecret(): string {
 	return secret;
 }
 
-// HMAC-based session seal: token = base64url({ did, sig })
+// HMAC-based session seal: token = base64url({ did, iat, sig })
+
+/** Session token TTL: 30 days in milliseconds */
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function sealSession(did: string): string {
 	const secret = requireCookieSecret();
+	const iat = Date.now();
 	const hasher = new Bun.CryptoHasher("sha256");
 	hasher.update(secret);
 	hasher.update(did);
+	hasher.update(String(iat));
 	const sig = hasher.digest("hex");
-	// Base64-encode the payload
-	return Buffer.from(JSON.stringify({ did, sig })).toString("base64url");
+	return Buffer.from(JSON.stringify({ did, iat, sig })).toString("base64url");
 }
 
 export function unsealSession(token: string): string | null {
 	try {
 		const raw = JSON.parse(Buffer.from(token, "base64url").toString());
 		if (!raw.did || !raw.sig) return null;
+		// Reject expired tokens (tokens without iat are treated as legacy and rejected)
+		if (typeof raw.iat !== "number" || Date.now() - raw.iat > SESSION_TTL_MS) return null;
 		const secret = requireCookieSecret();
 		const hasher = new Bun.CryptoHasher("sha256");
 		hasher.update(secret);
 		hasher.update(raw.did);
+		hasher.update(String(raw.iat));
 		const expected = hasher.digest("hex");
-		if (raw.sig !== expected) return null;
+		// Constant-time comparison to prevent timing side-channel attacks
+		const sigBuf = Buffer.from(raw.sig, "hex");
+		const expectedBuf = Buffer.from(expected, "hex");
+		if (sigBuf.length !== expectedBuf.length) return null;
+		const { timingSafeEqual } = require("crypto") as typeof import("crypto");
+		if (!timingSafeEqual(sigBuf, expectedBuf)) return null;
 		return raw.did;
 	} catch {
 		return null;

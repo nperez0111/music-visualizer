@@ -148,10 +148,16 @@ function startCallbackServer(): Promise<{
 			const error = url.searchParams.get("error");
 			if (error) {
 				const desc = url.searchParams.get("error_description") ?? error;
+				// HTML-escape to prevent reflected XSS from malicious PDS redirects
+				const safeDesc = desc
+					.replace(/&/g, "&amp;")
+					.replace(/</g, "&lt;")
+					.replace(/>/g, "&gt;")
+					.replace(/"/g, "&quot;");
 				res.writeHead(400, { "Content-Type": "text/html" });
 				res.end(
 					`<html><body style="background:#000;color:#ff4444;font-family:monospace;display:flex;justify-content:center;align-items:center;height:100vh;margin:0">` +
-						`<div style="text-align:center"><h1>Login failed</h1><p>${desc}</p><p>You can close this tab.</p></div>` +
+						`<div style="text-align:center"><h1>Login failed</h1><p>${safeDesc}</p><p>You can close this tab.</p></div>` +
 						`</body></html>`,
 				);
 				callbackReject!(new Error(`OAuth error: ${desc}`));

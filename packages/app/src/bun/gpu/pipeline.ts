@@ -370,11 +370,14 @@ export function rebuildPackPrevBindGroup(
 		makeBindGroupEntryTexture(1, prevFrameView),
 	]);
 	const prevBindDesc = makeBindGroupDescriptor(pp.prevBindLayout, prevEntries.ptr, 2);
-	pp.keepalive.push(prevEntries.buffer, prevBindDesc.buffer);
+	// Descriptor buffers only need to survive the synchronous FFI call below;
+	// do NOT push to pp.keepalive (which would leak on every resize).
+	const _keepalive = [prevEntries.buffer, prevBindDesc.buffer];
 	const bg = native.symbols.wgpuDeviceCreateBindGroup(
 		asPtr(renderer.device),
 		asPtr(prevBindDesc.ptr),
 	) as number;
+	void _keepalive;
 	if (!bg) throw new Error("failed to rebuild prev-frame bind group");
 	pp.prevBindGroup = bg;
 	pp.prevGeneration = generation;
@@ -405,10 +408,15 @@ export function rebuildPackChain(
 	pp.intermediateView.length = 0;
 	pp.intermediateTex.length = 0;
 
+	// Temporary keepalive for descriptor buffers used in synchronous FFI calls.
+	// These only need to survive the duration of this function — NOT pushed to
+	// pp.keepalive to avoid unbounded growth on repeated resizes.
+	const _keepalive: any[] = [];
+
 	const interUsage = TextureUsage_RenderAttachment | TextureUsage_TextureBinding;
 	for (let i = 0; i < pp.extraPasses.length; i++) {
 		const desc = makeTextureDescriptor(width, height, renderer.surfaceFormat, interUsage);
-		pp.keepalive.push(desc.buffer);
+		_keepalive.push(desc.buffer);
 		const tex = native.symbols.wgpuDeviceCreateTexture(asPtr(renderer.device), asPtr(desc.ptr)) as number;
 		if (!tex) throw new Error("failed to reallocate intermediate texture");
 		const view = native.symbols.wgpuTextureCreateView(asPtr(tex), asPtr(0)) as number;
@@ -426,12 +434,14 @@ export function rebuildPackChain(
 			makeBindGroupEntryTexture(1, pp.intermediateView[k]!),
 		]);
 		const desc = makeBindGroupDescriptor(ep.inputBindLayout, entries.ptr, 2);
-		pp.keepalive.push(entries.buffer, desc.buffer);
+		_keepalive.push(entries.buffer, desc.buffer);
 		const bg = native.symbols.wgpuDeviceCreateBindGroup(asPtr(renderer.device), asPtr(desc.ptr)) as number;
 		if (!bg) throw new Error(`failed to rebuild input bind group for pass ${k}`);
 		ep.inputBindGroup = bg;
 		try { native.symbols.wgpuBindGroupRelease(asPtr(oldBg)); } catch {}
 	}
+
+	void _keepalive;
 
 	pp.chainWidth = width;
 	pp.chainHeight = height;

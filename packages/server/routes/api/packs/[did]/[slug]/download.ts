@@ -48,7 +48,9 @@ export default defineHandler(async (event) => {
 	}
 
 	setHeader(event, "Content-Type", "application/zip");
-	setHeader(event, "Content-Disposition", `attachment; filename="${slug}.viz"`);
+	// Sanitize slug for Content-Disposition header (strip quotes, control chars, non-ASCII)
+	const safeSlug = slug.replace(/["\r\n\x00-\x1f\x7f-\xff]/g, "").slice(0, 128) || "pack";
+	setHeader(event, "Content-Disposition", `attachment; filename="${safeSlug}.viz"`);
 	setHeader(event, "Cache-Control", "public, max-age=604800, immutable");
 	return blob;
 });

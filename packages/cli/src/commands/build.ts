@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync, existsSync } from "fs";
+import { readFileSync, readdirSync, lstatSync, existsSync } from "fs";
 import { join, resolve, basename } from "path";
 import { parseArgs } from "util";
 import { zipSync } from "fflate";
@@ -14,7 +14,9 @@ function collectFiles(
 	for (const name of readdirSync(dir)) {
 		const full = join(dir, name);
 		const rel = prefix ? `${prefix}/${name}` : name;
-		const st = statSync(full);
+		const st = lstatSync(full);
+		// Skip symlinks to prevent exfiltration of arbitrary files
+		if (st.isSymbolicLink()) continue;
 		if (st.isDirectory()) {
 			collectFiles(full, rel, out);
 		} else if (st.isFile()) {

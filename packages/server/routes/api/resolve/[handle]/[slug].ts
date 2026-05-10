@@ -30,11 +30,19 @@ function getHandleResolver(): CompositeHandleResolver {
 	return _handleResolver;
 }
 
+// Validates that a handle looks like a valid AT Protocol handle (domain-like, no IP addresses)
+const HANDLE_RE = /^([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,}$/;
+
 export default defineHandler(async (event) => {
 	const { handle, slug } = getRouterParams(event);
 
 	if (!handle || !slug) {
 		throw createError({ statusCode: 400, statusMessage: "Missing handle or slug" });
+	}
+
+	// Reject handles that don't look like valid domains to prevent SSRF
+	if (!HANDLE_RE.test(handle) || handle.length > 253) {
+		throw createError({ statusCode: 400, statusMessage: "Invalid handle format" });
 	}
 
 	// Resolve handle -> DID

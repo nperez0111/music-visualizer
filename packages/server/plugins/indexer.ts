@@ -21,6 +21,47 @@ const COLLECTIONS = [
 	"com.nickthesick.catnip.star",
 ] as const;
 
+// ── Record validation helpers (enforce lexicon constraints before DB insert) ──
+
+const AT_URI_RE = /^at:\/\/did:[^/]+\/[^/]+\/[^/]+$/;
+const SLUG_RE = /^[a-z][a-z0-9-]*$/;
+
+function isString(v: unknown, maxLen: number): v is string {
+	return typeof v === "string" && v.length > 0 && v.length <= maxLen;
+}
+
+function validateReleaseRecord(record: any): boolean {
+	if (!isString(record.name, 256)) return false;
+	if (!isString(record.slug, 128) || !SLUG_RE.test(record.slug)) return false;
+	if (record.description != null && (typeof record.description !== "string" || record.description.length > 2048))
+		return false;
+	if (record.createdAt != null && typeof record.createdAt !== "string") return false;
+	// Validate tags if present
+	if (record.tags != null) {
+		if (!Array.isArray(record.tags) || record.tags.length > 10) return false;
+		for (const tag of record.tags) {
+			if (typeof tag !== "string" || tag.length === 0 || tag.length > 64) return false;
+		}
+	}
+	return true;
+}
+
+function validatePackRecord(record: any): boolean {
+	if (!isString(record.release, 512) || !AT_URI_RE.test(record.release)) return false;
+	if (!isString(record.version, 64)) return false;
+	if (record.createdAt != null && typeof record.createdAt !== "string") return false;
+	if (record.changelog != null && (typeof record.changelog !== "string" || record.changelog.length > 4096))
+		return false;
+	// viz blob ref is optional at the record level (checked separately)
+	return true;
+}
+
+function validateStarRecord(record: any): boolean {
+	if (!isString(record.subject, 512) || !AT_URI_RE.test(record.subject)) return false;
+	if (record.createdAt != null && typeof record.createdAt !== "string") return false;
+	return true;
+}
+
 /** Maximum concurrent preview renders. Excess is dropped (not queued). */
 const MAX_CONCURRENT_RENDERS = 2;
 let activeRenders = 0;
@@ -63,6 +104,10 @@ function handleEvent(event: any): void {
 	if (type === "create" || type === "update") {
 		switch (collection) {
 			case "com.nickthesick.catnip.release":
+				if (!validateReleaseRecord(record)) {
+					console.warn(`[indexer] dropping invalid release record from ${did}/${rkey}`);
+					break;
+				}
 				upsertRelease(db, {
 					did,
 					rkey,
@@ -89,6 +134,11 @@ function handleEvent(event: any): void {
 				break;
 
 			case "com.nickthesick.catnip.pack": {
+				if (!validatePackRecord(record)) {
+					console.warn(`[indexer] dropping invalid pack record from ${did}/${rkey}`);
+					break;
+				}
+
 				// Per-DID rate limiting: drop excess versions (20/hr)
 				if (!indexerVersionLimiter.check(did)) {
 					console.warn(`[indexer] rate limit exceeded for ${did}, dropping pack version ${rkey}`);
@@ -132,6 +182,10 @@ function handleEvent(event: any): void {
 			}
 
 			case "com.nickthesick.catnip.star":
+				if (!validateStarRecord(record)) {
+					console.warn(`[indexer] dropping invalid star record from ${did}/${rkey}`);
+					break;
+				}
 				upsertStar(db, {
 					did,
 					rkey,

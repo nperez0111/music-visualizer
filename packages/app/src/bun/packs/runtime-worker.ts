@@ -110,6 +110,16 @@ async function initialize(opts: InitMessage): Promise<void> {
 	const exports = instance.exports as Record<string, WebAssembly.ExportValue>;
 
 	if (exports.memory instanceof WebAssembly.Memory) {
+		// Validate exported memory doesn't exceed our configured page limit.
+		// WebAssembly.Memory.buffer.byteLength / 65536 gives current pages.
+		// We can't read the declared maximum from JS, but we can enforce at runtime:
+		// if current allocation already exceeds our limit, reject immediately.
+		const currentPages = exports.memory.buffer.byteLength / 65536;
+		if (currentPages > maxPages) {
+			throw new Error(
+				`pack "${packId}" exports memory with ${currentPages} pages (max allowed: ${maxPages})`,
+			);
+		}
 		memoryRef = exports.memory;
 	} else {
 		memoryRef = importedMemory;
