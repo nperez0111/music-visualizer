@@ -63,7 +63,17 @@ export async function renderVersionPreview(opts: {
 			},
 			as: "bytes",
 		});
-		vizBytes = new Uint8Array(response.data as unknown as ArrayBuffer);
+		// response.data may be Uint8Array, ArrayBuffer, or a Response-like object
+		const data = response.data as any;
+		if (data instanceof Uint8Array) {
+			vizBytes = data;
+		} else if (data instanceof ArrayBuffer) {
+			vizBytes = new Uint8Array(data);
+		} else if (typeof data.arrayBuffer === "function") {
+			vizBytes = new Uint8Array(await data.arrayBuffer());
+		} else {
+			throw new Error(`Unexpected blob data type: ${typeof data}`);
+		}
 	} catch (err) {
 		console.error(`[preview] failed to download blob ${vizCid} for ${did}/${rkey}:`, err);
 		return;

@@ -48,7 +48,17 @@ export default defineHandler(async (event) => {
 				as: "bytes",
 			});
 
-			blob = Buffer.from(response.data as unknown as ArrayBuffer);
+			// response.data may be Uint8Array, ArrayBuffer, or a Response-like object
+			const data = response.data as any;
+			if (data instanceof Uint8Array) {
+				blob = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+			} else if (data instanceof ArrayBuffer) {
+				blob = Buffer.from(data);
+			} else if (typeof data.arrayBuffer === "function") {
+				blob = Buffer.from(await data.arrayBuffer());
+			} else {
+				throw new Error(`Unexpected blob data type: ${typeof data}`);
+			}
 		} catch (err) {
 			console.error(`[download] failed to fetch blob from PDS (${pdsUrl}):`, err);
 			throw createError({ statusCode: 502, statusMessage: "Failed to fetch blob from PDS" });
