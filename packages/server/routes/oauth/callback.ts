@@ -37,12 +37,12 @@ export default defineEventHandler(async (event) => {
 			redirectTo.searchParams.set("did", session.did);
 			redirectTo.searchParams.set("handle", handle);
 			redirectTo.searchParams.set("sid", sid);
-			return sendRedirect(event, redirectTo.toString());
+			return sendRedirect(event, redirectTo.toString(), 302);
 		}
 
 		// Website login — redirect to homepage
 		// TODO: Set a cookie for website sessions when that's needed
-		return sendRedirect(event, "/");
+		return sendRedirect(event, "/", 302);
 	} catch (err: unknown) {
 		const msg = err instanceof Error ? err.message : String(err);
 		throw createError({ statusCode: 400, statusMessage: `OAuth callback failed: ${msg}` });

@@ -31,7 +31,7 @@ export default defineEventHandler(async (event) => {
 		throw createError({ statusCode: 429, statusMessage: "Rate limited. Try again later." });
 	}
 
-	const body = await readBody(event);
+	const body = (await readBody(event)) as { subject?: string; action?: string } | null;
 	const { subject, action } = body ?? {};
 
 	if (!subject || typeof subject !== "string") {
@@ -53,7 +53,7 @@ export default defineEventHandler(async (event) => {
 	if (action === "star") {
 		const now = new Date().toISOString();
 
-		await client.post("com.atproto.repo.createRecord", {
+		await (client as any).post("com.atproto.repo.createRecord", {
 			input: {
 				repo: did,
 				collection: "com.nickthesick.catnip.star",
@@ -74,7 +74,7 @@ export default defineEventHandler(async (event) => {
 			.get(did, subject) as { rkey: string } | null;
 
 		if (row) {
-			await client.post("com.atproto.repo.deleteRecord", {
+			await (client as any).post("com.atproto.repo.deleteRecord", {
 				input: {
 					repo: did,
 					collection: "com.nickthesick.catnip.star",

@@ -11,10 +11,8 @@
 import { defineHandler } from "nitro";
 import { getRouterParams, createError } from "nitro/h3";
 import {
-	CompositeDidDocumentResolver,
 	CompositeHandleResolver,
-	PlcDidDocumentResolver,
-	WebDidDocumentResolver,
+	DohJsonHandleResolver,
 	WellKnownHandleResolver,
 } from "@atcute/identity-resolver";
 import { getDb, type ReleaseRow, type VersionRow } from "../../../../lib/db.ts";
@@ -24,7 +22,12 @@ let _handleResolver: CompositeHandleResolver | null = null;
 function getHandleResolver(): CompositeHandleResolver {
 	if (!_handleResolver) {
 		_handleResolver = new CompositeHandleResolver({
-			resolvers: [new WellKnownHandleResolver()],
+			methods: {
+				http: new WellKnownHandleResolver(),
+				dns: new DohJsonHandleResolver({
+					dohUrl: "https://cloudflare-dns.com/dns-query",
+				}),
+			},
 		});
 	}
 	return _handleResolver;
@@ -48,7 +51,7 @@ export default defineHandler(async (event) => {
 	// Resolve handle -> DID
 	let did: string;
 	try {
-		did = await getHandleResolver().resolve(handle);
+		did = await getHandleResolver().resolve(handle as `${string}.${string}`);
 	} catch {
 		throw createError({ statusCode: 404, statusMessage: `Could not resolve handle: ${handle}` });
 	}

@@ -28,8 +28,8 @@ function isUnsafeFilePath(p: string): boolean {
 }
 
 /** Valibot action: rejects unsafe file paths (path traversal). */
-const safePath = v.check<string>(
-	(val) => !isUnsafeFilePath(val),
+const safePath = v.check(
+	(val: string) => !isUnsafeFilePath(val),
 	"path contains unsafe characters (path traversal)",
 );
 
@@ -239,7 +239,7 @@ export function validateManifest(raw: unknown): { ok: true; m: PackManifest } | 
 		const issue = result.issues[0];
 		// Format path like "parameters[0].name" for backward-compatible errors
 		const path = issue.path
-			?.map((seg, i) => {
+			?.map((seg: { key?: string | number }, i: number) => {
 				const key = "key" in seg ? seg.key : String(seg);
 				if (typeof key === "number" || /^\d+$/.test(String(key))) {
 					return `[${key}]`;

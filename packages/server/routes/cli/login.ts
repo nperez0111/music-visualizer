@@ -38,9 +38,9 @@ export default defineEventHandler(async (event) => {
 	const oauth = getOAuthClient();
 
 	const { url } = await oauth.authorize({
-		target: { type: "account", identifier: handle },
+		target: { type: "account", identifier: handle as `${string}.${string}` },
 		state: { redirectUri, handle },
 	});
 
-	return sendRedirect(event, url.toString());
+	return sendRedirect(event, url.toString(), 302);
 });

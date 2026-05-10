@@ -37,11 +37,11 @@ export default defineHandler(async (event) => {
 			handler: simpleFetchHandler({ service: "https://bsky.social" }),
 		});
 
-		const response = await client.get("com.atproto.sync.getBlob", {
+		const response = await (client as any).get("com.atproto.sync.getBlob", {
 			params: { did: version.did, cid: version.viz_cid },
 		});
 
-		blob = Buffer.from(response.data as ArrayBuffer);
+		blob = Buffer.from(response.data as unknown as ArrayBuffer);
 
 		// Fire-and-forget cache write
 		storage.setItemRaw(cacheKey, blob).catch(() => {});

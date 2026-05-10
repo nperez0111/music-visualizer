@@ -11,6 +11,7 @@ import {
 import {
 	CompositeDidDocumentResolver,
 	CompositeHandleResolver,
+	DohJsonHandleResolver,
 	LocalActorResolver,
 	PlcDidDocumentResolver,
 	WebDidDocumentResolver,
@@ -43,10 +44,18 @@ function parseKeyset(): ClientAssertionPrivateJwk[] | undefined {
 function createActorResolver() {
 	return new LocalActorResolver({
 		handleResolver: new CompositeHandleResolver({
-			resolvers: [new WellKnownHandleResolver()],
+			methods: {
+				http: new WellKnownHandleResolver(),
+				dns: new DohJsonHandleResolver({
+					dohUrl: "https://cloudflare-dns.com/dns-query",
+				}),
+			},
 		}),
 		didDocumentResolver: new CompositeDidDocumentResolver({
-			resolvers: [new PlcDidDocumentResolver(), new WebDidDocumentResolver()],
+			methods: {
+				plc: new PlcDidDocumentResolver(),
+				web: new WebDidDocumentResolver(),
+			},
 		}),
 	});
 }
@@ -77,8 +86,11 @@ function createSqliteSessionStore() {
 				"INSERT INTO oauth_sessions (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
 			).run(key, JSON.stringify(value));
 		},
-		del: async (key: string) => {
+		delete: async (key: string) => {
 			db.prepare("DELETE FROM oauth_sessions WHERE key = ?").run(key);
+		},
+		clear: async () => {
+			db.prepare("DELETE FROM oauth_sessions").run();
 		},
 	};
 }
@@ -109,8 +121,11 @@ function createSqliteStateStore() {
 				"INSERT INTO oauth_states (key, value, expires_at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, expires_at = excluded.expires_at",
 			).run(key, JSON.stringify(value), expiresAt);
 		},
-		del: async (key: string) => {
+		delete: async (key: string) => {
 			db.prepare("DELETE FROM oauth_states WHERE key = ?").run(key);
+		},
+		clear: async () => {
+			db.prepare("DELETE FROM oauth_states").run();
 		},
 	};
 }

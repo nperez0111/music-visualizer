@@ -54,10 +54,10 @@ export async function renderVersionPreview(opts: {
 		const client = new Client({
 			handler: simpleFetchHandler({ service: "https://bsky.social" }),
 		});
-		const response = await client.get("com.atproto.sync.getBlob", {
+		const response = await (client as any).get("com.atproto.sync.getBlob", {
 			params: { did, cid: vizCid },
 		});
-		vizBytes = new Uint8Array(response.data as ArrayBuffer);
+		vizBytes = new Uint8Array(response.data as unknown as ArrayBuffer);
 	} catch (err) {
 		console.error(`[preview] failed to download blob ${vizCid} for ${did}/${rkey}:`, err);
 		return;

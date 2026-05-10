@@ -26,7 +26,7 @@ services:
     environment:
       # ── Required in production ────────────────────────────────────
       # Public URL where the server is reachable (used for OAuth redirects)
-      CATNIP_PUBLIC_URL: "https://catnip.example.com"
+      CATNIP_PUBLIC_URL: "https://catnip.nickthesick.com"
       # OAuth confidential client private key (JWK format).
       # Generate one with:
       #   node -e "crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']).then(k=>crypto.subtle.exportKey('jwk',k.privateKey)).then(j=>{j.kid=crypto.randomUUID();j.use='sig';console.log(JSON.stringify(j))})"
