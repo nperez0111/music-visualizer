@@ -2,7 +2,7 @@ import { defineHandler } from "nitro";
 import { useStorage } from "nitro/storage";
 import { createError } from "nitro/h3";
 import { getDb, getVersionsWithPreview, clearVersionPreview, getVersionsMissingPreview } from "../../lib/db";
-import { backfillMissingVersions } from "../../lib/backfill";
+import { backfillMissingVersions, refreshAllVersions } from "../../lib/backfill";
 import { renderVersionPreview } from "../../lib/preview";
 
 /**
@@ -33,6 +33,9 @@ export default defineHandler(async (event) => {
 		// Step 1: Backfill missing version rows
 		const versionResult = await backfillMissingVersions(db);
 
+		// Step 1b: Refresh all version CIDs from PDS (fixes stale CIDs from re-publishes)
+		const refreshResult = await refreshAllVersions(db);
+
 		// Step 2: Find versions with preview_path set but file missing from storage
 		const withPreview = getVersionsWithPreview(db);
 		const storage = useStorage("previews");
@@ -62,6 +65,7 @@ export default defineHandler(async (event) => {
 		return {
 			status: "ok",
 			versions: versionResult,
+			refresh: refreshResult,
 			previews: {
 				checkedFiles: withPreview.length,
 				orphanedCleared: orphanedPreviews,

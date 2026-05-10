@@ -240,7 +240,11 @@ export function upsertVersion(
 	db.prepare(`
 		INSERT INTO versions (did, rkey, release_did, release_rkey, version, viz_cid, changelog, created_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (did, rkey) DO NOTHING
+		ON CONFLICT (did, rkey) DO UPDATE SET
+			viz_cid = excluded.viz_cid,
+			changelog = COALESCE(excluded.changelog, versions.changelog),
+			created_at = excluded.created_at,
+			preview_path = CASE WHEN versions.viz_cid != excluded.viz_cid THEN NULL ELSE versions.preview_path END
 	`).run(
 		row.did,
 		row.rkey,
@@ -299,6 +303,10 @@ export function getVersionsWithPreview(db: Database): Array<{ did: string; rkey:
 	return db.prepare(
 		"SELECT did, rkey, viz_cid, preview_path FROM versions WHERE preview_path IS NOT NULL AND viz_cid IS NOT NULL"
 	).all() as Array<{ did: string; rkey: string; viz_cid: string; preview_path: string }>;
+}
+
+export function getAllReleaseDids(db: Database): string[] {
+	return (db.prepare("SELECT DISTINCT did FROM releases").all() as Array<{ did: string }>).map(r => r.did);
 }
 
 export function clearVersionPreview(db: Database, did: string, rkey: string): void {

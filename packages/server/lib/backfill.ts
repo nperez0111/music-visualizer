@@ -1,4 +1,5 @@
 import {
+	getAllReleaseDids,
 	getReleasesWithoutVersions,
 	upsertVersion,
 	type getDb,
@@ -40,6 +41,12 @@ function validatePackRecord(record: any): boolean {
 export interface BackfillResult {
 	orphanCount: number;
 	filled: number;
+	errors: string[];
+}
+
+export interface RefreshResult {
+	didCount: number;
+	upserted: number;
 	errors: string[];
 }
 
@@ -134,6 +141,81 @@ export async function backfillMissingVersions(
 
 	console.log(
 		`[backfill] done: ${result.filled}/${result.orphanCount} filled, ${result.errors.length} error(s)`,
+	);
+	return result;
+}
+
+/**
+ * Re-fetch ALL version records from PDS for every known DID and upsert them.
+ * This updates stale viz_cid values (e.g. after a re-publish with same version string).
+ */
+export async function refreshAllVersions(
+	db: ReturnType<typeof getDb>,
+): Promise<RefreshResult> {
+	const result: RefreshResult = { didCount: 0, upserted: 0, errors: [] };
+
+	const dids = getAllReleaseDids(db);
+	result.didCount = dids.length;
+	if (dids.length === 0) return result;
+
+	console.log(`[backfill] refreshing version CIDs for ${dids.length} DID(s)`);
+
+	for (const did of dids) {
+		try {
+			const pdsUrl = await resolvePdsEndpoint(did);
+			const client = new Client({
+				handler: simpleFetchHandler({ service: pdsUrl }),
+			});
+
+			type Did = `did:${string}:${string}`;
+
+			let cursor: string | undefined;
+			do {
+				const page = await ok(
+					client.get("com.atproto.repo.listRecords", {
+						params: {
+							repo: did as Did,
+							collection: "com.nickthesick.catnip.pack",
+							limit: 100,
+							...(cursor ? { cursor } : {}),
+						},
+					}),
+				);
+
+				for (const rec of page.records) {
+					const record = rec.value as any;
+					if (!validatePackRecord(record)) continue;
+
+					const releaseUri = parseAtUri(record.release);
+					if (!releaseUri) continue;
+
+					const rkey = rec.uri.split("/").pop()!;
+					const vizCid = record.viz?.ref?.$link ?? "";
+
+					upsertVersion(db, {
+						did,
+						rkey,
+						release_did: releaseUri.did,
+						release_rkey: releaseUri.rkey,
+						version: record.version,
+						viz_cid: vizCid,
+						changelog: record.changelog,
+						created_at: record.createdAt,
+					});
+					result.upserted++;
+				}
+
+				cursor = page.cursor;
+			} while (cursor);
+		} catch (err) {
+			const msg = `DID ${did}: ${err instanceof Error ? err.message : String(err)}`;
+			console.error(`[backfill] refresh failed for ${did}:`, err);
+			result.errors.push(msg);
+		}
+	}
+
+	console.log(
+		`[backfill] refresh done: ${result.upserted} upserted across ${result.didCount} DID(s), ${result.errors.length} error(s)`,
 	);
 	return result;
 }

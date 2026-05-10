@@ -149,7 +149,7 @@ describe("versions", () => {
 		expect(row.rkey).toBe("my-pack:1.0.0");
 	});
 
-	test("upsert ignores duplicate version (immutable)", () => {
+	test("upsert updates CID on duplicate version (refresh)", () => {
 		upsertRelease(db, { did: DID, rkey: "my-pack", name: "My Pack", slug: "my-pack", created_at: NOW });
 		upsertVersion(db, {
 			did: DID,
@@ -160,7 +160,7 @@ describe("versions", () => {
 			viz_cid: "cid1",
 			created_at: NOW,
 		});
-		// Try to insert again with different CID — should be ignored (immutable)
+		// Try to insert again with different CID — should update (refresh from PDS)
 		upsertVersion(db, {
 			did: DID,
 			rkey: "my-pack:1.0.0",
@@ -172,7 +172,7 @@ describe("versions", () => {
 		});
 
 		const row = db.prepare("SELECT * FROM versions WHERE did = ? AND rkey = ?").get(DID, "my-pack:1.0.0") as VersionRow;
-		expect(row.viz_cid).toBe("cid1"); // Original preserved
+		expect(row.viz_cid).toBe("cid2"); // Updated to latest CID
 	});
 
 	test("multiple versions of same pack use slug:version rkeys", () => {
