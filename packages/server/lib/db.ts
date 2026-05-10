@@ -281,6 +281,14 @@ export function setVersionPreview(db: Database, did: string, rkey: string, previ
 	db.prepare("UPDATE versions SET preview_path = ? WHERE did = ? AND rkey = ?").run(previewPath, did, rkey);
 }
 
+export function getReleasesWithoutVersions(db: Database): Array<{ did: string; rkey: string }> {
+	return db.prepare(
+		`SELECT r.did, r.rkey FROM releases r
+		 LEFT JOIN versions v ON v.release_did = r.did AND v.release_rkey = r.rkey
+		 WHERE v.rkey IS NULL`
+	).all() as Array<{ did: string; rkey: string }>;
+}
+
 export function getVersionsMissingPreview(db: Database): Array<{ did: string; rkey: string; viz_cid: string }> {
 	return db.prepare(
 		"SELECT did, rkey, viz_cid FROM versions WHERE preview_path IS NULL AND viz_cid IS NOT NULL"

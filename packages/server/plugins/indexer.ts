@@ -12,8 +12,11 @@ import {
 	getCursor,
 	setCursor,
 	getVersionsMissingPreview,
+	getReleasesWithoutVersions,
 } from "../lib/db.ts";
 import { renderVersionPreview } from "../lib/preview.ts";
+import { resolvePdsEndpoint } from "../lib/did.ts";
+import { Client, ok, simpleFetchHandler } from "@atcute/client";
 import { indexerVersionLimiter } from "../lib/rate-limit.ts";
 
 const COLLECTIONS = [
@@ -95,8 +98,11 @@ export default defineNitroPlugin(() => {
 		}
 	})();
 
-	// Re-render previews for any versions that are missing them (e.g. after a failed render)
+	// Backfill: fetch version records from PDS for releases missing versions,
+	// then re-render any missing previews.
 	setTimeout(async () => {
+		await backfillMissingVersions(db);
+
 		const missing = getVersionsMissingPreview(db);
 		if (missing.length === 0) return;
 		console.log(`[indexer] re-rendering ${missing.length} missing preview(s)`);
@@ -226,6 +232,89 @@ function handleEvent(event: any): void {
 	// Persist cursor
 	if (time_us) {
 		setCursor(db, time_us);
+	}
+}
+
+/**
+ * Backfill version records from the PDS for releases that have no versions
+ * in the local DB. This handles the case where the Jetstream cursor moved
+ * past version events that were published while the server was down.
+ */
+async function backfillMissingVersions(db: ReturnType<typeof getDb>): Promise<void> {
+	const orphanReleases = getReleasesWithoutVersions(db);
+	if (orphanReleases.length === 0) return;
+
+	// Group by DID to minimize PDS requests
+	const byDid = new Map<string, string[]>();
+	for (const { did, rkey } of orphanReleases) {
+		const list = byDid.get(did);
+		if (list) list.push(rkey);
+		else byDid.set(did, [rkey]);
+	}
+
+	console.log(
+		`[indexer] backfilling versions for ${orphanReleases.length} release(s) across ${byDid.size} DID(s)`,
+	);
+
+	for (const [did, rkeys] of byDid) {
+		try {
+			const pdsUrl = await resolvePdsEndpoint(did);
+			const client = new Client({
+				handler: simpleFetchHandler({ service: pdsUrl }),
+			});
+
+			type Did = `did:${string}:${string}`;
+
+			// Paginate through all pack records for this DID
+			let cursor: string | undefined;
+			const allRecords: Array<{ uri: string; value: Record<string, unknown> }> = [];
+			do {
+				const page = await ok(
+					client.get("com.atproto.repo.listRecords", {
+						params: {
+							repo: did as Did,
+							collection: "com.nickthesick.catnip.pack",
+							limit: 100,
+							...(cursor ? { cursor } : {}),
+						},
+					}),
+				);
+				allRecords.push(...(page.records as typeof allRecords));
+				cursor = page.cursor;
+			} while (cursor);
+
+			// Match records to orphan releases
+			const rkeysSet = new Set(rkeys);
+			let filled = 0;
+			for (const rec of allRecords) {
+				const record = rec.value as any;
+				if (!validatePackRecord(record)) continue;
+
+				const releaseUri = parseAtUri(record.release);
+				if (!releaseUri || !rkeysSet.has(releaseUri.rkey)) continue;
+
+				const rkey = rec.uri.split("/").pop()!;
+				const vizCid = record.viz?.ref?.$link ?? "";
+
+				upsertVersion(db, {
+					did,
+					rkey,
+					release_did: releaseUri.did,
+					release_rkey: releaseUri.rkey,
+					version: record.version,
+					viz_cid: vizCid,
+					changelog: record.changelog,
+					created_at: record.createdAt,
+				});
+				filled++;
+			}
+
+			if (filled > 0) {
+				console.log(`[indexer] backfilled ${filled} version(s) for ${did}`);
+			}
+		} catch (err) {
+			console.error(`[indexer] backfill failed for ${did}:`, err);
+		}
 	}
 }
 
