@@ -11,6 +11,7 @@ import {
 	setVersionTags,
 	getCursor,
 	setCursor,
+	getVersionsMissingPreview,
 } from "../lib/db.ts";
 import { renderVersionPreview } from "../lib/preview.ts";
 import { indexerVersionLimiter } from "../lib/rate-limit.ts";
@@ -93,6 +94,20 @@ export default defineNitroPlugin(() => {
 			console.error("[indexer] jetstream loop terminated:", err);
 		}
 	})();
+
+	// Re-render previews for any versions that are missing them (e.g. after a failed render)
+	setTimeout(async () => {
+		const missing = getVersionsMissingPreview(db);
+		if (missing.length === 0) return;
+		console.log(`[indexer] re-rendering ${missing.length} missing preview(s)`);
+		for (const { did, rkey, viz_cid } of missing) {
+			try {
+				await renderVersionPreview({ did, rkey, vizCid: viz_cid });
+			} catch (err) {
+				console.error(`[indexer] re-render failed for ${did}/${rkey}:`, err);
+			}
+		}
+	}, 5_000); // Delay 5s to let the server fully start
 });
 
 function handleEvent(event: any): void {

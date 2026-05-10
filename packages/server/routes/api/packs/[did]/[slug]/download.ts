@@ -39,9 +39,10 @@ export default defineHandler(async (event) => {
 
 		const response = await (client as any).get("com.atproto.sync.getBlob", {
 			params: { did: version.did, cid: version.viz_cid },
+			as: "bytes",
 		});
 
-		blob = Buffer.from(response.data as unknown as ArrayBuffer);
+		blob = Buffer.from(response.data as Uint8Array);
 
 		// Fire-and-forget cache write
 		storage.setItemRaw(cacheKey, blob).catch(() => {});

@@ -56,8 +56,9 @@ export async function renderVersionPreview(opts: {
 		});
 		const response = await (client as any).get("com.atproto.sync.getBlob", {
 			params: { did, cid: vizCid },
+			as: "bytes",
 		});
-		vizBytes = new Uint8Array(response.data as unknown as ArrayBuffer);
+		vizBytes = response.data as Uint8Array;
 	} catch (err) {
 		console.error(`[preview] failed to download blob ${vizCid} for ${did}/${rkey}:`, err);
 		return;

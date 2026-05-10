@@ -281,6 +281,12 @@ export function setVersionPreview(db: Database, did: string, rkey: string, previ
 	db.prepare("UPDATE versions SET preview_path = ? WHERE did = ? AND rkey = ?").run(previewPath, did, rkey);
 }
 
+export function getVersionsMissingPreview(db: Database): Array<{ did: string; rkey: string; viz_cid: string }> {
+	return db.prepare(
+		"SELECT did, rkey, viz_cid FROM versions WHERE preview_path IS NULL AND viz_cid IS NOT NULL"
+	).all() as Array<{ did: string; rkey: string; viz_cid: string }>;
+}
+
 export function setVersionTags(db: Database, did: string, rkey: string, tags: string[]): void {
 	db.prepare("DELETE FROM tags WHERE version_did = ? AND version_rkey = ?").run(did, rkey);
 	const insert = db.prepare("INSERT INTO tags (version_did, version_rkey, tag) VALUES (?, ?, ?)");

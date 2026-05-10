@@ -84,7 +84,9 @@ RUN cd packages/app && bunx electrobun build --env=canary || true && cd /build &
     WASMWEBP=$(find /build -path "*/node_modules/wasm-webp/package.json" -print -quit | head -1 | xargs dirname) && \
     cp -rL "$WASMWEBP" /opt/npm-runtime/wasm-webp && \
     FFLATE=$(find /build -path "*/node_modules/fflate/package.json" -not -path "*/wasm-webp/*" -print -quit | head -1 | xargs dirname) && \
-    cp -rL "$FFLATE" /opt/npm-runtime/fflate
+    cp -rL "$FFLATE" /opt/npm-runtime/fflate && \
+    VALIBOT=$(find /build -path "*/node_modules/valibot/package.json" -print -quit | head -1 | xargs dirname) && \
+    cp -rL "$VALIBOT" /opt/npm-runtime/valibot
 
 # ── Stage 3: build server + install naga ────────────────────────────────────
 FROM deps AS builder
@@ -172,6 +174,8 @@ COPY --from=native /opt/npm-runtime/webGPU.ts /opt/renderer/node_modules/electro
 COPY --from=native /opt/npm-runtime/wasm-webp /opt/renderer/node_modules/wasm-webp
 # fflate (pure JS — PNG compression in png-encode.ts)
 COPY --from=native /opt/npm-runtime/fflate /opt/renderer/node_modules/fflate
+# valibot (dependency of @catnip/shared for manifest validation)
+COPY --from=native /opt/npm-runtime/valibot /opt/renderer/node_modules/valibot
 # @catnip/shared (workspace dep — manifest validation, hashing, limits)
 COPY packages/shared/src /opt/renderer/node_modules/@catnip/shared/src
 COPY packages/shared/package.json /opt/renderer/node_modules/@catnip/shared/package.json
@@ -183,7 +187,7 @@ ENV HOST=0.0.0.0
 ENV PORT=3000
 
 # GPU rendering — force Mesa lavapipe (CPU Vulkan, no hardware GPU needed)
-ENV VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+ENV VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json
 ENV VIZ_DOCKER_MODE=1
 ENV VIZ_BUNDLE_NATIVE_DIR=/opt/gpu
 ENV ELECTROBUN_WGPU_PATH=/opt/gpu/libwebgpu_dawn.so
