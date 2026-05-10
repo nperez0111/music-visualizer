@@ -222,13 +222,16 @@ function parseEvent(event: any): {
 	rkey: string;
 	record: any;
 } {
+	// @atcute/jetstream v1.1 event shape:
+	//   { kind: 'commit', did, time_us, commit: { operation, collection, rkey, record? } }
+	const commit = event.commit;
 	return {
 		did: event.did ?? "",
 		time_us: event.time_us ?? 0,
-		type: event.type ?? event.commit?.type ?? "",
-		collection: event.collection ?? event.commit?.collection ?? "",
-		rkey: event.rkey ?? event.commit?.rkey ?? "",
-		record: event.commit?.record ?? event.record ?? {},
+		type: commit?.operation ?? event.type ?? "",
+		collection: commit?.collection ?? event.collection ?? "",
+		rkey: commit?.rkey ?? event.rkey ?? "",
+		record: commit?.record ?? event.record ?? {},
 	};
 }
 

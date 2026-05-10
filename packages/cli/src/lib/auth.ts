@@ -18,6 +18,7 @@ import { OAuthClient, type StoredState } from "@atcute/oauth-node-client";
 import {
 	CompositeDidDocumentResolver,
 	CompositeHandleResolver,
+	DohJsonHandleResolver,
 	LocalActorResolver,
 	PlcDidDocumentResolver,
 	WebDidDocumentResolver,
@@ -70,9 +71,16 @@ function createFileSessionStore() {
 			const p = join(OAUTH_SESSIONS_DIR, encodeURIComponent(key) + ".json");
 			writeFileSync(p, JSON.stringify(value));
 		},
-		del: async (key: string) => {
+		delete: async (key: string) => {
 			const p = join(OAUTH_SESSIONS_DIR, encodeURIComponent(key) + ".json");
 			if (existsSync(p)) unlinkSync(p);
+		},
+		clear: async () => {
+			if (existsSync(OAUTH_SESSIONS_DIR)) {
+				for (const f of readdirSync(OAUTH_SESSIONS_DIR)) {
+					try { unlinkSync(join(OAUTH_SESSIONS_DIR, f)); } catch {}
+				}
+			}
 		},
 	};
 }
@@ -100,9 +108,16 @@ function createFileStateStore() {
 			const expiresAt = Date.now() + 10 * 60 * 1000; // 10 min TTL
 			writeFileSync(p, JSON.stringify({ value, expiresAt }));
 		},
-		del: async (key: string) => {
+		delete: async (key: string) => {
 			const p = join(OAUTH_STATES_DIR, encodeURIComponent(key) + ".json");
 			if (existsSync(p)) unlinkSync(p);
+		},
+		clear: async () => {
+			if (existsSync(OAUTH_STATES_DIR)) {
+				for (const f of readdirSync(OAUTH_STATES_DIR)) {
+					try { unlinkSync(join(OAUTH_STATES_DIR, f)); } catch {}
+				}
+			}
 		},
 	};
 }
@@ -136,10 +151,18 @@ export function getOAuthClient(redirectUri?: string): OAuthClient {
 		// No keyset — public client
 		actorResolver: new LocalActorResolver({
 			handleResolver: new CompositeHandleResolver({
-				resolvers: [new WellKnownHandleResolver()],
+				methods: {
+					http: new WellKnownHandleResolver(),
+					dns: new DohJsonHandleResolver({
+						dohUrl: "https://cloudflare-dns.com/dns-query",
+					}),
+				},
 			}),
 			didDocumentResolver: new CompositeDidDocumentResolver({
-				resolvers: [new PlcDidDocumentResolver(), new WebDidDocumentResolver()],
+				methods: {
+					plc: new PlcDidDocumentResolver(),
+					web: new WebDidDocumentResolver(),
+				},
 			}),
 		}),
 		stores: {
