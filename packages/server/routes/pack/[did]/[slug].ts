@@ -1,8 +1,9 @@
 import { defineHandler, html } from "nitro";
 import { getRouterParams, createError } from "nitro/h3";
 import { getDb, type ReleaseRow, type VersionRow } from "../../../lib/db.ts";
+import { resolveHandleFromDid } from "../../../lib/did.ts";
 
-export default defineHandler((event) => {
+export default defineHandler(async (event) => {
 	const db = getDb();
 	const { did, slug } = getRouterParams(event);
 
@@ -34,6 +35,10 @@ export default defineHandler((event) => {
 			.all(latest.did, latest.rkey) as { tag: string }[];
 		tags = tagRows.map((r) => r.tag);
 	}
+
+	// Resolve DID to handle (best-effort, falls back to DID)
+	const handle = await resolveHandleFromDid(did);
+	const authorDisplay = handle ?? did;
 
 	const previewUrl = latest?.preview_path
 		? `/api/packs/${did}/${slug}/preview.webp`
@@ -75,7 +80,7 @@ export default defineHandler((event) => {
 			${previewUrl ? `<img src="${previewUrl}" alt="${escapeHtml(release.name)}" />` : `<div class="placeholder"></div>`}
 			<div class="info">
 				<h1>${escapeHtml(release.name)}</h1>
-				<a class="author" href="/user/${escapeHtml(did)}">by ${escapeHtml(did)}</a>
+				<a class="author" href="/user/${escapeHtml(did)}">by ${escapeHtml(authorDisplay)}</a>
 				${release.description ? `<p class="desc">${escapeHtml(release.description)}</p>` : ""}
 				<div class="meta">
 					<span class="stars">${starCount}</span>

@@ -42,3 +42,16 @@ export async function resolvePdsEndpoint(did: string): Promise<string> {
 	}
 	return "https://bsky.social";
 }
+
+/**
+ * Resolve a DID to its verified handle.
+ * Returns null if resolution fails (caller should fall back to displaying the DID).
+ */
+export async function resolveHandleFromDid(did: string): Promise<string | null> {
+	try {
+		const actor = await actorResolver.resolve(did as `did:plc:${string}`);
+		return actor.handle;
+	} catch {
+		return null;
+	}
+}

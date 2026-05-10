@@ -95,7 +95,7 @@ const { parameterBufferSize } = await import(resolve(REPO_ROOT, "src/bun/packs/p
 // List packs
 // ---------------------------------------------------------------------------
 
-const packs = loadPacksFromDir(resolve(REPO_ROOT, "src/packs"), "builtin");
+const packs = loadPacksFromDir(resolve(REPO_ROOT, "src/packs"));
 
 if (listPacks) {
 	console.log("Available packs:");

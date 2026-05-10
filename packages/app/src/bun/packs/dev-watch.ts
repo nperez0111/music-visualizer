@@ -34,7 +34,7 @@ export function watchPacksDir(opts: {
 		const bucket = buckets.get(dirName);
 		if (!bucket) return;
 		buckets.delete(dirName);
-		const all = loadPacksFromDir(packsDir, "builtin");
+		const all = loadPacksFromDir(packsDir);
 		const fresh = all.find((p) => resolve(p.path) === resolve(join(packsDir, dirName))) ?? null;
 		try {
 			onPackChanged({ dirName, touched: bucket.touched, fresh });

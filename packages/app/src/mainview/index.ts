@@ -44,13 +44,16 @@ const rpc = Electroview.defineRPC<ControlsRPC>({
 			audioLevel: ({ rms }: { rms: number; peak: number }) => {
 				lastLevel = rms;
 			},
-			activePackChanged: ({ id }: { id: string }) => {
-				if (packSelect && packSelect.value !== id) packSelect.value = id;
+			activePackChanged: ({ id }: { id: string | null }) => {
+				if (id && packSelect && packSelect.value !== id) packSelect.value = id;
 				currentPackId = id;
 				renderParamsPanel();
 			},
-			packsChanged: ({ packs, activePackId }: { packs: PackInfo[]; activePackId: string }) => {
+			packsChanged: ({ packs, activePackId }: { packs: PackInfo[]; activePackId: string | null }) => {
 				populatePacks(packs, activePackId);
+			},
+			packInstalled: ({ name }: { name: string }) => {
+				showToast(`Installed ${name}`);
 			},
 			collapsedChanged: ({ collapsed }: { collapsed: boolean }) => {
 				applyCollapsed(collapsed);
@@ -90,6 +93,22 @@ const paramsPanel = document.getElementById("paramsPanel") as HTMLElement;
 const audioSourceSelect = document.getElementById("audioSourceSelect") as HTMLSelectElement | null;
 const permFixBtn = document.getElementById("permFixBtn") as HTMLButtonElement | null;
 const errorBanner = document.getElementById("errorBanner") as HTMLElement | null;
+const toastEl = document.getElementById("toast") as HTMLElement | null;
+
+let toastTimer: ReturnType<typeof setTimeout> | null = null;
+function showToast(message: string, durationMs = 3000) {
+	if (!toastEl) return;
+	toastEl.textContent = message;
+	toastEl.hidden = false;
+	// Force reflow so the transition triggers
+	void toastEl.offsetWidth;
+	toastEl.classList.add("show");
+	if (toastTimer) clearTimeout(toastTimer);
+	toastTimer = setTimeout(() => {
+		toastEl.classList.remove("show");
+		setTimeout(() => { toastEl.hidden = true; }, 300);
+	}, durationMs);
+}
 
 let errorBannerTimer: ReturnType<typeof setTimeout> | null = null;
 function showRenderError(message: string) {
@@ -180,14 +199,42 @@ function applyAutoSettings(s: AutoSettings) {
 	if (shuffleChk) shuffleChk.checked = !!s.shuffle;
 }
 
-function populatePacks(packs: PackInfo[], activeId: string) {
+function populatePacks(packs: PackInfo[], activeId: string | null) {
 	allPacks = packs;
 	currentPackId = activeId;
+
+	const emptyState = document.getElementById("emptyState");
+	const packRow = packSelect.closest(".pack-row") as HTMLElement | null;
+	const autoRow = document.querySelector(".auto-row") as HTMLElement | null;
+
+	if (packs.length === 0) {
+		// Show empty state, hide pack controls
+		if (emptyState) emptyState.hidden = false;
+		if (packRow) packRow.hidden = true;
+		if (autoRow) autoRow.hidden = true;
+		if (nextBtn) nextBtn.hidden = true;
+		packSelect.innerHTML = "";
+		paramsPanel.hidden = true;
+		// Auto-expand sidebar so user sees the guidance
+		if (document.documentElement.classList.contains("collapsed")) {
+			applyCollapsed(false);
+			electrobun.rpc?.send?.setCollapsed({ collapsed: false });
+		}
+		requestAnimationFrame(() => wgpuTag?.syncDimensions(true));
+		return;
+	}
+
+	// Has packs — hide empty state, show controls
+	if (emptyState) emptyState.hidden = true;
+	if (packRow) packRow.hidden = false;
+	if (autoRow) autoRow.hidden = false;
+	if (nextBtn) nextBtn.hidden = false;
+
 	packSelect.innerHTML = "";
 	for (const p of packs) {
 		const opt = document.createElement("option");
 		opt.value = p.id;
-		const badge = p.runtimeBroken ? " \u26A0 broken" : (p.source === "user" ? " \u2605" : "");
+		const badge = p.runtimeBroken ? " \u26A0 broken" : "";
 		opt.textContent = `${p.name}${badge}`;
 		if (p.runtimeBroken) opt.disabled = true;
 		if (p.id === activeId) opt.selected = true;
@@ -493,7 +540,7 @@ window.addEventListener("drop", async (e) => {
 			currentAudioSource = state.audioSource;
 			if (audioSourceSelect) audioSourceSelect.value = state.audioSource;
 		}
-		if (state?.packs) populatePacks(state.packs, state.activePackId);
+		if (state?.packs) populatePacks(state.packs, state.activePackId ?? null);
 		if (state?.auto) applyAutoSettings(state.auto);
 	} catch (err) {
 		console.warn("getInitialState failed; defaulting to expanded", err);

@@ -77,7 +77,7 @@ describeIfRunning("packs/render", () => {
 
 		mkdirSync(SNAPSHOTS_DIR, { recursive: true });
 
-		const packs = loadPacksFromDir(PACKS_DIR, "builtin");
+		const packs = loadPacksFromDir(PACKS_DIR);
 		expect(packs.length).toBeGreaterThan(0);
 
 		const failures: string[] = [];
@@ -137,7 +137,7 @@ describeIfRunning("packs/render", () => {
 
 		mkdirSync(SNAPSHOTS_DIR, { recursive: true });
 
-		const packs = loadPacksFromDir(PACKS_DIR, "builtin");
+		const packs = loadPacksFromDir(PACKS_DIR);
 		expect(packs.length).toBeGreaterThan(0);
 
 		const failures: string[] = [];

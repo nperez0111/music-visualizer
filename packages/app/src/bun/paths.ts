@@ -39,20 +39,6 @@ export function findAudiocapBinary(): string | null {
 }
 
 /**
- * Resolve the built-in packs directory. Production: bundle resources. Dev:
- * either the build output or the source tree.
- */
-export function findBuiltinPacksDir(): string | null {
-	const candidates = [
-		resolve(process.cwd(), "..", "Resources", "app", "packs"),
-		resolve(import.meta.dir, "..", "..", "packs"),
-		resolve(process.cwd(), "src", "packs"),
-	];
-	for (const c of candidates) if (existsSync(c)) return c;
-	return null;
-}
-
-/**
  * Resolve the naga-cli binary for GLSL → WGSL transpilation.
  * Production: bundled next to the app resources.
  * Dev: cargo-installed in ~/.cargo/bin or on PATH.

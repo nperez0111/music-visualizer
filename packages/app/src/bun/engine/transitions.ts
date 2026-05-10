@@ -15,9 +15,9 @@ type Transition =
 		durationMs: number;
 	};
 
-/** Per-frame snapshot of what to render. */
+/** Per-frame snapshot of what to render. `from` is null when no packs are installed. */
 export type FrameTransition = {
-	from: Pack;
+	from: Pack | null;
 	to: Pack | null;
 	mix: number;
 	variant: TransitionVariant;
@@ -30,18 +30,18 @@ export type FrameTransition = {
  * to render.
  */
 export class TransitionController {
-	private active: Pack;
+	private active: Pack | null;
 	private transition: Transition = { kind: "idle" };
 	private autoSettings: AutoSettings;
 	private autoTimer: ReturnType<typeof setInterval> | null = null;
 
 	constructor(
-		initial: Pack,
+		initial: Pack | null,
 		autoSettings: AutoSettings,
 		private deps: {
 			getPacks: () => Pack[];
 			ensurePipeline: (p: Pack) => unknown;
-			onActivePackChanged: (id: string) => void;
+			onActivePackChanged: (id: string | null) => void;
 		},
 	) {
 		this.active = initial;
@@ -55,22 +55,23 @@ export class TransitionController {
 	setCallbacks(deps: {
 		getPacks: () => Pack[];
 		ensurePipeline: (p: Pack) => unknown;
-		onActivePackChanged: (id: string) => void;
+		onActivePackChanged: (id: string | null) => void;
 	}): void {
 		this.deps = deps;
 	}
 
-	getActive(): Pack {
+	getActive(): Pack | null {
 		return this.active;
 	}
 
-	getActiveId(): string {
-		return this.active.id;
+	getActiveId(): string | null {
+		return this.active?.id ?? null;
 	}
 
 	/** Set of pack ids that must not be evicted from caches this frame. */
 	pinnedIds(): Set<string> {
-		const s = new Set<string>([this.active.id]);
+		const s = new Set<string>();
+		if (this.active) s.add(this.active.id);
 		if (this.transition.kind === "active") {
 			s.add(this.transition.from.id);
 			s.add(this.transition.to.id);
@@ -120,36 +121,45 @@ export class TransitionController {
 			// Try a few times to avoid landing back on the active pack.
 			for (let i = 0; i < 16; i++) {
 				const cand = packs[Math.floor(Math.random() * packs.length)]!;
-				if (cand.id !== this.active.id) return cand;
+				if (this.active && cand.id !== this.active.id) return cand;
+				if (!this.active) return cand;
 			}
 			return null;
 		}
-		const idx = packs.findIndex((p) => p.id === this.active.id);
+		const idx = this.active ? packs.findIndex((p) => p.id === this.active!.id) : -1;
 		return packs[(idx + 1) % packs.length] ?? null;
 	}
 
 	request(next: Pack): void {
-		if (next.id === this.active.id) return;
+		if (this.active && next.id === this.active.id) return;
 		// Snap-finish any in-progress transition so the new one starts clean.
 		if (this.transition.kind === "active") {
 			this.active = this.transition.to;
 			this.transition = { kind: "idle" };
 		}
 		this.deps.ensurePipeline(next);
-		this.transition = {
-			kind: "active",
-			variant: pickRandomTransitionVariant(),
-			from: this.active,
-			to: next,
-			startMs: performance.now(),
-			durationMs: DEFAULT_TRANSITION_MS,
-		};
+		if (!this.active) {
+			// First pack ever — snap directly, no crossfade from black.
+			this.active = next;
+			this.transition = { kind: "idle" };
+		} else {
+			this.transition = {
+				kind: "active",
+				variant: pickRandomTransitionVariant(),
+				from: this.active,
+				to: next,
+				startMs: performance.now(),
+				durationMs: DEFAULT_TRANSITION_MS,
+			};
+		}
 		this.deps.onActivePackChanged(next.id);
 	}
 
 	/**
 	 * Resolve the per-frame transition state. Mutates internal state when a
 	 * transition completes (advances `active` to the to-pack).
+	 * When no pack is active, returns `from: null` — the render loop must
+	 * handle this by presenting a black frame.
 	 */
 	tick(nowMs: number): FrameTransition {
 		if (this.transition.kind !== "active") {
@@ -179,7 +189,7 @@ export class TransitionController {
 	 */
 	swapPack(fresh: Pack, prevId?: string | null): void {
 		const target = prevId ?? fresh.id;
-		if (this.active.id === target) this.active = fresh;
+		if (this.active?.id === target) this.active = fresh;
 		if (this.transition.kind === "active") {
 			if (this.transition.from.id === target) this.transition.from = fresh;
 			if (this.transition.to.id === target) this.transition.to = fresh;
@@ -189,14 +199,17 @@ export class TransitionController {
 	/**
 	 * Used after `reloadPacks()`: if the previously active pack is gone (e.g.
 	 * a user pack was removed), fall back to the first available pack.
+	 * Returns true if the active pack changed (caller should persist).
 	 */
 	rebindActive(packs: Pack[]): boolean {
-		const stillThere = packs.find((p) => p.id === this.active.id);
-		if (stillThere) {
-			this.active = stillThere;
-			return false;
+		if (this.active) {
+			const stillThere = packs.find((p) => p.id === this.active!.id);
+			if (stillThere) {
+				this.active = stillThere;
+				return false;
+			}
 		}
-		this.active = packs[0]!;
+		this.active = packs[0] ?? null;
 		return true;
 	}
 }

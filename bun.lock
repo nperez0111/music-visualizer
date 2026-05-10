@@ -24,6 +24,7 @@
       },
       "devDependencies": {
         "@atcute/atproto": "3.1.11",
+        "@atcute/identity-resolver": "1.2.2",
         "@types/bun": "latest",
         "@types/pngjs": "6.0.5",
         "assemblyscript": "0.28.17",

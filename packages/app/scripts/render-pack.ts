@@ -80,7 +80,7 @@ const { parameterFloatCount } = await import(resolve(REPO_ROOT, "src/bun/packs/p
 const { mkdirSync } = await import("fs");
 const { dirname: pathDirname } = await import("path");
 
-const packs = loadPacksFromDir(resolve(REPO_ROOT, "src/packs"), "builtin");
+const packs = loadPacksFromDir(resolve(REPO_ROOT, "src/packs"));
 if (packs.length === 0) {
 	console.error("no packs found in src/packs");
 	process.exit(2);

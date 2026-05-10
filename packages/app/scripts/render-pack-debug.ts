@@ -164,7 +164,7 @@ function loadSinglePackFromDir(dir: string): any {
 }
 
 const packsDir = resolve(REPO_ROOT, "src/packs");
-const packs = existsSync(packsDir) ? loadPacksFromDir(packsDir, "builtin") : [];
+const packs = existsSync(packsDir) ? loadPacksFromDir(packsDir) : [];
 if (packs.length === 0 && !dockerMode) {
 	console.error("no packs found in src/packs");
 	process.exit(2);

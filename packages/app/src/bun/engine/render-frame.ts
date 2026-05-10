@@ -123,6 +123,9 @@ export function createRenderDriver(deps: RenderFrameDeps): () => void {
 
 		const t: FrameTransition = deps.transitions.tick(now);
 
+		// No pack active — nothing to render, just present a black frame.
+		if (!t.from) return;
+
 		// Per-pack uniforms — separate buffers so from/to don't smear during a
 		// crossfade.
 		const fromPipe = deps.pipelineCache.ensure(t.from);

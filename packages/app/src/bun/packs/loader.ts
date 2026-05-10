@@ -1,6 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "fs";
 import { join } from "path";
-import { findBuiltinPacksDir } from "../paths";
 import { computePackHashFromDir } from "./hash";
 import { transpileGlslToWgsl } from "./glsl-transpile";
 
@@ -14,7 +13,6 @@ export type {
 	PackAudioFeatureName,
 } from "@catnip/shared";
 export { validateManifest } from "@catnip/shared";
-export { findBuiltinPacksDir };
 
 import { validateManifest } from "@catnip/shared";
 import type { PackManifest, PackParameter, PackPreset } from "@catnip/shared";
@@ -42,7 +40,6 @@ export type Pack = {
 	wasmBytes?: Uint8Array;
 	wasmRuntime?: WasmRuntime;
 	path: string;
-	source: "builtin" | "user";
 };
 
 const PREV_FRAME_GROUP_RE = /@group\s*\(\s*2\s*\)/;
@@ -55,7 +52,7 @@ const PREV_FRAME_GROUP_RE = /@group\s*\(\s*2\s*\)/;
  * Pack id is computed from the canonical hash of the directory contents,
  * not from any field in the manifest.
  */
-export function loadPacksFromDir(dir: string, source: "builtin" | "user"): Pack[] {
+export function loadPacksFromDir(dir: string): Pack[] {
 	if (!existsSync(dir)) return [];
 	const out: Pack[] = [];
 	for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -135,7 +132,6 @@ export function loadPacksFromDir(dir: string, source: "builtin" | "user"): Pack[
 				usesPrevFrame: PREV_FRAME_GROUP_RE.test(shaderText),
 				wasmBytes,
 				path: packDir,
-				source,
 			});
 		} catch (err) {
 			console.warn(`[packs] error reading ${entry.name}:`, err);
@@ -145,13 +141,6 @@ export function loadPacksFromDir(dir: string, source: "builtin" | "user"): Pack[
 }
 
 export function loadAllPacks(userPacksDir?: string): Pack[] {
-	const builtinsDir = findBuiltinPacksDir();
-	const builtins = builtinsDir ? loadPacksFromDir(builtinsDir, "builtin") : [];
-	const userPacks = userPacksDir ? loadPacksFromDir(userPacksDir, "user") : [];
-	// Built-ins win on hash collision (impossible in practice with sha256 but
-	// formalize the precedence so an attacker can't sneak in a duplicate).
-	const byId = new Map<string, Pack>();
-	for (const p of userPacks) byId.set(p.id, p);
-	for (const p of builtins) byId.set(p.id, p);
-	return Array.from(byId.values()).sort((a, b) => a.name.localeCompare(b.name));
+	const packs = userPacksDir ? loadPacksFromDir(userPacksDir) : [];
+	return packs.sort((a, b) => a.name.localeCompare(b.name));
 }

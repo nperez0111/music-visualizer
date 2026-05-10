@@ -1,8 +1,7 @@
 import { deletePref, getPref, listPrefKeys, setPref } from "../db";
-import { findBuiltinPacksDir, loadAllPacks, type Pack } from "./loader";
+import { loadAllPacks, type Pack } from "./loader";
 import { instantiateWasmPack } from "./runtime";
 import { removeUserPack } from "./import";
-import { watchPacksDir } from "./dev-watch";
 import {
 	coerceParameterValue,
 	defaultParameterValues,
@@ -39,9 +38,6 @@ export class PackRegistry {
 	static async create(userPacksDir: string): Promise<PackRegistry> {
 		const reg = new PackRegistry(userPacksDir);
 		reg.packs = loadAllPacks(userPacksDir);
-		if (reg.packs.length === 0) {
-			throw new Error("No visualizer packs found. Bundle should contain at least one pack.");
-		}
 		await reg.instantiateWasmFor(reg.packs);
 		for (const p of reg.packs) reg.ensureParams(p);
 		reg.cleanupOrphanParams();
@@ -115,7 +111,6 @@ export class PackRegistry {
 			version: p.version,
 			author: p.author,
 			description: p.description,
-			source: p.source,
 			parameters: p.parameters,
 			parameterValues: this.ensureParams(p),
 			presets: p.presets,
@@ -154,65 +149,10 @@ export class PackRegistry {
 	removeUser(id: string): { ok: boolean; reason?: string } {
 		const target = this.byId(id);
 		if (!target) return { ok: false, reason: "unknown pack" };
-		if (target.source !== "user") return { ok: false, reason: "not a user pack" };
 		removeUserPack(this.userPacksDir, id);
 		// Also drop the persisted params for this pack.
 		try { deletePref(paramsKey(id)); } catch {}
 		return { ok: true };
-	}
-
-	/**
-	 * Wire up dev-mode hot-reload. The provided callback fires for each pack
-	 * that changed (with WASM-changed flag and the prior pack id, when known)
-	 * so the engine can drop pipelines and re-run WASM init as needed. The
-	 * `prevId` lets callers fix up stale active-pack pointers when the hash
-	 * rolls.
-	 */
-	watchForDevReload(opts: {
-		onPackUpdated: (
-			fresh: Pack,
-			meta: { wasmChanged: boolean; prevId: string | null },
-		) => void | Promise<void>;
-	}): () => void {
-		const builtinsDir = findBuiltinPacksDir();
-		const isDevSource = !!builtinsDir && /(?:^|[\\/])src[\\/]packs$/.test(builtinsDir);
-		if (!isDevSource || !builtinsDir) return () => {};
-		console.log(`[packs] hot-reload watching ${builtinsDir}`);
-		return watchPacksDir({
-			packsDir: builtinsDir,
-			onPackChanged: async ({ dirName, touched, fresh }) => {
-				if (!fresh) {
-					console.warn(`[packs] hot-reload: ${dirName} failed to revalidate; keeping previous version`);
-					return;
-				}
-				// Match by directory path: the pack id rolls on every content
-				// change, but the folder doesn't.
-				const idx = this.packs.findIndex((p) => p.path === fresh.path);
-				if (idx < 0) {
-					console.log(`[packs] hot-reload: new pack folder "${dirName}", reloading list`);
-					await this.reload();
-					return;
-				}
-				const old = this.packs[idx]!;
-				const wasmChanged = touched.has("pack.wasm");
-				if (!wasmChanged && old.wasmRuntime) {
-					fresh.wasmRuntime = old.wasmRuntime;
-				}
-				this.packs[idx] = fresh;
-				if (old.id !== fresh.id) this.paramValues.delete(old.id);
-				this.ensureParams(fresh);
-
-				if (wasmChanged && fresh.wasmBytes) {
-					old.wasmRuntime?.dispose?.();
-					fresh.wasmRuntime = undefined;
-					await this.instantiateWasmFor([fresh]);
-				}
-
-				console.log(`[packs] hot-reloaded "${dirName}" (${Array.from(touched).join(", ")})`);
-				await opts.onPackUpdated(fresh, { wasmChanged, prevId: old.id });
-				this.notify();
-			},
-		});
 	}
 
 	private ensureParams(p: Pack): ParamValueMap {

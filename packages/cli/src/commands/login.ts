@@ -1,6 +1,7 @@
 import { parseArgs } from "util";
 import { createServer } from "http";
 import { saveSession, getOAuthClient, type StoredSession } from "../lib/auth.ts";
+import { PlcDidDocumentResolver } from "@atcute/identity-resolver";
 
 /**
  * `catnip login <handle>` — Log in via direct AT Protocol OAuth.
@@ -93,26 +94,18 @@ export async function run(args: string[]): Promise<void> {
 	}
 }
 
+const plcResolver = new PlcDidDocumentResolver();
+
 /**
  * Resolve a DID to its PDS service endpoint URL.
  */
 async function resolveServiceUrl(did: string): Promise<string> {
-	// For did:plc, resolve via plc.directory
-	// For did:web, resolve via .well-known
-	// Fall back to bsky.social as default
 	try {
-		if (did.startsWith("did:plc:")) {
-			const resp = await fetch(`https://plc.directory/${did}`);
-			if (resp.ok) {
-				const doc = (await resp.json()) as {
-					service?: Array<{ id: string; serviceEndpoint: string }>;
-				};
-				const pds = doc.service?.find(
-					(s) => s.id === "#atproto_pds" || s.id === `${did}#atproto_pds`,
-				);
-				if (pds?.serviceEndpoint) return pds.serviceEndpoint;
-			}
-		}
+		const doc = await plcResolver.resolve(did as `did:plc:${string}`);
+		const pds = doc.service?.find(
+			(s) => s.id === "#atproto_pds" || s.id === `${did}#atproto_pds`,
+		);
+		if (pds?.serviceEndpoint) return pds.serviceEndpoint as string;
 	} catch {
 		// Fall through
 	}

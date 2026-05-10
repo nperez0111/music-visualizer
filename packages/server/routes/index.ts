@@ -1,7 +1,8 @@
 import { defineHandler, html } from "nitro";
 import { getDb } from "../lib/db.ts";
+import { resolveHandleFromDid } from "../lib/did.ts";
 
-export default defineHandler(() => {
+export default defineHandler(async () => {
 	const db = getDb();
 
 	const packs = db
@@ -29,6 +30,19 @@ export default defineHandler(() => {
 		preview_path: string | null;
 	}>;
 
+	// Resolve unique DIDs to handles (best-effort, parallel)
+	const uniqueDids = [...new Set(packs.map((p) => p.did))];
+	const handleResults = await Promise.allSettled(
+		uniqueDids.map((did) => resolveHandleFromDid(did)),
+	);
+	const handleMap = new Map<string, string>();
+	uniqueDids.forEach((did, i) => {
+		const result = handleResults[i];
+		if (result?.status === "fulfilled" && result.value) {
+			handleMap.set(did, result.value);
+		}
+	});
+
 	const packCards = packs
 		.map(
 			(p) => `
@@ -45,7 +59,7 @@ export default defineHandler(() => {
 				</div>
 			</a>
 			<div class="card-footer">
-				<a class="author" href="/user/${p.did}">${escapeHtml(p.did.slice(0, 20))}...</a>
+				<a class="author" href="/user/${p.did}">${escapeHtml(handleMap.get(p.did) ?? p.did)}</a>
 				<span class="stars">${p.star_count}</span>
 			</div>
 		</div>

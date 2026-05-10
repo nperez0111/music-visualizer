@@ -18,6 +18,7 @@ import { AudioCapture } from "./audio/capture";
 import { importVizFile } from "./packs/import";
 import { PackRegistry } from "./packs/registry";
 import type {} from "@atcute/atproto";
+import { PlcDidDocumentResolver } from "@atcute/identity-resolver";
 import { Client, simpleFetchHandler } from "@atcute/client";
 import { createRenderer } from "./gpu/renderer";
 import { createTransitionRig } from "./gpu/transition";
@@ -489,9 +490,25 @@ win.on("close", () => {
 
 // ---------- PDS-direct fallback ----------
 
+const plcResolver = new PlcDidDocumentResolver();
+
+async function resolvePdsEndpoint(did: string): Promise<string> {
+	try {
+		const doc = await plcResolver.resolve(did as `did:plc:${string}`);
+		const pds = doc.service?.find(
+			(s) => s.id === "#atproto_pds" || s.id === `${did}#atproto_pds`,
+		);
+		if (pds?.serviceEndpoint) return pds.serviceEndpoint as string;
+	} catch (err) {
+		console.warn(`[install] failed to resolve PDS for ${did}:`, err);
+	}
+	return "https://bsky.social";
+}
+
 async function downloadFromPds(did: string, slug: string): Promise<Uint8Array> {
+	const pdsEndpoint = await resolvePdsEndpoint(did);
 	const client = new Client({
-		handler: simpleFetchHandler({ service: "https://bsky.social" }),
+		handler: simpleFetchHandler({ service: pdsEndpoint }),
 	});
 
 	const releaseUri = `at://${did}/com.nickthesick.catnip.release/${slug}`;
@@ -556,7 +573,8 @@ Electrobun.events.on("open-url", (e: { data: { url: string } }) => {
 	const url = new URL(e.data.url);
 	if (url.protocol !== "catnip:") return;
 
-	const pathname = url.pathname.replace(/^\/\//, "/"); // normalize
+	// catnip://install/... parses "install" as hostname, so reconstruct the full path
+	const pathname = "/" + url.hostname + url.pathname;
 
 	// catnip://install-all/<did>
 	const installAllMatch = pathname.match(/^\/install-all\/([^/]+)$/);
