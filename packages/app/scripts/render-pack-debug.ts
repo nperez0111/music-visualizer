@@ -38,9 +38,17 @@
 // electrobun build so that native libraries resolve correctly.
 
 import { existsSync } from "fs";
-import { resolve } from "path";
+import { resolve, join } from "path";
 
 const REPO_ROOT = resolve(import.meta.dir, "..");
+
+/**
+ * Docker / headless-only mode: set VIZ_DOCKER_MODE=1 to skip re-exec through
+ * electrobun's bundled bun. In this mode the system bun is used directly, and
+ * native libraries (libwebgpu_dawn.so, libheadlessshim.so) must be discoverable
+ * via VIZ_BUNDLE_NATIVE_DIR or LD_LIBRARY_PATH.
+ */
+const dockerMode = !!process.env.VIZ_DOCKER_MODE;
 
 function findBundleNativeDir(): string | null {
 	const override = process.env.VIZ_BUNDLE_NATIVE_DIR;
@@ -57,25 +65,28 @@ function findBundleNativeDir(): string | null {
 	return null;
 }
 
-const bundleDir = findBundleNativeDir();
-if (!bundleDir) {
-	console.error(
-		"no electrobun bundle found.\n" +
-		"on macOS: run `bunx electrobun dev` once to generate the dev bundle.\n" +
-		"on Linux: run `bunx electrobun build --env=canary` to download dist-linux-*.\n" +
-		"or set VIZ_BUNDLE_NATIVE_DIR to a directory containing bun + native libs.",
-	);
-	process.exit(2);
-}
+if (!dockerMode) {
+	const bundleDir = findBundleNativeDir();
+	if (!bundleDir) {
+		console.error(
+			"no electrobun bundle found.\n" +
+			"on macOS: run `bunx electrobun dev` once to generate the dev bundle.\n" +
+			"on Linux: run `bunx electrobun build --env=canary` to download dist-linux-*.\n" +
+			"or set VIZ_BUNDLE_NATIVE_DIR to a directory containing bun + native libs.\n" +
+			"or set VIZ_DOCKER_MODE=1 for headless container rendering.",
+		);
+		process.exit(2);
+	}
 
-const bundledBun = resolve(bundleDir, "bun");
-if (process.execPath !== bundledBun) {
-	const { spawnSync } = await import("child_process");
-	const res = spawnSync(bundledBun, [import.meta.path, ...process.argv.slice(2)], {
-		cwd: bundleDir,
-		stdio: "inherit",
-	});
-	process.exit(res.status ?? 1);
+	const bundledBun = resolve(bundleDir, "bun");
+	if (process.execPath !== bundledBun) {
+		const { spawnSync } = await import("child_process");
+		const res = spawnSync(bundledBun, [import.meta.path, ...process.argv.slice(2)], {
+			cwd: bundleDir,
+			stdio: "inherit",
+		});
+		process.exit(res.status ?? 1);
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +124,7 @@ function optionAll(name: string): string[] {
 const listPacks = flag("--list-packs");
 const listParams = flag("--list-params");
 const webpMode = flag("--webp");
+const stdoutMode = flag("--stdout");
 
 const outOpt = option("--out");
 const widthOpt = option("--width");
@@ -140,8 +152,20 @@ const { parameterFloatCount, coerceParameterValue } = await import(resolve(REPO_
 const { mkdirSync } = await import("fs");
 const { dirname: pathDirname } = await import("path");
 
-const packs = loadPacksFromDir(resolve(REPO_ROOT, "src/packs"), "builtin");
-if (packs.length === 0) {
+/**
+ * Load a single pack from a directory path. Used when the target argument is
+ * a filesystem path (e.g. from server-side preview rendering) rather than a
+ * built-in pack slug.
+ */
+function loadSinglePackFromDir(dir: string): any {
+	const packs = loadPacksFromDir(pathDirname(dir), "user");
+	const dirName = dir.split("/").pop()!;
+	return packs.find((p: any) => p.path === dir || p.path.endsWith(`/${dirName}`)) ?? null;
+}
+
+const packsDir = resolve(REPO_ROOT, "src/packs");
+const packs = existsSync(packsDir) ? loadPacksFromDir(packsDir, "builtin") : [];
+if (packs.length === 0 && !dockerMode) {
 	console.error("no packs found in src/packs");
 	process.exit(2);
 }
@@ -162,21 +186,32 @@ if (listPacks) {
 const target = argv.shift();
 if (!target) {
 	console.error(
-		"usage: bun scripts/render-pack-debug.ts <slug> [options]\n" +
+		"usage: bun scripts/render-pack-debug.ts <slug-or-path> [options]\n" +
 		"       bun scripts/render-pack-debug.ts --list-packs\n" +
 		"       bun scripts/render-pack-debug.ts <slug> --list-params\n\n" +
-		"Run with --list-packs to see available slugs."
+		"Run with --list-packs to see available slugs.\n" +
+		"Or pass a directory path containing a manifest.json."
 	);
 	process.exit(2);
 }
 
-const pack: any =
-	packs.find((p: any) => p.id === target) ??
-	packs.find((p: any) => p.path.endsWith(`/${target}`)) ??
-	packs.find((p: any) => p.name === target);
-if (!pack) {
-	console.error(`no pack matching "${target}". Run with --list-packs to see available slugs.`);
-	process.exit(1);
+// Try directory path first (for server-side preview rendering)
+let pack: any;
+if (target.includes("/") && existsSync(join(target, "manifest.json"))) {
+	pack = loadSinglePackFromDir(resolve(target));
+	if (!pack) {
+		console.error(`failed to load pack from directory "${target}"`);
+		process.exit(1);
+	}
+} else {
+	pack =
+		packs.find((p: any) => p.id === target) ??
+		packs.find((p: any) => p.path.endsWith(`/${target}`)) ??
+		packs.find((p: any) => p.name === target);
+	if (!pack) {
+		console.error(`no pack matching "${target}". Run with --list-packs to see available slugs.`);
+		process.exit(1);
+	}
 }
 
 // --list-params
@@ -216,7 +251,11 @@ if (argv.length > 0) {
 const width = widthOpt ? Number(widthOpt) : DEFAULT_RENDER_WIDTH;
 const height = heightOpt ? Number(heightOpt) : DEFAULT_RENDER_HEIGHT;
 const defaultExt = webpMode ? ".webp" : ".png";
-const outPath = resolve(outOpt ?? `/tmp/${target}${defaultExt}`);
+const outPath = stdoutMode ? undefined : resolve(outOpt ?? `/tmp/${target}${defaultExt}`);
+
+// In --stdout mode, redirect all diagnostic output to stderr so stdout is
+// reserved for the binary payload.
+const log = stdoutMode ? console.error.bind(console) : console.log.bind(console);
 
 // Determine frames — --time overrides --frames
 let frames = framesOpt ? Number(framesOpt) : 120;
@@ -356,27 +395,32 @@ if (pack.wasmBytes && !pack.wasmRuntime) {
 	});
 }
 
-mkdirSync(pathDirname(outPath), { recursive: true });
+if (outPath) mkdirSync(pathDirname(outPath), { recursive: true });
+
+if (stdoutMode && !webpMode) {
+	console.error("--stdout is only supported in --webp mode");
+	process.exit(2);
+}
 
 // ---------------------------------------------------------------------------
 // Render
 // ---------------------------------------------------------------------------
 
-console.log(`[render-debug] pack: "${pack.name}"`);
-console.log(`[render-debug] mode: ${webpMode ? "WebP" : "PNG"}`);
-console.log(`[render-debug] resolution: ${width}x${height}, frames: ${frames}`);
-if (timeOpt) console.log(`[render-debug] target time: ${timeOpt}s (frame ${frames - 1})`);
-if (paramOverrides) console.log(`[render-debug] param overrides: ${JSON.stringify(paramOverrides)}`);
-if (audioOverrides) console.log(`[render-debug] audio overrides: ${JSON.stringify(audioOverrides)}`);
-if (captureFrames && !webpMode) console.log(`[render-debug] capture frames: ${captureFrames.join(", ")}`);
-if (captureTimesS && !webpMode) console.log(`[render-debug] capture times: ${captureTimesS.map((t) => `${t}s`).join(", ")}`);
+log(`[render-debug] pack: "${pack.name}"`);
+log(`[render-debug] mode: ${webpMode ? "WebP" : "PNG"}`);
+log(`[render-debug] resolution: ${width}x${height}, frames: ${frames}`);
+if (timeOpt) log(`[render-debug] target time: ${timeOpt}s (frame ${frames - 1})`);
+if (paramOverrides) log(`[render-debug] param overrides: ${JSON.stringify(paramOverrides)}`);
+if (audioOverrides) log(`[render-debug] audio overrides: ${JSON.stringify(audioOverrides)}`);
+if (captureFrames && !webpMode) log(`[render-debug] capture frames: ${captureFrames.join(", ")}`);
+if (captureTimesS && !webpMode) log(`[render-debug] capture times: ${captureTimesS.map((t) => `${t}s`).join(", ")}`);
 if (webpMode) {
 	const wf = webpFramesOpt ? Number(webpFramesOpt) : 20;
 	const wd = webpDurationOpt ? Number(webpDurationOpt) : 100;
 	const wq = webpQualityOpt ? Number(webpQualityOpt) : 80;
-	console.log(`[render-debug] webp frames: ${wf}, duration: ${wd}ms, quality: ${wq}`);
+	log(`[render-debug] webp frames: ${wf}, duration: ${wd}ms, quality: ${wq}`);
 }
-console.log(`[render-debug] output: ${outPath}`);
+log(`[render-debug] output: ${stdoutMode ? "<stdout>" : outPath}`);
 
 const t0 = performance.now();
 
@@ -384,7 +428,7 @@ if (webpMode) {
 	const webpFrames = webpFramesOpt ? Number(webpFramesOpt) : undefined;
 	const webpDuration = webpDurationOpt ? Number(webpDurationOpt) : undefined;
 	const webpQuality = webpQualityOpt ? Number(webpQualityOpt) : undefined;
-	await renderPackToWebP({
+	const webpData = await renderPackToWebP({
 		pack,
 		outPath,
 		width,
@@ -396,10 +440,13 @@ if (webpMode) {
 		paramOverrides,
 		audioOverrides,
 	});
+	if (stdoutMode) {
+		process.stdout.write(webpData);
+	}
 } else {
 	await renderPackToPng({
 		pack,
-		outPath,
+		outPath: outPath!,
 		width,
 		height,
 		frames,
@@ -412,23 +459,23 @@ if (webpMode) {
 
 const ms = Math.round(performance.now() - t0);
 
-console.log(`[render-debug] done in ${ms}ms`);
-if (!webpMode) {
+log(`[render-debug] done in ${ms}ms`);
+if (!webpMode && outPath) {
 	const ext = outPath.match(/(\.[^.]+)$/)?.[1] ?? ".png";
 	const base = outPath.slice(0, outPath.length - ext.length);
 	if (captureFrames) {
 		for (const f of captureFrames) {
-			console.log(`[render-debug] captured: ${base}_frame${f}${ext}`);
+			log(`[render-debug] captured: ${base}_frame${f}${ext}`);
 		}
 	}
 	if (captureTimesS) {
 		for (const t of captureTimesS) {
 			const label = t % 1 === 0 ? `${t.toFixed(1)}` : `${t}`;
-			console.log(`[render-debug] captured: ${base}_t${label}s${ext}`);
+			log(`[render-debug] captured: ${base}_t${label}s${ext}`);
 		}
 	}
 }
-console.log(`[render-debug] output: ${outPath}`);
+log(`[render-debug] output: ${stdoutMode ? "<stdout>" : outPath}`);
 
 if (pack.wasmRuntime) pack.wasmRuntime.dispose();
 process.exit(0);

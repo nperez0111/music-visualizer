@@ -1,25 +1,32 @@
 /**
  * Server-side preview rendering. Downloads a .viz blob from PDS,
- * extracts to a temp directory, and spawns the headless renderer
- * to produce an animated WebP preview.
+ * extracts to a temp directory, spawns the headless renderer with --stdout,
+ * and stores the animated WebP preview via unstorage.
  */
 
 import { spawnSync } from "child_process";
-import { existsSync, mkdirSync, writeFileSync, rmSync } from "fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "fs";
 import { join, resolve } from "path";
 import { Client, simpleFetchHandler } from "@atcute/client";
 import { getDb, setVersionPreview, setVersionTags } from "./db.ts";
 import { validateManifest } from "@catnip/shared/manifest";
 import { unzipSync } from "fflate";
+import { useStorage } from "nitro/storage";
 
 const DATA_DIR = process.env.CATNIP_DATA_DIR ?? ".data";
-const PREVIEWS_DIR = join(DATA_DIR, "previews");
-const RENDER_SCRIPT = resolve(import.meta.dir, "../../../scripts/render-pack-debug.ts");
+
+/**
+ * Path to the headless render script. In Docker mode (VIZ_RENDER_SCRIPT env or
+ * VIZ_DOCKER_MODE), the script is placed at a known location by the Dockerfile.
+ * In dev mode, resolve relative to the monorepo.
+ */
+const RENDER_SCRIPT = process.env.VIZ_RENDER_SCRIPT
+	?? resolve(import.meta.dir, "../../../scripts/render-pack-debug.ts");
 
 /**
  * Render a preview for a newly indexed pack version.
  * Downloads the .viz blob, extracts it, runs the headless renderer,
- * and updates the DB with the preview path and tags.
+ * and stores the preview via unstorage.
  */
 export async function renderVersionPreview(opts: {
 	did: string;
@@ -80,7 +87,7 @@ export async function renderVersionPreview(opts: {
 			return;
 		}
 
-		const manifestRaw = JSON.parse(require("fs").readFileSync(manifestPath, "utf8"));
+		const manifestRaw = JSON.parse(readFileSync(manifestPath, "utf8"));
 		const validated = validateManifest(manifestRaw);
 		if (!validated.ok) {
 			console.error(`[preview] invalid manifest for ${did}/${rkey}: ${validated.err}`);
@@ -92,24 +99,28 @@ export async function renderVersionPreview(opts: {
 			setVersionTags(db, did, rkey, validated.m.tags);
 		}
 
-		// Render animated WebP preview
-		mkdirSync(PREVIEWS_DIR, { recursive: true });
-		const previewPath = join(PREVIEWS_DIR, `${did.replace(/:/g, "_")}_${rkey}.webp`);
+		// Render animated WebP preview via --stdout (binary on stdout, logs on stderr)
+		const storageKey = `${did.replace(/:/g, "_")}_${rkey}.webp`;
 
 		const result = spawnSync("bun", [
 			RENDER_SCRIPT,
 			packDir,
 			"--webp",
+			"--stdout",
 			"--webp-frames", "20",
 			"--webp-duration", "100",
 			"--webp-quality", "75",
 			"--width", "320",
 			"--height", "240",
-			"--out", previewPath,
 		], {
-			cwd: resolve(import.meta.dir, "../../.."),
+			cwd: process.env.VIZ_RENDER_CWD ?? resolve(import.meta.dir, "../../.."),
 			stdio: "pipe",
 			timeout: 30_000,
+			env: {
+				...process.env,
+				// Propagate Docker mode to the render subprocess
+				...(process.env.VIZ_DOCKER_MODE ? { VIZ_DOCKER_MODE: "1" } : {}),
+			},
 		});
 
 		if (result.status !== 0) {
@@ -118,14 +129,18 @@ export async function renderVersionPreview(opts: {
 			return;
 		}
 
-		if (!existsSync(previewPath)) {
+		const webpBuffer = result.stdout;
+		if (!webpBuffer || webpBuffer.length === 0) {
 			console.error(`[preview] render produced no output for ${did}/${rkey}`);
 			return;
 		}
 
-		// Update DB
-		setVersionPreview(db, did, rkey, previewPath);
-		console.log(`[preview] rendered preview for ${did}/${rkey} -> ${previewPath}`);
+		// Store preview via unstorage
+		await useStorage("previews").setItemRaw(storageKey, webpBuffer);
+
+		// Update DB with storage key
+		setVersionPreview(db, did, rkey, storageKey);
+		console.log(`[preview] rendered preview for ${did}/${rkey} -> previews:${storageKey}`);
 	} finally {
 		// Cleanup temp dir
 		try {

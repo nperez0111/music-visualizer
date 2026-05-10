@@ -1,7 +1,7 @@
 import { defineHandler } from "nitro";
-import { getRouterParams, createError, setHeader, sendStream } from "nitro/h3";
+import { useStorage } from "nitro/storage";
+import { getRouterParams, createError, setHeader } from "nitro/h3";
 import { getDb, type VersionRow } from "../../../../../lib/db.ts";
-import { existsSync, createReadStream } from "fs";
 
 export default defineHandler(async (event) => {
 	const db = getDb();
@@ -16,11 +16,17 @@ export default defineHandler(async (event) => {
 		)
 		.get(did, slug) as VersionRow | null;
 
-	if (!version?.preview_path || !existsSync(version.preview_path)) {
+	if (!version?.preview_path) {
+		throw createError({ statusCode: 404, statusMessage: "Preview not available" });
+	}
+
+	// Read preview from unstorage (preview_path is now a storage key)
+	const data = await useStorage("previews").getItemRaw(version.preview_path);
+	if (!data) {
 		throw createError({ statusCode: 404, statusMessage: "Preview not available" });
 	}
 
 	setHeader(event, "Content-Type", "image/webp");
 	setHeader(event, "Cache-Control", "public, max-age=86400");
-	return sendStream(event, createReadStream(version.preview_path));
+	return data;
 });

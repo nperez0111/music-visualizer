@@ -252,8 +252,8 @@ export type RenderPackToWebPOptions = {
 	duration?: number;
 	/** WebP quality (0–100). Default 80. */
 	quality?: number;
-	/** Where to write the WebP. The directory must already exist. */
-	outPath: string;
+	/** Where to write the WebP. If omitted, the encoded bytes are returned instead. */
+	outPath?: string;
 	/** Override pack parameter values. */
 	paramOverrides?: ParamValueMap;
 	/** Override synthetic audio features (constant across all frames). */
@@ -265,7 +265,7 @@ export type RenderPackToWebPOptions = {
  * spaced snapshots, and assemble an animated WebP written to `outPath`.
  * Uses full 24-bit colour (no palette limitation like GIF).
  */
-export async function renderPackToWebP(opts: RenderPackToWebPOptions): Promise<void> {
+export async function renderPackToWebP(opts: RenderPackToWebPOptions): Promise<Uint8Array> {
 	const width = opts.width ?? DEFAULT_RENDER_WIDTH;
 	const height = opts.height ?? DEFAULT_RENDER_HEIGHT;
 	const frames = Math.max(1, opts.frames ?? DEFAULT_RENDER_FRAMES);
@@ -396,7 +396,10 @@ export async function renderPackToWebP(opts: RenderPackToWebPOptions): Promise<v
 		}));
 		const webpData = await encodeAnimation(width, height, true, webpFrames);
 		if (!webpData) throw new Error("encodeAnimation returned null");
-		writeFileSync(opts.outPath, webpData);
+		if (opts.outPath) {
+			writeFileSync(opts.outPath, webpData);
+		}
+		return webpData;
 	} finally {
 		releasePackPipeline(pipeline);
 		if (prevView) native.symbols.wgpuTextureViewRelease(asPtr(prevView));

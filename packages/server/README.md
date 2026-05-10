@@ -42,7 +42,7 @@ The Cat Nip pack registry server. A [Nitro](https://nitro.build/) application th
 +-------------------------------------------+
 ```
 
-Data flows from AT Protocol PDSes through the Jetstream firehose into a local SQLite index. The server never stores pack files directly -- `.viz` blobs live on user PDSes and are fetched on demand for downloads and preview rendering.
+Data flows from AT Protocol PDSes through the Jetstream firehose into a local SQLite index. File storage (previews and cached `.viz` blobs) is managed via [unstorage](https://unstorage.unjs.io/) with an `fs` driver, keeping the abstraction portable across deployment targets.
 
 ## API Endpoints
 
@@ -53,7 +53,7 @@ Data flows from AT Protocol PDSes through the Jetstream firehose into a local SQ
 | GET | `/api/health` | Health check. Returns `{ status: "ok" }` or 503 if the DB is unreachable. |
 | GET | `/api/packs` | List packs. Supports `?search=`, `?tag=`, `?sort=newest\|stars`, `?limit=`, `?offset=`. |
 | GET | `/api/packs/:did/:slug` | Get a single release with all versions, star count, and tags. |
-| GET | `/api/packs/:did/:slug/download` | Download the latest `.viz` file. Rate-limited by IP (100/min). Proxies the blob from the user's PDS. |
+| GET | `/api/packs/:did/:slug/download` | Download the latest `.viz` file. Rate-limited by IP (100/min). Served from local cache if available, otherwise fetched from the user's PDS and cached lazily. |
 | GET | `/api/packs/:did/:slug/preview.webp` | Serve the animated WebP preview image for the latest version. |
 | GET | `/api/resolve/:handle/:slug` | Resolve a human-readable handle (e.g. `alice.bsky.social`) to a DID, then look up the release. |
 
@@ -97,10 +97,21 @@ When a new pack version is indexed, the indexer asynchronously:
 
 1. Downloads the `.viz` blob from the publisher's PDS via `com.atproto.sync.getBlob`
 2. Extracts the zip, validates the manifest
-3. Spawns the headless GPU renderer (`render-pack-debug.ts`) to produce a 320x240 animated WebP (20 frames)
-4. Stores the preview path in the `versions` table
+3. Spawns the headless GPU renderer (`render-pack-debug.ts --webp --stdout`) to produce a 320x240 animated WebP (20 frames) piped to stdout
+4. Stores the WebP bytes via unstorage (`previews` mount) and records the storage key in the `versions` table
 
 Preview rendering is limited to 2 concurrent renders to bound resource usage. Excess renders are dropped (not queued).
+
+### Storage (unstorage)
+
+File storage uses Nitro's built-in [unstorage](https://unstorage.unjs.io/) integration with the `fs` driver. Two mount points are configured in `nitro.config.ts`:
+
+| Mount | Base Path | Contents |
+|-------|-----------|----------|
+| `previews` | `<CATNIP_DATA_DIR>/previews` | Animated WebP preview images (keyed by `<did>_<rkey>.webp`) |
+| `vizCache` | `<CATNIP_DATA_DIR>/viz-cache` | Lazily-cached `.viz` blobs (keyed by `<did>_<vizCid>.viz`) |
+
+The `vizCache` is populated on first download request and served from disk thereafter. Cache entries are immutable (keyed by content CID) so they never need invalidation.
 
 ### Rate Limiting
 
@@ -117,7 +128,7 @@ SQLite via `bun:sqlite`, stored at `<CATNIP_DATA_DIR>/registry.db` (default: `.d
 | Table | Purpose | Primary Key |
 |-------|---------|-------------|
 | `releases` | Pack releases (name, slug, description, hidden flag) | `(did, rkey)` |
-| `versions` | Immutable pack versions (version string, viz blob CID, changelog, preview path) | `(did, rkey)` |
+| `versions` | Immutable pack versions (version string, viz blob CID, changelog, preview storage key) | `(did, rkey)` |
 | `stars` | User stars on releases | `(did, rkey)` |
 | `tags` | Tags associated with versions | FK to `versions` |
 | `cursor` | Jetstream cursor position (single row) | `id = 1` |
@@ -128,18 +139,18 @@ SQLite via `bun:sqlite`, stored at `<CATNIP_DATA_DIR>/registry.db` (default: `.d
 
 | File | Purpose |
 |------|---------|
-| `nitro.config.ts` | Nitro configuration (bun preset) |
+| `nitro.config.ts` | Nitro configuration (bun preset, unstorage mounts) |
 | `plugins/indexer.ts` | AT Protocol Jetstream firehose consumer |
 | `lib/db.ts` | SQLite database setup, migrations, and query helpers |
 | `lib/oauth.ts` | AT Protocol OAuth client, session sealing/unsealing |
-| `lib/preview.ts` | Server-side `.viz` download + headless preview rendering |
+| `lib/preview.ts` | Server-side `.viz` download + headless preview rendering (stores via unstorage) |
 | `lib/rate-limit.ts` | In-memory sliding-window rate limiter |
 | `routes/index.ts` | Website homepage (SSR HTML) |
 | `routes/pack/[did]/[slug].ts` | Pack detail page (SSR HTML with OpenGraph tags) |
 | `routes/api/packs.ts` | Pack listing API with search, tag, and sort |
 | `routes/api/packs/[did]/[slug].ts` | Single pack API (release + versions + stars + tags) |
-| `routes/api/packs/[did]/[slug]/download.ts` | `.viz` file download proxy |
-| `routes/api/packs/[did]/[slug]/preview.webp.ts` | Preview image serving |
+| `routes/api/packs/[did]/[slug]/download.ts` | `.viz` file download (cached via unstorage) |
+| `routes/api/packs/[did]/[slug]/preview.webp.ts` | Preview image serving (from unstorage) |
 | `routes/api/resolve/[handle]/[slug].ts` | Handle-to-DID resolution + pack lookup |
 | `routes/api/star.ts` | Star/unstar API |
 | `routes/api/health.ts` | Health check |
@@ -193,7 +204,7 @@ Test files: `lib/db.test.ts`, `lib/rate-limit.test.ts`.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `CATNIP_DATA_DIR` | No | `.data` | Directory for SQLite database and preview images |
+| `CATNIP_DATA_DIR` | No | `.data` | Directory for SQLite database, preview images, and `.viz` cache |
 | `CATNIP_PUBLIC_URL` | No | `http://127.0.0.1:<PORT>` | Public URL of the server (used for OAuth metadata) |
 | `CATNIP_DISABLE_INDEXER` | No | - | Set to `1` to disable the Jetstream indexer |
 | `PORT` | No | `3000` | Server listen port |
