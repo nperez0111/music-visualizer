@@ -8,7 +8,11 @@ import {
 	PresentMode_Fifo,
 	TextureFormat_BGRA8Unorm,
 } from "./wgpu-helpers";
-import { Screen } from "electrobun/bun";
+
+// Lazy-loaded: `electrobun/bun` barrel eagerly starts an RPC server on port
+// 50000, which hangs in headless/Docker environments.  Screen is only needed
+// in the windowed `createRenderer()` path; headless callers never use it.
+let _Screen: typeof import("electrobun/bun").Screen | undefined;
 
 export type Renderer = {
 	instance: number;
@@ -88,7 +92,12 @@ export function createRenderer(view: SurfaceSource): Renderer {
 	// The WGPUView frame is in CSS/point pixels (from getBoundingClientRect).
 	// The GPU surface must be configured at physical/backing pixels, so we
 	// scale by the display's scale factor (2x on Retina Macs).
-	const scaleFactor = Screen.getPrimaryDisplay().scaleFactor || 1;
+	if (!_Screen) {
+		// Lazy require to avoid top-level side effects from electrobun barrel
+		// (starts RPC server on port 50000, hangs in headless/Docker contexts).
+		_Screen = require("electrobun/bun").Screen;
+	}
+	const scaleFactor = _Screen.getPrimaryDisplay().scaleFactor || 1;
 
 	function physicalSize(): { width: number; height: number } {
 		return {

@@ -32,6 +32,22 @@ import { join } from "path";
  */
 export const asPtr = (n: number): Pointer => n as unknown as Pointer;
 
+// Readback symbol definitions shared between libNativeWrapper and libheadlessshim
+const readbackSymbols = {
+	wgpuBufferReadbackBeginShim: {
+		args: [FFIType.ptr, FFIType.u64, FFIType.u64, FFIType.ptr],
+		returns: FFIType.ptr,
+	},
+	wgpuBufferReadbackStatusShim: {
+		args: [FFIType.ptr],
+		returns: FFIType.i32,
+	},
+	wgpuBufferReadbackFreeShim: {
+		args: [FFIType.ptr],
+		returns: FFIType.void,
+	},
+} as const;
+
 const nativeShim = (() => {
 	try {
 		const libPath = join(process.cwd(), `libNativeWrapper.${suffix}`);
@@ -63,26 +79,44 @@ const nativeShim = (() => {
 				returns: FFIType.ptr,
 			},
 			// Buffer readback (headless + windowed)
-			wgpuBufferReadbackBeginShim: {
-				args: [FFIType.ptr, FFIType.u64, FFIType.u64, FFIType.ptr],
-				returns: FFIType.ptr,
-			},
-			wgpuBufferReadbackStatusShim: {
-				args: [FFIType.ptr],
-				returns: FFIType.i32,
-			},
-			wgpuBufferReadbackFreeShim: {
-				args: [FFIType.ptr],
-				returns: FFIType.void,
-			},
+			...readbackSymbols,
 		});
 	} catch {
 		return null;
 	}
 })();
 
+/**
+ * Fallback readback provider: if libNativeWrapper isn't available (headless
+ * Docker — no GTK/WebKit), try loading readback symbols from libheadlessshim
+ * instead. The shim is a tiny .so compiled from headless-shim.c that wraps
+ * the standard wgpu buffer-map API into the same Begin/Status/Free pattern.
+ */
+const headlessReadback = (() => {
+	if (nativeShim) return null; // libNativeWrapper is available, no need for fallback
+	const candidates: string[] = [];
+	const env = process.env.VIZ_HEADLESS_SHIM;
+	if (env) candidates.push(env);
+	const bundleDir = process.env.VIZ_BUNDLE_NATIVE_DIR;
+	if (bundleDir) candidates.push(join(bundleDir, "libheadlessshim.so"));
+	candidates.push(join(process.cwd(), "libheadlessshim.so"));
+	for (const path of candidates) {
+		try {
+			return dlopen(path, readbackSymbols);
+		} catch { /* try next */ }
+	}
+	return null;
+})();
+
+// Pick the best available readback provider: prefer libNativeWrapper, fall
+// back to libheadlessshim (headless Docker builds without GTK/WebKit).
+const readback = nativeShim ?? headlessReadback;
+
 export const WGPUBridge = {
 	available: !!nativeShim?.symbols?.wgpuInstanceCreateSurfaceMainThread,
+
+	/** Whether buffer readback is available (via libNativeWrapper OR libheadlessshim). */
+	readbackAvailable: !!readback?.symbols?.wgpuBufferReadbackBeginShim,
 
 	instanceCreateSurface: (instancePtr: number, descriptorPtr: number): number =>
 		nativeShim!.symbols.wgpuInstanceCreateSurfaceMainThread(
@@ -130,7 +164,7 @@ export const WGPUBridge = {
 		size: bigint,
 		dstPtr: Pointer,
 	): number =>
-		nativeShim!.symbols.wgpuBufferReadbackBeginShim(
+		readback!.symbols.wgpuBufferReadbackBeginShim(
 			asPtr(bufferPtr),
 			offset as any,
 			size as any,
@@ -138,8 +172,8 @@ export const WGPUBridge = {
 		) as number,
 
 	bufferReadbackStatus: (jobPtr: number): number =>
-		nativeShim!.symbols.wgpuBufferReadbackStatusShim(asPtr(jobPtr)),
+		readback!.symbols.wgpuBufferReadbackStatusShim(asPtr(jobPtr)),
 
 	bufferReadbackFree: (jobPtr: number) =>
-		nativeShim!.symbols.wgpuBufferReadbackFreeShim(asPtr(jobPtr)),
+		readback!.symbols.wgpuBufferReadbackFreeShim(asPtr(jobPtr)),
 };
