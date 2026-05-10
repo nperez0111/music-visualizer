@@ -29,7 +29,7 @@ services:
       CATNIP_PUBLIC_URL: "https://catnip.nickthesick.com"
       # OAuth confidential client private key (JWK format).
       # Generate one with:
-      #   node -e "crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']).then(k=>crypto.subtle.exportKey('jwk',k.privateKey)).then(j=>{j.kid=crypto.randomUUID();j.use='sig';console.log(JSON.stringify(j))})"
+      #   node -e "crypto.subtle.generateKey({name:'ECDSA',namedCurve:'P-256'},true,['sign','verify']).then(k=>crypto.subtle.exportKey('jwk',k.privateKey)).then(j=>{j.alg='ES256';j.kid=crypto.randomUUID();j.use='sig';console.log(JSON.stringify(j))})"
       # PRIVATE_KEY_JWK: '{"kty":"EC","crv":"P-256",...}'
       # HMAC secret for sealing session tokens (required).
       # Generate one with:

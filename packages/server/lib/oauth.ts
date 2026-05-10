@@ -36,18 +36,17 @@ function parseKeyset(): ClientAssertionPrivateJwk[] | undefined {
 	if (!raw) return undefined;
 	try {
 		const jwk = JSON.parse(raw);
-		// Ensure alg is set — the Keyset constructor requires it for key matching.
-		// EC P-256 keys use ES256.
-		if (!jwk.alg && jwk.kty === "EC" && jwk.crv === "P-256") {
-			jwk.alg = "ES256";
-		}
-		// Ensure kid is set — the Keyset constructor requires it for deduplication.
-		if (!jwk.kid) {
-			jwk.kid = globalThis.crypto.randomUUID();
+		if (!jwk.alg || !jwk.kid) {
+			throw new Error(
+				'PRIVATE_KEY_JWK must include "alg" (e.g. "ES256") and "kid" properties',
+			);
 		}
 		return [jwk];
-	} catch {
-		throw new Error("PRIVATE_KEY_JWK is set but contains invalid JSON");
+	} catch (err) {
+		if (err instanceof SyntaxError) {
+			throw new Error("PRIVATE_KEY_JWK is set but contains invalid JSON");
+		}
+		throw err;
 	}
 }
 
