@@ -12,6 +12,8 @@ import {
 	getCursor,
 	setCursor,
 	getVersionsMissingPreview,
+	getVersionsWithPreview,
+	clearVersionPreview,
 } from "../lib/db.ts";
 import { renderVersionPreview } from "../lib/preview.ts";
 import { indexerVersionLimiter } from "../lib/rate-limit.ts";
@@ -97,9 +99,25 @@ export default defineNitroPlugin(() => {
 	})();
 
 	// Backfill: fetch version records from PDS for releases missing versions,
-	// then re-render any missing previews.
+	// verify preview files exist on disk, then re-render any missing previews.
 	setTimeout(async () => {
 		await backfillMissingVersions(db);
+
+		// Clear preview_path for versions whose file is missing from storage
+		const { useStorage } = await import("nitro/storage");
+		const storage = useStorage("previews");
+		const withPreview = getVersionsWithPreview(db);
+		let orphaned = 0;
+		for (const v of withPreview) {
+			const exists = await storage.hasItem(v.preview_path);
+			if (!exists) {
+				clearVersionPreview(db, v.did, v.rkey);
+				orphaned++;
+			}
+		}
+		if (orphaned > 0) {
+			console.log(`[indexer] cleared ${orphaned} orphaned preview path(s)`);
+		}
 
 		const missing = getVersionsMissingPreview(db);
 		if (missing.length === 0) return;

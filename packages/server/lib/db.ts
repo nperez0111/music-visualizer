@@ -295,6 +295,16 @@ export function getVersionsMissingPreview(db: Database): Array<{ did: string; rk
 	).all() as Array<{ did: string; rkey: string; viz_cid: string }>;
 }
 
+export function getVersionsWithPreview(db: Database): Array<{ did: string; rkey: string; viz_cid: string; preview_path: string }> {
+	return db.prepare(
+		"SELECT did, rkey, viz_cid, preview_path FROM versions WHERE preview_path IS NOT NULL AND viz_cid IS NOT NULL"
+	).all() as Array<{ did: string; rkey: string; viz_cid: string; preview_path: string }>;
+}
+
+export function clearVersionPreview(db: Database, did: string, rkey: string): void {
+	db.prepare("UPDATE versions SET preview_path = NULL WHERE did = ? AND rkey = ?").run(did, rkey);
+}
+
 export function setVersionTags(db: Database, did: string, rkey: string, tags: string[]): void {
 	db.prepare("DELETE FROM tags WHERE version_did = ? AND version_rkey = ?").run(did, rkey);
 	const insert = db.prepare("INSERT INTO tags (version_did, version_rkey, tag) VALUES (?, ?, ?)");
