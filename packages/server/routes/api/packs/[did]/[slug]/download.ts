@@ -3,6 +3,7 @@ import { useStorage } from "nitro/storage";
 import { getRouterParams, createError, setHeader, getRequestIP } from "nitro/h3";
 import { getDb, type VersionRow } from "../../../../../lib/db.ts";
 import { Client, simpleFetchHandler } from "@atcute/client";
+import { resolvePdsEndpoint } from "../../../../../lib/did.ts";
 import { downloadLimiter } from "../../../../../lib/rate-limit.ts";
 
 export default defineHandler(async (event) => {
@@ -32,15 +33,20 @@ export default defineHandler(async (event) => {
 	let blob = await storage.getItemRaw(cacheKey);
 
 	if (!blob) {
-		// Cache miss — fetch from PDS and cache lazily
+		// Cache miss — resolve PDS and fetch blob
+		const pdsUrl = await resolvePdsEndpoint(version.did);
 		const client = new Client({
-			handler: simpleFetchHandler({ service: "https://bsky.social" }),
+			handler: simpleFetchHandler({ service: pdsUrl }),
 		});
 
 		const response = await (client as any).get("com.atproto.sync.getBlob", {
 			params: { did: version.did, cid: version.viz_cid },
 			as: "bytes",
 		});
+
+		if (!response.ok) {
+			throw createError({ statusCode: 502, statusMessage: "Failed to fetch blob from PDS" });
+		}
 
 		blob = Buffer.from(response.data as Uint8Array);
 

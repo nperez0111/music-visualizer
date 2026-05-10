@@ -9,6 +9,7 @@ import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "fs";
 import { join, resolve } from "path";
 import { Client, simpleFetchHandler } from "@atcute/client";
 import { getDb, setVersionPreview, setVersionTags } from "./db.ts";
+import { resolvePdsEndpoint } from "./did.ts";
 import { validateManifest } from "@catnip/shared/manifest";
 import { PACK_LIMITS } from "@catnip/shared/limits";
 import { unzipSync } from "fflate";
@@ -48,16 +49,21 @@ export async function renderVersionPreview(opts: {
 	const { did, rkey, vizCid } = opts;
 	const db = getDb();
 
-	// Download .viz blob from PDS
+	// Download .viz blob from PDS (resolve the actual PDS for this DID)
 	let vizBytes: Uint8Array;
 	try {
+		const pdsUrl = await resolvePdsEndpoint(did);
 		const client = new Client({
-			handler: simpleFetchHandler({ service: "https://bsky.social" }),
+			handler: simpleFetchHandler({ service: pdsUrl }),
 		});
 		const response = await (client as any).get("com.atproto.sync.getBlob", {
 			params: { did, cid: vizCid },
 			as: "bytes",
 		});
+		if (!response.ok) {
+			console.error(`[preview] PDS returned ${response.status} for blob ${vizCid} (${pdsUrl})`);
+			return;
+		}
 		vizBytes = response.data as Uint8Array;
 	} catch (err) {
 		console.error(`[preview] failed to download blob ${vizCid} for ${did}/${rkey}:`, err);
