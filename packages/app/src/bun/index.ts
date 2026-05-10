@@ -19,7 +19,7 @@ import { importVizFile } from "./packs/import";
 import { PackRegistry } from "./packs/registry";
 import type {} from "@atcute/atproto";
 import { PlcDidDocumentResolver } from "@atcute/identity-resolver";
-import { Client, simpleFetchHandler } from "@atcute/client";
+import { Client, ok, simpleFetchHandler } from "@atcute/client";
 import { createRenderer } from "./gpu/renderer";
 import { createTransitionRig } from "./gpu/transition";
 import { PipelineCache } from "./engine/pipeline-cache";
@@ -516,19 +516,19 @@ async function downloadFromPds(did: string, slug: string): Promise<Uint8Array> {
 	type PackRecord = { release: string; version: string; viz: { ref: { $link: string } }; createdAt: string };
 	type Did = `did:${string}:${string}`;
 
-	const listResp = await client.get("com.atproto.repo.listRecords", {
-		params: {
-			repo: did as Did,
-			collection: "com.nickthesick.catnip.pack",
-			limit: 100,
-		},
-	});
+	const listData = await ok(
+		client.get("com.atproto.repo.listRecords", {
+			params: {
+				repo: did as Did,
+				collection: "com.nickthesick.catnip.pack",
+				limit: 100,
+			},
+		}),
+	);
 
-	if ("error" in listResp.data) throw new Error(`listRecords failed: ${listResp.data.error}`);
-
-	const matching = listResp.data.records
-		.filter((r: { value: Record<string, unknown> }) => (r.value as PackRecord).release === releaseUri)
-		.sort((a: { value: Record<string, unknown> }, b: { value: Record<string, unknown> }) => {
+	const matching = listData.records
+		.filter((r) => (r.value as PackRecord).release === releaseUri)
+		.sort((a, b) => {
 			const ta = (a.value as PackRecord).createdAt;
 			const tb = (b.value as PackRecord).createdAt;
 			return tb.localeCompare(ta);
@@ -541,12 +541,14 @@ async function downloadFromPds(did: string, slug: string): Promise<Uint8Array> {
 	const latest = matching[0]!.value as PackRecord;
 	const vizCid = latest.viz.ref.$link;
 
-	const blobResp = await client.get("com.atproto.sync.getBlob", {
-		params: { did: did as Did, cid: vizCid },
-		as: "bytes",
-	});
+	const bytes = await ok(
+		client.get("com.atproto.sync.getBlob", {
+			params: { did: did as Did, cid: vizCid },
+			as: "bytes",
+		}),
+	);
 
-	return new Uint8Array(blobResp.data as unknown as ArrayBuffer);
+	return bytes;
 }
 
 async function downloadViz(did: string, slug: string): Promise<Uint8Array> {

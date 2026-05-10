@@ -7,7 +7,7 @@
 import { spawnSync } from "child_process";
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "fs";
 import { join, resolve } from "path";
-import { Client, simpleFetchHandler } from "@atcute/client";
+import { Client, ok, simpleFetchHandler } from "@atcute/client";
 import { getDb, setVersionPreview, setVersionTags } from "./db.ts";
 import { resolvePdsEndpoint } from "./did.ts";
 import { validateManifest } from "@catnip/shared/manifest";
@@ -56,24 +56,15 @@ export async function renderVersionPreview(opts: {
 		const client = new Client({
 			handler: simpleFetchHandler({ service: pdsUrl }),
 		});
-		const response = await client.get("com.atproto.sync.getBlob", {
-			params: {
-				did: did as `did:${string}:${string}`,
-				cid: vizCid,
-			},
-			as: "bytes",
-		});
-		// response.data may be Uint8Array, ArrayBuffer, or a Response-like object
-		const data = response.data as any;
-		if (data instanceof Uint8Array) {
-			vizBytes = data;
-		} else if (data instanceof ArrayBuffer) {
-			vizBytes = new Uint8Array(data);
-		} else if (typeof data.arrayBuffer === "function") {
-			vizBytes = new Uint8Array(await data.arrayBuffer());
-		} else {
-			throw new Error(`Unexpected blob data type: ${typeof data}`);
-		}
+		vizBytes = await ok(
+			client.get("com.atproto.sync.getBlob", {
+				params: {
+					did: did as `did:${string}:${string}`,
+					cid: vizCid,
+				},
+				as: "bytes",
+			}),
+		);
 	} catch (err) {
 		console.error(`[preview] failed to download blob ${vizCid} for ${did}/${rkey}:`, err);
 		return;

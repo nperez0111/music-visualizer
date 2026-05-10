@@ -2,7 +2,7 @@ import { defineHandler } from "nitro";
 import { useStorage } from "nitro/storage";
 import { getRouterParams, createError, setHeader, getRequestIP } from "nitro/h3";
 import { getDb, type VersionRow } from "../../../../../lib/db.ts";
-import { Client, simpleFetchHandler } from "@atcute/client";
+import { Client, ClientResponseError, ok, simpleFetchHandler } from "@atcute/client";
 import { resolvePdsEndpoint } from "../../../../../lib/did.ts";
 import { downloadLimiter } from "../../../../../lib/rate-limit.ts";
 
@@ -40,27 +40,23 @@ export default defineHandler(async (event) => {
 		});
 
 		try {
-			const response = await client.get("com.atproto.sync.getBlob", {
-				params: {
-					did: version.did as `did:${string}:${string}`,
-					cid: version.viz_cid,
-				},
-				as: "bytes",
-			});
+			const bytes = await ok(
+				client.get("com.atproto.sync.getBlob", {
+					params: {
+						did: version.did as `did:${string}:${string}`,
+						cid: version.viz_cid,
+					},
+					as: "bytes",
+				}),
+			);
 
-			// response.data may be Uint8Array, ArrayBuffer, or a Response-like object
-			const data = response.data as any;
-			if (data instanceof Uint8Array) {
-				blob = Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-			} else if (data instanceof ArrayBuffer) {
-				blob = Buffer.from(data);
-			} else if (typeof data.arrayBuffer === "function") {
-				blob = Buffer.from(await data.arrayBuffer());
-			} else {
-				throw new Error(`Unexpected blob data type: ${typeof data}`);
-			}
+			blob = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
 		} catch (err) {
-			console.error(`[download] failed to fetch blob from PDS (${pdsUrl}):`, err);
+			if (err instanceof ClientResponseError) {
+				console.error(`[download] PDS returned ${err.status} for blob ${version.viz_cid} (${pdsUrl}): ${err.description}`);
+			} else {
+				console.error(`[download] failed to fetch blob from PDS (${pdsUrl}):`, err);
+			}
 			throw createError({ statusCode: 502, statusMessage: "Failed to fetch blob from PDS" });
 		}
 
