@@ -15,7 +15,7 @@ export function getDb(): Database {
 
 	_db = new Database(dbPath);
 	_db.exec("PRAGMA journal_mode = WAL");
-	_db.exec("PRAGMA foreign_keys = ON");
+	_db.exec("PRAGMA foreign_keys = OFF");
 
 	migrate(_db);
 	return _db;
@@ -46,8 +46,7 @@ function migrate(db: Database): void {
 			preview_path TEXT,
 			created_at   TEXT NOT NULL,
 			indexed_at   TEXT NOT NULL DEFAULT (datetime('now')),
-			PRIMARY KEY (did, rkey),
-			FOREIGN KEY (release_did, release_rkey) REFERENCES releases(did, rkey)
+			PRIMARY KEY (did, rkey)
 		);
 
 		CREATE TABLE IF NOT EXISTS stars (
@@ -62,8 +61,7 @@ function migrate(db: Database): void {
 		CREATE TABLE IF NOT EXISTS tags (
 			version_did  TEXT NOT NULL,
 			version_rkey TEXT NOT NULL,
-			tag          TEXT NOT NULL,
-			FOREIGN KEY (version_did, version_rkey) REFERENCES versions(did, rkey)
+			tag          TEXT NOT NULL
 		);
 
 		CREATE INDEX IF NOT EXISTS idx_versions_release
