@@ -39,16 +39,20 @@ export default defineHandler(async (event) => {
 			handler: simpleFetchHandler({ service: pdsUrl }),
 		});
 
-		const response = await (client as any).get("com.atproto.sync.getBlob", {
-			params: { did: version.did, cid: version.viz_cid },
-			as: "bytes",
-		});
+		try {
+			const response = await client.get("com.atproto.sync.getBlob", {
+				params: {
+					did: version.did as `did:${string}:${string}`,
+					cid: version.viz_cid,
+				},
+				as: "bytes",
+			});
 
-		if (!response.ok) {
+			blob = Buffer.from(response.data as unknown as ArrayBuffer);
+		} catch (err) {
+			console.error(`[download] failed to fetch blob from PDS (${pdsUrl}):`, err);
 			throw createError({ statusCode: 502, statusMessage: "Failed to fetch blob from PDS" });
 		}
-
-		blob = Buffer.from(response.data as Uint8Array);
 
 		// Fire-and-forget cache write
 		storage.setItemRaw(cacheKey, blob).catch(() => {});

@@ -56,15 +56,14 @@ export async function renderVersionPreview(opts: {
 		const client = new Client({
 			handler: simpleFetchHandler({ service: pdsUrl }),
 		});
-		const response = await (client as any).get("com.atproto.sync.getBlob", {
-			params: { did, cid: vizCid },
+		const response = await client.get("com.atproto.sync.getBlob", {
+			params: {
+				did: did as `did:${string}:${string}`,
+				cid: vizCid,
+			},
 			as: "bytes",
 		});
-		if (!response.ok) {
-			console.error(`[preview] PDS returned ${response.status} for blob ${vizCid} (${pdsUrl})`);
-			return;
-		}
-		vizBytes = response.data as Uint8Array;
+		vizBytes = new Uint8Array(response.data as unknown as ArrayBuffer);
 	} catch (err) {
 		console.error(`[preview] failed to download blob ${vizCid} for ${did}/${rkey}:`, err);
 		return;
