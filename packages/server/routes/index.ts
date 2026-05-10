@@ -32,18 +32,23 @@ export default defineHandler(() => {
 	const packCards = packs
 		.map(
 			(p) => `
-		<a class="card" href="/pack/${p.did}/${p.slug}">
-			${
-				p.preview_path
-					? `<img src="/api/packs/${p.did}/${p.slug}/preview.webp" alt="${escapeHtml(p.name)}" loading="lazy" />`
-					: `<div class="placeholder"></div>`
-			}
-			<div class="card-body">
-				<h2>${escapeHtml(p.name)}</h2>
-				${p.description ? `<p>${escapeHtml(p.description)}</p>` : ""}
+		<div class="card">
+			<a class="card-link" href="/pack/${p.did}/${p.slug}">
+				${
+					p.preview_path
+						? `<img src="/api/packs/${p.did}/${p.slug}/preview.webp" alt="${escapeHtml(p.name)}" loading="lazy" />`
+						: `<div class="placeholder"></div>`
+				}
+				<div class="card-body">
+					<h2>${escapeHtml(p.name)}</h2>
+					${p.description ? `<p>${escapeHtml(p.description)}</p>` : ""}
+				</div>
+			</a>
+			<div class="card-footer">
+				<a class="author" href="/user/${p.did}">${escapeHtml(p.did.slice(0, 20))}...</a>
 				<span class="stars">${p.star_count}</span>
 			</div>
-		</a>
+		</div>
 	`,
 		)
 		.join("\n");
@@ -108,12 +113,15 @@ header p {
 	border: 1px solid #222;
 	border-radius: 8px;
 	overflow: hidden;
-	text-decoration: none;
-	color: inherit;
 	transition: border-color 0.15s;
 }
 .card:hover {
 	border-color: #ffd959;
+}
+.card-link {
+	text-decoration: none;
+	color: inherit;
+	display: block;
 }
 .card img, .card .placeholder {
 	width: 100%;
@@ -134,7 +142,23 @@ header p {
 	font-size: 0.75rem;
 	color: #888;
 	line-height: 1.4;
-	margin-bottom: 0.5rem;
+}
+.card-footer {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 0 1rem 0.75rem;
+}
+.author {
+	font-size: 0.7rem;
+	color: #666;
+	text-decoration: none;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.author:hover {
+	color: #ffd959;
 }
 .stars {
 	font-size: 0.75rem;

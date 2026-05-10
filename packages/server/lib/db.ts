@@ -295,6 +295,41 @@ export function setVersionTags(db: Database, did: string, rkey: string, tags: st
 	}
 }
 
+export type UserPackRow = {
+	did: string;
+	rkey: string;
+	name: string;
+	slug: string;
+	description: string | null;
+	created_at: string;
+	star_count: number;
+	latest_version: string | null;
+	preview_path: string | null;
+};
+
+/**
+ * Get all non-hidden releases for a given DID, with star counts and latest version info.
+ */
+export function getPacksByDid(db: Database, did: string): UserPackRow[] {
+	return db
+		.prepare(`
+			SELECT
+				r.did,
+				r.rkey,
+				r.name,
+				r.slug,
+				r.description,
+				r.created_at,
+				(SELECT COUNT(*) FROM stars s WHERE s.subject_uri = 'at://' || r.did || '/com.nickthesick.catnip.release/' || r.rkey) AS star_count,
+				(SELECT v.version FROM versions v WHERE v.release_did = r.did AND v.release_rkey = r.rkey ORDER BY v.created_at DESC LIMIT 1) AS latest_version,
+				(SELECT v.preview_path FROM versions v WHERE v.release_did = r.did AND v.release_rkey = r.rkey ORDER BY v.created_at DESC LIMIT 1) AS preview_path
+			FROM releases r
+			WHERE r.did = ? AND r.hidden = 0
+			ORDER BY r.created_at DESC
+		`)
+		.all(did) as UserPackRow[];
+}
+
 export function getCursor(db: Database): number {
 	const row = db.prepare("SELECT cursor FROM cursor WHERE id = 1").get() as { cursor: number } | null;
 	return row?.cursor ?? 0;

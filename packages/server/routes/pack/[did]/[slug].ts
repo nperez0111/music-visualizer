@@ -75,6 +75,7 @@ export default defineHandler((event) => {
 			${previewUrl ? `<img src="${previewUrl}" alt="${escapeHtml(release.name)}" />` : `<div class="placeholder"></div>`}
 			<div class="info">
 				<h1>${escapeHtml(release.name)}</h1>
+				<a class="author" href="/user/${escapeHtml(did)}">by ${escapeHtml(did)}</a>
 				${release.description ? `<p class="desc">${escapeHtml(release.description)}</p>` : ""}
 				<div class="meta">
 					<span class="stars">${starCount}</span>
@@ -135,7 +136,18 @@ header { margin-bottom: 2rem; }
 .info h1 {
 	color: #ffd959;
 	font-size: 1.5rem;
-	margin-bottom: 0.5rem;
+	margin-bottom: 0.25rem;
+}
+.author {
+	display: inline-block;
+	font-size: 0.75rem;
+	color: #666;
+	text-decoration: none;
+	margin-bottom: 0.75rem;
+	word-break: break-all;
+}
+.author:hover {
+	color: #ffd959;
 }
 .desc {
 	color: #aaa;

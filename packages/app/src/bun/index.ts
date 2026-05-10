@@ -52,15 +52,14 @@ const windowPrefs = loadWindowPrefs();
 
 const registry = await PackRegistry.create(USER_PACKS_DIR);
 
-// Pack ids are content-addressed, so a built-in's id rolls every time its
-// shader/manifest is edited. We persist a slug (manifest.name) alongside the
-// id so a saved selection survives those rolls during dev.
+// Resolve the initial active pack from persisted preferences.
+// With no built-in packs, this is null until the user installs a pack.
 const initialActiveId = getPref<string>("active.pack.id", "");
 const initialActiveSlug = getPref<string>("active.pack.slug", "");
-const initialActive =
+const initialActive: import("./packs/loader").Pack | null =
 	registry.byId(initialActiveId) ??
 	(initialActiveSlug ? registry.bySlug(initialActiveSlug) : undefined) ??
-	registry.list()[0]!;
+	registry.list()[0] ?? null;
 
 const autoSettings: AutoSettings = {
 	enabled: getPref<boolean>("auto.enabled", false),
@@ -68,7 +67,7 @@ const autoSettings: AutoSettings = {
 	shuffle: getPref<boolean>("auto.shuffle", true),
 };
 
-console.log(`[packs] active: ${initialActive.name}`);
+console.log(`[packs] active: ${initialActive?.name ?? "(none)"}`);
 
 const savedAudioSource = getPref<AudioSource>("audio.source", "system");
 
@@ -113,6 +112,11 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 					const r = importVizFile(path, USER_PACKS_DIR);
 					if (!r.ok) return { ok: false, error: r.error };
 					await reloadAfterImport();
+					const newPack = registry.byId(r.id);
+					if (newPack) {
+						transitions.request(newPack);
+						try { win.webview?.rpc?.send?.packInstalled({ name: newPack.name }); } catch {}
+					}
 					return { ok: true, id: r.id };
 				} catch (err) {
 					return { ok: false, error: String(err) };
@@ -130,6 +134,11 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 					const r = importVizFile(stagePath, USER_PACKS_DIR);
 					if (!r.ok) return { ok: false, error: r.error };
 					await reloadAfterImport();
+					const newPack = registry.byId(r.id);
+					if (newPack) {
+						transitions.request(newPack);
+						try { win.webview?.rpc?.send?.packInstalled({ name: newPack.name }); } catch {}
+					}
 					return { ok: true, id: r.id };
 				} catch (err) {
 					return { ok: false, error: String(err) };
@@ -147,13 +156,63 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 					if (!r.ok) return { ok: false, error: r.error };
 					await reloadAfterImport();
 					const newPack = registry.byId(r.id);
-					if (newPack) transitions.request(newPack);
+					if (newPack) {
+						transitions.request(newPack);
+						try { win.webview?.rpc?.send?.packInstalled({ name: newPack.name }); } catch {}
+					}
 					return { ok: true, id: r.id };
 				} finally {
 					try { unlinkSync(stagePath); } catch {}
 				}
 			} catch (err) {
 				return { ok: false, error: String(err) };
+			}
+		},
+		installAllFromUser: async ({ did }) => {
+			const errors: string[] = [];
+			let installed = 0;
+			try {
+				// Fetch the user's pack list from the registry
+				const registryUrl = process.env.CATNIP_REGISTRY_URL ?? "https://catnip.nickthesick.com";
+				const resp = await fetch(`${registryUrl}/api/users/${encodeURIComponent(did)}/packs`);
+				if (!resp.ok) {
+					return { ok: false, installed: 0, errors: [`Failed to fetch user packs: ${resp.status}`] };
+				}
+				const data = (await resp.json()) as { did: string; packs: { did: string; slug: string; name: string }[] };
+				if (data.packs.length === 0) {
+					return { ok: true, installed: 0, errors: [] };
+				}
+
+				// Install each pack sequentially
+				for (const pack of data.packs) {
+					try {
+						const bytes = await downloadViz(pack.did, pack.slug);
+						const stagePath = join(tmpdir(), `viz-batch-${process.pid}-${Date.now()}-${pack.slug}.viz`);
+						writeFileSync(stagePath, bytes);
+						try {
+							const r = importVizFile(stagePath, USER_PACKS_DIR);
+							if (!r.ok) {
+								errors.push(`${pack.name}: ${r.error}`);
+								continue;
+							}
+							installed++;
+						} finally {
+							try { unlinkSync(stagePath); } catch {}
+						}
+					} catch (err) {
+						errors.push(`${pack.name}: ${String(err)}`);
+					}
+				}
+
+				// Reload once after all imports
+				if (installed > 0) {
+					await reloadAfterImport();
+					try { win.webview?.rpc?.send?.packInstalled({ name: `${installed} pack${installed !== 1 ? "s" : ""}` }); } catch {}
+				}
+
+				return { ok: errors.length === 0, installed, errors };
+			} catch (err) {
+				return { ok: false, installed, errors: [...errors, String(err)] };
 			}
 		},
 		},
@@ -225,7 +284,8 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 	},
 });
 
-function persistActivePack(id: string): void {
+function persistActivePack(id: string | null): void {
+	if (!id) return;
 	setPref("active.pack.id", id);
 	const p = registry.byId(id);
 	if (p) setPref("active.pack.slug", p.name);
@@ -293,7 +353,7 @@ if (!GlobalShortcut.register(SHORTCUT, () => windowMgr.toggleCollapsed())) {
 
 // ---------- Transition controller (needs to exist before RPC handlers fire) ----------
 
-const transitions: TransitionController = new TransitionController(initialActive, autoSettings, {
+const transitions = new TransitionController(initialActive, autoSettings, {
 	getPacks: () => registry.list(),
 	ensurePipeline: (p) => pipelineCache?.ensure(p) ?? null,
 	onActivePackChanged: (id) => {
@@ -359,24 +419,10 @@ async function initEngine(wgpuViewId: number): Promise<void> {
 	}
 
 	// Pre-build the active pack's pipeline so the first frame doesn't stall.
-	pipelineCache.ensure(initialActive);
+	if (initialActive) pipelineCache.ensure(initialActive);
 	console.log("[visualizer] pipeline ready, surfaceFormat=" + renderer.surfaceFormat);
 	void capture.start(savedAudioSource);
 	transitions.rescheduleAutoTimer();
-
-	// Hot-reload: drop the cached pipeline on shader/manifest/wasm change.
-	registry.watchForDevReload({
-		onPackUpdated: (fresh, { prevId }) => {
-			const wasActive = prevId !== null && transitions.getActiveId() === prevId;
-			transitions.swapPack(fresh, prevId);
-			if (prevId && prevId !== fresh.id) pipelineCache!.invalidate(prevId);
-			pipelineCache!.invalidate(fresh.id);
-			if (wasActive && transitions.getActiveId() === fresh.id) {
-				persistActivePack(fresh.id);
-				try { win.webview?.rpc?.send?.activePackChanged({ id: fresh.id }); } catch {}
-			}
-		},
-	});
 
 	const smoother = new FeatureSmoother(audioAnalyzer, SPECTRUM_BINS);
 	const uniforms = new UniformWriter({
@@ -510,8 +556,61 @@ Electrobun.events.on("open-url", (e: { data: { url: string } }) => {
 	const url = new URL(e.data.url);
 	if (url.protocol !== "catnip:") return;
 
-	// catnip://install/<did>/<slug>
 	const pathname = url.pathname.replace(/^\/\//, "/"); // normalize
+
+	// catnip://install-all/<did>
+	const installAllMatch = pathname.match(/^\/install-all\/([^/]+)$/);
+	if (installAllMatch) {
+		const [, did] = installAllMatch;
+		console.log(`[deeplink] install-all request: did=${did}`);
+
+		const registryUrl = process.env.CATNIP_REGISTRY_URL ?? "https://catnip.nickthesick.com";
+		fetch(`${registryUrl}/api/users/${encodeURIComponent(did!)}/packs`)
+			.then(async (resp) => {
+				if (!resp.ok) {
+					console.error(`[deeplink] install-all: failed to fetch packs (${resp.status})`);
+					return;
+				}
+				const data = (await resp.json()) as { did: string; packs: { did: string; slug: string; name: string }[] };
+				if (data.packs.length === 0) {
+					console.log("[deeplink] install-all: no packs found");
+					return;
+				}
+
+				let installed = 0;
+				for (const pack of data.packs) {
+					try {
+						const bytes = await downloadViz(pack.did, pack.slug);
+						const stagePath = join(tmpdir(), `viz-deeplink-batch-${process.pid}-${Date.now()}-${pack.slug}.viz`);
+						writeFileSync(stagePath, bytes);
+						try {
+							const r = importVizFile(stagePath, USER_PACKS_DIR);
+							if (!r.ok) {
+								console.error(`[deeplink] install-all: import failed for ${pack.slug}: ${r.error}`);
+								continue;
+							}
+							installed++;
+						} finally {
+							try { unlinkSync(stagePath); } catch {}
+						}
+					} catch (err) {
+						console.error(`[deeplink] install-all: error installing ${pack.slug}:`, err);
+					}
+				}
+
+				if (installed > 0) {
+					await reloadAfterImport();
+					try { win.webview?.rpc?.send?.packInstalled({ name: `${installed} pack${installed !== 1 ? "s" : ""}` }); } catch {}
+				}
+				console.log(`[deeplink] install-all: installed ${installed}/${data.packs.length} packs`);
+			})
+			.catch((err) => {
+				console.error("[deeplink] install-all error:", err);
+			});
+		return;
+	}
+
+	// catnip://install/<did>/<slug>
 	const installMatch = pathname.match(/^\/install\/([^/]+)\/([^/]+)$/);
 	if (!installMatch) {
 		console.warn(`[deeplink] unrecognized catnip URL: ${e.data.url}`);
@@ -534,7 +633,10 @@ Electrobun.events.on("open-url", (e: { data: { url: string } }) => {
 				}
 				await reloadAfterImport();
 				const newPack = registry.byId(r.id);
-				if (newPack) transitions.request(newPack);
+				if (newPack) {
+					transitions.request(newPack);
+					try { win.webview?.rpc?.send?.packInstalled({ name: newPack.name }); } catch {}
+				}
 				console.log(`[deeplink] installed "${slug}" (${r.id})`);
 			} finally {
 				try { unlinkSync(stagePath); } catch {}

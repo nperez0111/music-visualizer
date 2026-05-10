@@ -34,7 +34,6 @@ export type PackInfo = {
 	version: string;
 	author?: string;
 	description?: string;
-	source: "builtin" | "user";
 	parameters: PackParameter[];
 	parameterValues: ParamValueMap;
 	presets: PackPreset[];
@@ -58,11 +57,11 @@ export type ControlsRPC = {
 					audioStatus: CaptureStatus;
 					audioSource: AudioSource;
 					packs: PackInfo[];
-					activePackId: string;
+					activePackId: string | null;
 					auto: AutoSettings;
 				};
 			};
-			listPacks: { params: {}; response: { packs: PackInfo[]; activePackId: string } };
+			listPacks: { params: {}; response: { packs: PackInfo[]; activePackId: string | null } };
 			importPack: {
 				params: {};
 				response: { ok: boolean; id?: string; error?: string };
@@ -74,6 +73,10 @@ export type ControlsRPC = {
 			installFromRegistry: {
 				params: { did: string; slug: string };
 				response: { ok: boolean; id?: string; error?: string };
+			};
+			installAllFromUser: {
+				params: { did: string };
+				response: { ok: boolean; installed: number; errors: string[] };
 			};
 		};
 		messages: {
@@ -95,8 +98,9 @@ export type ControlsRPC = {
 			audioStatus: { status: CaptureStatus; detail?: string };
 			audioSourceChanged: { source: AudioSource };
 			audioLevel: { rms: number; peak: number };
-			activePackChanged: { id: string };
-			packsChanged: { packs: PackInfo[]; activePackId: string };
+			activePackChanged: { id: string | null };
+			packsChanged: { packs: PackInfo[]; activePackId: string | null };
+			packInstalled: { name: string };
 			collapsedChanged: { collapsed: boolean };
 			renderError: { message: string };
 		};
