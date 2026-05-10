@@ -309,7 +309,7 @@ registry.onChange(broadcastPacksChanged);
 let pipelineCache: PipelineCache | null = null;
 let stopRenderLoop = false;
 
-function initEngine(wgpuViewId: number): void {
+async function initEngine(wgpuViewId: number): Promise<void> {
 	const wgpuView = WGPUView.getById(wgpuViewId);
 	if (!wgpuView) {
 		console.error(`[wgpu] WGPUView.getById(${wgpuViewId}) returned undefined`);
@@ -319,7 +319,7 @@ function initEngine(wgpuViewId: number): void {
 	// Pack pipeline self-test mode (used by `bun run test:gpu`).
 	const isSelfTest = process.env["VIZ_PACKS_SELFTEST"] === "1";
 
-	const renderer = createRenderer(wgpuView);
+	const renderer = await createRenderer(wgpuView);
 
 	const transitionRig = createTransitionRig(renderer);
 	{

@@ -75,6 +75,10 @@ async function main(): Promise<void> {
 		console.error(err instanceof Error ? err.message : String(err));
 		process.exit(1);
 	}
+
+	// Explicitly exit — some commands (e.g. login) instantiate an OAuthClient whose
+	// internal MemoryStore auto-purge timers keep the event loop alive indefinitely.
+	process.exit(0);
 }
 
 main();

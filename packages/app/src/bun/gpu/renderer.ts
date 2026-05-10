@@ -43,7 +43,7 @@ export type SurfaceSource = {
  * both a `GpuWindow.wgpuView` and a standalone `WGPUView` from an embedded
  * `<electrobun-wgpu>` tag.
  */
-export function createRenderer(view: SurfaceSource): Renderer {
+export async function createRenderer(view: SurfaceSource): Promise<Renderer> {
 	const native = WGPU.native;
 	if (!native.available) {
 		throw new Error("wgpu-native not available — enable bundleWGPU in electrobun.config.ts");
@@ -93,9 +93,11 @@ export function createRenderer(view: SurfaceSource): Renderer {
 	// The GPU surface must be configured at physical/backing pixels, so we
 	// scale by the display's scale factor (2x on Retina Macs).
 	if (!_Screen) {
-		// Lazy require to avoid top-level side effects from electrobun barrel
+		// Lazy import to avoid top-level side effects from electrobun barrel
 		// (starts RPC server on port 50000, hangs in headless/Docker contexts).
-		_Screen = require("electrobun/bun").Screen;
+		// Dynamic import() is required because the module contains top-level await,
+		// which prevents synchronous require().
+		_Screen = (await import("electrobun/bun")).Screen;
 	}
 	const scaleFactor = _Screen.getPrimaryDisplay().scaleFactor || 1;
 
