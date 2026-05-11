@@ -21,6 +21,7 @@ export default defineHandler((event) => {
 			r.description,
 			r.created_at,
 			(SELECT COUNT(*) FROM stars s WHERE s.subject_uri = 'at://' || r.did || '/com.nickthesick.catnip.release/' || r.rkey) AS star_count,
+			COALESCE((SELECT ic.count FROM install_counts ic WHERE ic.did = r.did AND ic.rkey = r.rkey), 0) AS install_count,
 			(SELECT v.version FROM versions v WHERE v.release_did = r.did AND v.release_rkey = r.rkey ORDER BY v.created_at DESC LIMIT 1) AS latest_version,
 			(SELECT v.preview_path FROM versions v WHERE v.release_did = r.did AND v.release_rkey = r.rkey ORDER BY v.created_at DESC LIMIT 1) AS preview_path
 		FROM releases r
@@ -48,6 +49,8 @@ export default defineHandler((event) => {
 
 	if (sort === "stars") {
 		sql += " ORDER BY star_count DESC, r.created_at DESC";
+	} else if (sort === "installs") {
+		sql += " ORDER BY install_count DESC, r.created_at DESC";
 	} else {
 		sql += " ORDER BY r.created_at DESC";
 	}

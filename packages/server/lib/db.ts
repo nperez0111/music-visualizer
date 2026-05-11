@@ -35,6 +35,7 @@ function migrate(db: Database): void {
 	// Run migrations sequentially
 	const migrations: Array<(db: Database) => void> = [
 		migrationV1,
+		migrationV2,
 	];
 
 	for (let i = currentVersion; i < migrations.length; i++) {
@@ -173,6 +174,24 @@ function migrationV1(db: Database): void {
 
 		CREATE INDEX IF NOT EXISTS idx_tags_tag
 			ON tags(tag);
+
+		CREATE INDEX IF NOT EXISTS idx_releases_hidden_created
+			ON releases(hidden, created_at DESC);
+
+		CREATE INDEX IF NOT EXISTS idx_tags_version
+			ON tags(version_did, version_rkey);
+	`);
+}
+
+/** Migration 2: Add install_counts table for tracking pack downloads */
+function migrationV2(db: Database): void {
+	db.exec(`
+		CREATE TABLE IF NOT EXISTS install_counts (
+			did  TEXT NOT NULL,
+			rkey TEXT NOT NULL,
+			count INTEGER NOT NULL DEFAULT 0,
+			PRIMARY KEY (did, rkey)
+		);
 	`);
 }
 
@@ -334,6 +353,7 @@ export type UserPackRow = {
 	description: string | null;
 	created_at: string;
 	star_count: number;
+	install_count: number;
 	latest_version: string | null;
 	preview_path: string | null;
 };
@@ -352,6 +372,7 @@ export function getPacksByDid(db: Database, did: string): UserPackRow[] {
 				r.description,
 				r.created_at,
 				(SELECT COUNT(*) FROM stars s WHERE s.subject_uri = 'at://' || r.did || '/com.nickthesick.catnip.release/' || r.rkey) AS star_count,
+				COALESCE((SELECT ic.count FROM install_counts ic WHERE ic.did = r.did AND ic.rkey = r.rkey), 0) AS install_count,
 				(SELECT v.version FROM versions v WHERE v.release_did = r.did AND v.release_rkey = r.rkey ORDER BY v.created_at DESC LIMIT 1) AS latest_version,
 				(SELECT v.preview_path FROM versions v WHERE v.release_did = r.did AND v.release_rkey = r.rkey ORDER BY v.created_at DESC LIMIT 1) AS preview_path
 			FROM releases r
@@ -359,6 +380,45 @@ export function getPacksByDid(db: Database, did: string): UserPackRow[] {
 			ORDER BY r.created_at DESC
 		`)
 		.all(did) as UserPackRow[];
+}
+
+/**
+ * Get all unique tags across all versions, with usage counts, ordered by frequency.
+ */
+export function getAllTags(db: Database): Array<{ tag: string; count: number }> {
+	return db
+		.prepare(`
+			SELECT t.tag, COUNT(DISTINCT t.version_did || '/' || t.version_rkey) AS count
+			FROM tags t
+			JOIN versions v ON v.did = t.version_did AND v.rkey = t.version_rkey
+			JOIN releases r ON r.did = v.release_did AND r.rkey = v.release_rkey
+			WHERE r.hidden = 0
+			GROUP BY t.tag
+			ORDER BY count DESC
+		`)
+		.all() as Array<{ tag: string; count: number }>;
+}
+
+/**
+ * Increment the install count for a release. Uses upsert so it works even if
+ * the row doesn't exist yet.
+ */
+export function incrementInstalls(db: Database, did: string, rkey: string): void {
+	db.prepare(`
+		INSERT INTO install_counts (did, rkey, count)
+		VALUES (?, ?, 1)
+		ON CONFLICT (did, rkey) DO UPDATE SET count = count + 1
+	`).run(did, rkey);
+}
+
+/**
+ * Get the install count for a single release.
+ */
+export function getInstallCount(db: Database, did: string, rkey: string): number {
+	const row = db.prepare(
+		"SELECT count FROM install_counts WHERE did = ? AND rkey = ?"
+	).get(did, rkey) as { count: number } | null;
+	return row?.count ?? 0;
 }
 
 export function getCursor(db: Database): number {

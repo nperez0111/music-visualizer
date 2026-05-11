@@ -11,7 +11,6 @@
 		"build:canary": "bun run --cwd packages/app build:canary",
 		"build:audiocap": "bun run --cwd packages/app build:audiocap",
 		"build:packs": "bun run --cwd packages/app build:packs",
-		"build:gallery": "bun run --cwd packages/app build:gallery",
 		"test": "bun test",
 		"test:app": "bun run --cwd packages/app test",
 		"test:gpu": "bun run --cwd packages/app test:gpu",

@@ -33,8 +33,15 @@ const DATA_DIR = process.env.CATNIP_DATA_DIR ?? ".data";
  * VIZ_DOCKER_MODE), the script is placed at a known location by the Dockerfile.
  * In dev mode, resolve relative to the monorepo.
  */
+/**
+ * In Docker: VIZ_RENDER_SCRIPT and VIZ_RENDER_CWD are always set.
+ * In dev: cwd is packages/server/ (Nitro runs there), so ../../ is the monorepo root.
+ */
+const MONOREPO_ROOT = resolve(process.cwd(), "../..");
 const RENDER_SCRIPT = process.env.VIZ_RENDER_SCRIPT
-	?? resolve(import.meta.dir, "../../../scripts/render-pack-debug.ts");
+	?? resolve(MONOREPO_ROOT, "packages/app/scripts/render-pack-debug.ts");
+
+
 
 /**
  * Render a preview for a newly indexed pack version.
@@ -78,8 +85,8 @@ export async function renderVersionPreview(opts: {
 		return;
 	}
 
-	// Extract to temp dir
-	const tmpDir = join(DATA_DIR, "tmp", `${did.replace(/:/g, "_")}_${rkey}`);
+	// Extract to temp dir (resolve to absolute so render script finds it regardless of CWD)
+	const tmpDir = resolve(DATA_DIR, "tmp", `${did.replace(/:/g, "_")}_${rkey}`);
 	mkdirSync(tmpDir, { recursive: true });
 
 	try {
@@ -183,7 +190,7 @@ export async function renderVersionPreview(opts: {
 				"--width", "320",
 				"--height", "240",
 			], {
-				cwd: process.env.VIZ_RENDER_CWD ?? resolve(import.meta.dir, "../../.."),
+				cwd: process.env.VIZ_RENDER_CWD ?? MONOREPO_ROOT,
 				stdio: "pipe",
 				env: {
 					...process.env,

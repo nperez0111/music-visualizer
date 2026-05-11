@@ -1,6 +1,6 @@
 import { defineHandler, html } from "nitro";
 import { getRouterParams, createError } from "nitro/h3";
-import { getDb, type ReleaseRow, type VersionRow } from "../../../lib/db.ts";
+import { getDb, getInstallCount, type ReleaseRow, type VersionRow } from "../../../lib/db.ts";
 import { resolveHandleFromDid } from "../../../lib/did.ts";
 
 export default defineHandler(async (event) => {
@@ -26,6 +26,8 @@ export default defineHandler(async (event) => {
 			.prepare("SELECT COUNT(*) as count FROM stars WHERE subject_uri = ?")
 			.get(`at://${did}/com.nickthesick.catnip.release/${slug}`) as { count: number }
 	).count;
+
+	const installCount = getInstallCount(db, did, slug);
 
 	const latest = versions[0];
 	let tags: string[] = [];
@@ -56,7 +58,7 @@ export default defineHandler(async (event) => {
 		)
 		.join("\n");
 
-	const tagBadges = tags.map((t) => `<span class="tag">${escapeHtml(t)}</span>`).join(" ");
+	const tagBadges = tags.map((t) => `<a class="tag" href="/tag/${encodeURIComponent(t)}">${escapeHtml(t)}</a>`).join(" ");
 
 	return html(`<!DOCTYPE html>
 <html lang="en">
@@ -84,6 +86,7 @@ export default defineHandler(async (event) => {
 				${release.description ? `<p class="desc">${escapeHtml(release.description)}</p>` : ""}
 				<div class="meta">
 					<span class="stars">${starCount}</span>
+					<span class="installs">${installCount}</span>
 					${tagBadges ? `<div class="tags">${tagBadges}</div>` : ""}
 				</div>
 				<a class="install-btn" href="catnip://install/${escapeHtml(did)}/${escapeHtml(slug)}">
@@ -166,6 +169,12 @@ header { margin-bottom: 2rem; }
 	font-size: 0.875rem;
 }
 .stars::before { content: "\\2605 "; }
+.installs {
+	color: #aaa;
+	font-size: 0.875rem;
+	margin-left: 1rem;
+}
+.installs::before { content: "\\2913 "; }
 .tags { margin-top: 0.5rem; }
 .tag {
 	display: inline-block;
@@ -175,6 +184,13 @@ header { margin-bottom: 2rem; }
 	border-radius: 4px;
 	font-size: 0.75rem;
 	margin-right: 0.25rem;
+	text-decoration: none;
+	transition: border-color 0.15s, color 0.15s;
+	border: 1px solid transparent;
+}
+.tag:hover {
+	border-color: #ffd959;
+	color: #ffd959;
 }
 .install-btn {
 	display: inline-block;

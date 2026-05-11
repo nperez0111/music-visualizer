@@ -135,7 +135,6 @@ Produces a signed and notarized app bundle (macOS).
 |--------|-------------|
 | `scripts/build-audiocap.ts` | Builds the Rust audiocap binary |
 | `scripts/build-packs.ts` | Compiles AssemblyScript WASM packs |
-| `scripts/build-gallery.ts` | Renders gallery screenshots for all packs |
 | `scripts/render-pack.ts` | Headless pack render (CI -- produces a PNG screenshot) |
 | `scripts/render-pack-debug.ts` | Headless pack render (debug, interactive) |
 | `scripts/check-shader.ts` | Validates WGSL shader compilation without a full render |

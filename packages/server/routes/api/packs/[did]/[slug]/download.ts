@@ -1,7 +1,7 @@
 import { defineHandler } from "nitro";
 import { useStorage } from "nitro/storage";
 import { getRouterParams, createError, setHeader, getRequestIP } from "nitro/h3";
-import { getDb, type VersionRow } from "../../../../../lib/db.ts";
+import { getDb, incrementInstalls, type VersionRow } from "../../../../../lib/db.ts";
 import { Client, ClientResponseError, ok, simpleFetchHandler } from "@atcute/client";
 import { resolvePdsEndpoint } from "../../../../../lib/did.ts";
 import { downloadLimiter } from "../../../../../lib/rate-limit.ts";
@@ -63,6 +63,9 @@ export default defineHandler(async (event) => {
 		// Fire-and-forget cache write
 		storage.setItemRaw(cacheKey, blob).catch(() => {});
 	}
+
+	// Track install (fire-and-forget, don't block the response)
+	try { incrementInstalls(db, did, slug); } catch {}
 
 	setHeader(event, "Content-Type", "application/zip");
 	// Sanitize slug for Content-Disposition header (strip quotes, control chars, non-ASCII)

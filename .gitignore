@@ -20,9 +20,6 @@ packages/app/tests/snapshots/
 # Bind-mount target for `docker run -v $PWD/docker-out:/out cat-nip-headless ...`
 docker-out/
 
-# Gallery build output (produced by `bun run build:gallery`)
-site/
-
 # Nitro build output
 .output/
 

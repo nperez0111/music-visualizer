@@ -12,8 +12,7 @@
 		"build:packs": "bun run scripts/build-packs.ts",
 		"test": "bun test",
 		"test:gpu": "bun run scripts/test-packs-gpu.ts",
-		"render-pack": "bun run scripts/render-pack.ts",
-		"build:gallery": "bun run scripts/build-gallery.ts"
+		"render-pack": "bun run scripts/render-pack.ts"
 	},
 	"dependencies": {
 		"@atcute/client": "4.2.1",

@@ -100,6 +100,7 @@ export default defineHandler(async (event) => {
 	}
 
 	const totalStars = packs.reduce((sum, p) => sum + p.star_count, 0);
+	const totalInstalls = packs.reduce((sum, p) => sum + p.install_count, 0);
 	const displayName = handle ?? did;
 
 	const packCards = packs
@@ -116,6 +117,7 @@ export default defineHandler(async (event) => {
 				${p.description ? `<p>${escapeHtml(p.description)}</p>` : ""}
 				<div class="card-meta">
 					<span class="stars">${p.star_count}</span>
+					<span class="installs">${p.install_count}</span>
 					${p.latest_version ? `<span class="version">v${escapeHtml(p.latest_version)}</span>` : ""}
 				</div>
 			</div>
@@ -146,6 +148,7 @@ export default defineHandler(async (event) => {
 			<div class="profile-stats">
 				<span>${packs.length} pack${packs.length !== 1 ? "s" : ""}</span>
 				<span class="stars">${totalStars}</span>
+				<span class="installs">${totalInstalls}</span>
 			</div>
 			${
 				packs.length > 1
@@ -204,6 +207,12 @@ header { margin-bottom: 2rem; }
 }
 .profile-stats .stars::before {
 	content: "\\2605 ";
+}
+.profile-stats .installs {
+	color: #aaa;
+}
+.profile-stats .installs::before {
+	content: "\\2913 ";
 }
 .install-all-btn {
 	display: inline-block;
@@ -265,6 +274,13 @@ header { margin-bottom: 2rem; }
 }
 .stars::before {
 	content: "\\2605 ";
+}
+.installs {
+	font-size: 0.75rem;
+	color: #aaa;
+}
+.installs::before {
+	content: "\\2913 ";
 }
 .version {
 	font-size: 0.75rem;
