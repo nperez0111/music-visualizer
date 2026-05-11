@@ -194,6 +194,9 @@ export default defineHandler(async () => {
 		<p class="empty">No packs yet. Be the first to publish one.</p>
 	</section>`
 	}
+	<footer>
+		<p>Open-source on <a href="https://github.com/nperez0111/cat-nip">GitHub</a> under the MIT license.</p>
+	</footer>
 </body>
 </html>`);
 });
@@ -390,5 +393,20 @@ nav a:hover {
 	font-size: 0.875rem;
 	text-align: center;
 	padding: 2rem;
+}
+footer {
+	margin-top: 3rem;
+	padding-top: 1.5rem;
+	border-top: 1px solid #222;
+	text-align: center;
+	font-size: 0.75rem;
+	color: #555;
+}
+footer a {
+	color: #888;
+	text-decoration: none;
+}
+footer a:hover {
+	color: #ffd959;
 }
 `;
