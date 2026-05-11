@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "name": "Liquid",
+  "version": "0.1.0",
+  "author": "nickthesick.com",
+  "description": "Liquid sloshing inside a glass sphere, inspired by the Half-Life: Alyx bottle shader. Bass drives sloshing, beats create impulses, treble generates foam.",
+  "tags": ["glsl", "raymarching", "liquid", "glass"],
+  "shader": "shader.glsl",
+  "audio": {
+    "features": ["bass", "mid", "treble", "beat_phase", "rms", "peak"]
+  },
+  "parameters": [
+    {
+      "type": "float",
+      "name": "level",
+      "label": "liquid level",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.5
+    },
+    {
+      "type": "float",
+      "name": "viscosity",
+      "label": "viscosity",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.3
+    },
+    {
+      "type": "float",
+      "name": "refraction",
+      "label": "glass refraction",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.6
+    },
+    {
+      "type": "float",
+      "name": "foam",
+      "label": "foam amount",
+      "min": 0.0,
+      "max": 1.0,
+      "default": 0.4
+    },
+    {
+      "type": "color",
+      "name": "tint",
+      "label": "liquid color",
+      "default": [0.2, 0.6, 0.9]
+    }
+  ],
+  "presets": [
+    {
+      "name": "Water",
+      "values": { "level": 0.55, "viscosity": 0.15, "refraction": 0.7, "foam": 0.5, "tint": [0.15, 0.55, 0.95] }
+    },
+    {
+      "name": "Honey",
+      "values": { "level": 0.6, "viscosity": 0.85, "refraction": 0.4, "foam": 0.1, "tint": [0.9, 0.65, 0.1] }
+    },
+    {
+      "name": "Lava",
+      "values": { "level": 0.45, "viscosity": 0.5, "refraction": 0.3, "foam": 0.7, "tint": [1.0, 0.25, 0.05] }
+    },
+    {
+      "name": "Potion",
+      "values": { "level": 0.5, "viscosity": 0.25, "refraction": 0.6, "foam": 0.6, "tint": [0.4, 0.9, 0.3] }
+    }
+  ]
+}

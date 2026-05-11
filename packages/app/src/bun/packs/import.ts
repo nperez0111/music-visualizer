@@ -198,3 +198,14 @@ export function removeUserPack(userPacksDir: string, id: string): boolean {
 	rmSync(dir, { recursive: true, force: true });
 	return true;
 }
+
+/**
+ * Remove a user pack by its actual filesystem path. Safer than removeUserPack
+ * when the content hash (pack id) differs from the directory name — which
+ * happens when GLSL transpilation modifies files after the initial import.
+ */
+export function removeUserPackByPath(packPath: string): boolean {
+	if (!existsSync(packPath)) return false;
+	rmSync(packPath, { recursive: true, force: true });
+	return true;
+}

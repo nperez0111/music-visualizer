@@ -8,7 +8,7 @@
 	</head>
 	<body>
 		<div class="app">
-			<electrobun-wgpu class="visualizer" masks=".sidebar,#sidebarTab"></electrobun-wgpu>
+			<electrobun-wgpu class="visualizer" masks=".sidebar,#sidebarTab,#contextMenu,#confirmOverlay"></electrobun-wgpu>
 			<button id="sidebarTab" title="Show controls">&#x2699;</button>
 			<aside class="sidebar" id="sidebar">
 				<header>
@@ -21,12 +21,22 @@
 					<div class="meter">
 						<div class="bar" id="meterBar"></div>
 					</div>
-					<div class="row pack-row">
-						<span class="label">pack</span>
-						<select id="packSelect" class="select"></select>
-						<button class="btn" id="nextBtn" title="Next pack">&#x23ED;</button>
-						<button class="btn" id="importBtn" title="Import .viz pack">+</button>
+
+					<!-- Pack library section -->
+					<div class="pack-section">
+						<div class="pack-header">
+							<span class="label">packs</span>
+							<div class="pack-actions">
+								<button class="btn" id="nextBtn" title="Next pack">&#x23ED;</button>
+								<button class="btn" id="importBtn" title="Import .viz pack">+</button>
+							</div>
+						</div>
+						<div class="pack-search-row" id="packSearchRow" hidden>
+							<input type="text" id="packSearch" class="pack-search" placeholder="Search packs..." autocomplete="off" spellcheck="false" />
+						</div>
+						<div class="pack-list" id="packList"></div>
 					</div>
+
 					<div class="row auto-row">
 						<span class="label">auto</span>
 						<label class="check-inline">
@@ -49,17 +59,38 @@
 						<span class="value muted" id="audioStatus">capture not implemented yet</span>
 						<button class="btn" id="permFixBtn" title="Open Screen Recording settings" hidden>fix</button>
 					</div>
-				<div id="emptyState" class="empty-state" hidden>
+					<div id="emptyState" class="empty-state" hidden>
 						<p class="empty-heading">No visualizer packs installed</p>
 						<p class="empty-body">Browse and install packs at</p>
 						<a class="empty-link" href="https://catnip.nickthesick.com" target="_blank">catnip.nickthesick.com</a>
 						<p class="empty-hint">or drag-and-drop a .viz file here</p>
 					</div>
-				<section id="paramsPanel" class="params-panel" hidden></section>
-				<div id="errorBanner" class="error-banner" hidden></div>
-				<div id="toast" class="toast" hidden></div>
+					<section id="paramsPanel" class="params-panel" hidden></section>
+					<div id="errorBanner" class="error-banner" hidden></div>
+					<div id="toast" class="toast" hidden></div>
 				</div>
 			</aside>
+
+			<!-- Context menu (positioned absolutely via JS) -->
+			<div id="contextMenu" class="context-menu" hidden>
+				<button class="context-item" data-action="favorite"><span class="context-icon">&#x2606;</span> Favorite</button>
+				<button class="context-item" data-action="resetParams"><span class="context-icon">&#x21BA;</span> Reset Parameters</button>
+				<button class="context-item" data-action="export"><span class="context-icon">&#x2913;</span> Export .viz</button>
+				<button class="context-item" data-action="reveal"><span class="context-icon">&#x1F4C2;</span> Reveal in Finder</button>
+				<div class="context-divider"></div>
+				<button class="context-item context-item--danger" data-action="remove"><span class="context-icon">&#x2715;</span> Remove Pack</button>
+			</div>
+
+			<!-- Confirm dialog overlay -->
+			<div id="confirmOverlay" class="confirm-overlay" hidden>
+				<div class="confirm-dialog">
+					<p class="confirm-msg" id="confirmMsg">Are you sure?</p>
+					<div class="confirm-actions">
+						<button class="confirm-btn confirm-btn--cancel" id="confirmCancel">Cancel</button>
+						<button class="confirm-btn confirm-btn--danger" id="confirmOk">Remove</button>
+					</div>
+				</div>
+			</div>
 		</div>
 		<script type="module" src="views://mainview/index.js"></script>
 	</body>

@@ -1,7 +1,7 @@
 import { deletePref, getPref, listPrefKeys, setPref } from "../db";
 import { loadAllPacks, type Pack } from "./loader";
 import { instantiateWasmPack } from "./runtime";
-import { removeUserPack } from "./import";
+import { removeUserPackByPath } from "./import";
 import {
 	coerceParameterValue,
 	defaultParameterValues,
@@ -12,6 +12,7 @@ import {
 import type { PackInfo } from "../../shared/rpc-types";
 
 const PARAMS_KEY_PREFIX = "pack.params.";
+const FAVORITES_KEY = "pack.favorites";
 
 function paramsKey(id: string) {
 	return PARAMS_KEY_PREFIX + id;
@@ -30,10 +31,17 @@ export class PackRegistry {
 	private packs: Pack[] = [];
 	private readonly paramValues = new Map<string, ParamValueMap>();
 	private readonly listeners = new Set<() => void>();
+	private favorites = new Set<string>();
 
 	private constructor(
 		private readonly userPacksDir: string,
-	) {}
+	) {
+		// Load persisted favorites
+		const saved = getPref<string[]>(FAVORITES_KEY, []);
+		if (Array.isArray(saved)) {
+			for (const id of saved) this.favorites.add(id);
+		}
+	}
 
 	static async create(userPacksDir: string): Promise<PackRegistry> {
 		const reg = new PackRegistry(userPacksDir);
@@ -114,7 +122,9 @@ export class PackRegistry {
 			parameters: p.parameters,
 			parameterValues: this.ensureParams(p),
 			presets: p.presets,
+			tags: p.manifest.tags,
 			runtimeBroken: p.wasmRuntime?.isBroken() ?? false,
+			favorited: this.favorites.has(p.id),
 		};
 	}
 
@@ -149,10 +159,45 @@ export class PackRegistry {
 	removeUser(id: string): { ok: boolean; reason?: string } {
 		const target = this.byId(id);
 		if (!target) return { ok: false, reason: "unknown pack" };
-		removeUserPack(this.userPacksDir, id);
-		// Also drop the persisted params for this pack.
+		// Use the actual pack path instead of constructing from id, because
+		// GLSL transpilation at import time modifies files on disk, making
+		// the runtime content hash (id) differ from the directory name.
+		removeUserPackByPath(target.path);
+		// Also drop the persisted params and favorite for this pack.
 		try { deletePref(paramsKey(id)); } catch {}
+		this.favorites.delete(id);
+		this.persistFavorites();
 		return { ok: true };
+	}
+
+	/** Reset all parameter values for a pack back to manifest defaults. */
+	resetParams(id: string): boolean {
+		const target = this.byId(id);
+		if (!target) return false;
+		const defaults = defaultParameterValues(target.parameters);
+		this.paramValues.set(id, defaults);
+		setPref(paramsKey(id), defaults);
+		this.notify();
+		return true;
+	}
+
+	/** Toggle favorite/pinned state for a pack. */
+	setFavorite(id: string, favorited: boolean): void {
+		if (favorited) {
+			this.favorites.add(id);
+		} else {
+			this.favorites.delete(id);
+		}
+		this.persistFavorites();
+		this.notify();
+	}
+
+	isFavorite(id: string): boolean {
+		return this.favorites.has(id);
+	}
+
+	private persistFavorites(): void {
+		setPref(FAVORITES_KEY, Array.from(this.favorites));
 	}
 
 	private ensureParams(p: Pack): ParamValueMap {

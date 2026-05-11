@@ -37,12 +37,15 @@ export type PackInfo = {
 	parameters: PackParameter[];
 	parameterValues: ParamValueMap;
 	presets: PackPreset[];
+	tags?: string[];
 	/**
 	 * True when the pack's WASM runtime tripped its frame-deadline watchdog
 	 * (or otherwise self-terminated) and the pack is no longer producing
 	 * uniforms. UI should render the pack as disabled.
 	 */
 	runtimeBroken?: boolean;
+	/** Whether this pack is favorited (pinned to the top of the list). */
+	favorited?: boolean;
 };
 
 export type AutoSettings = { enabled: boolean; seconds: number; shuffle: boolean };
@@ -78,6 +81,11 @@ export type ControlsRPC = {
 				params: { did: string };
 				response: { ok: boolean; installed: number; errors: string[] };
 			};
+			/** Export a pack back to a .viz file. Opens a save dialog. */
+			exportPack: {
+				params: { id: string };
+				response: { ok: boolean; error?: string };
+			};
 		};
 		messages: {
 			wgpuViewReady: { viewId: number };
@@ -90,6 +98,12 @@ export type ControlsRPC = {
 			openScreenCapturePrefs: {};
 			nextPack: {};
 			setAutoSettings: { enabled: boolean; seconds: number; shuffle: boolean };
+			/** Reset all parameter values for a pack back to defaults. */
+			resetPackParams: { id: string };
+			/** Open the pack directory in Finder. */
+			revealPack: { id: string };
+			/** Toggle favorite/pinned state for a pack. */
+			setPackFavorite: { id: string; favorited: boolean };
 		};
 	};
 	webview: {

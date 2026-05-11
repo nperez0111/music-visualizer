@@ -718,15 +718,36 @@ When unsure, read these first:
 Browse `packages/app/src/packs/` for the full set (~36 packs at last count) when
 looking for a stylistic reference close to the user's seed.
 
+## Step 7 — build a `.viz` distribution archive
+
+After the pack passes all checks, build a `.viz` file in the pack
+directory so it can be imported into the app or shared:
+
+```bash
+# From the repo root — zip the pack contents (flat, no wrapping folder)
+cd packages/app/src/packs/<slug> && zip -j <slug>.viz manifest.json shader.glsl  # or shader.wgsl
+# For multi-pass packs, include extra pass shaders:
+# cd packages/app/src/packs/<slug> && zip -j <slug>.viz manifest.json shader.glsl bloom.wgsl
+# For Tier 2 packs, include the compiled WASM:
+# cd packages/app/src/packs/<slug> && zip -j <slug>.viz manifest.json shader.wgsl pack.wasm
+```
+
+The `.viz` file is gitignored (`packages/app/src/packs/*/*.viz`).
+
+To import: click **+** in the controls panel and pick the `.viz` file,
+or drag it onto the controls window.
+
 ## Distribution
 
-To ship a pack outside this repo, zip the pack's directory with
-`manifest.json` at the root (no wrapping folder; the importer also
-accepts a single wrapper but root is cleaner). Rename the zip to
-`<id>.viz`. Recipients install by either clicking **+** in the controls
-panel and picking the file, **or** dragging the `.viz` onto the
-controls window (drop overlay turns green; bytes are shipped to bun
-via RPC and extracted into the user-packs directory).
+To ship a pack outside this repo, the `.viz` archive built in Step 7 is
+the distribution format. It's a zip with `manifest.json` at the root
+(no wrapping folder; the importer also accepts a single wrapper but root
+is cleaner).
+
+Recipients install by either clicking **+** in the controls panel and
+picking the file, **or** dragging the `.viz` onto the controls window
+(drop overlay turns green; bytes are shipped to bun via RPC and
+extracted into the user-packs directory).
 
 GLSL packs can be distributed as `.viz` archives containing the `.glsl`
 source. The importer transpiles GLSL to WGSL during import and writes

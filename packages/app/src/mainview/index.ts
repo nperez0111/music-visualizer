@@ -45,8 +45,8 @@ const rpc = Electroview.defineRPC<ControlsRPC>({
 				lastLevel = rms;
 			},
 			activePackChanged: ({ id }: { id: string | null }) => {
-				if (id && packSelect && packSelect.value !== id) packSelect.value = id;
 				currentPackId = id;
+				renderPackList();
 				renderParamsPanel();
 			},
 			packsChanged: ({ packs, activePackId }: { packs: PackInfo[]; activePackId: string | null }) => {
@@ -83,7 +83,9 @@ const toggleBtn = document.getElementById("toggleBtn") as HTMLButtonElement;
 const meterBar = document.getElementById("meterBar") as HTMLElement;
 const audioStatusEl = document.getElementById("audioStatus") as HTMLElement;
 const dotEl = document.querySelector(".dot") as HTMLElement;
-const packSelect = document.getElementById("packSelect") as HTMLSelectElement;
+const packList = document.getElementById("packList") as HTMLElement;
+const packSearchRow = document.getElementById("packSearchRow") as HTMLElement | null;
+const packSearch = document.getElementById("packSearch") as HTMLInputElement | null;
 const importBtn = document.getElementById("importBtn") as HTMLButtonElement | null;
 const nextBtn = document.getElementById("nextBtn") as HTMLButtonElement | null;
 const autoChk = document.getElementById("autoChk") as HTMLInputElement | null;
@@ -94,6 +96,11 @@ const audioSourceSelect = document.getElementById("audioSourceSelect") as HTMLSe
 const permFixBtn = document.getElementById("permFixBtn") as HTMLButtonElement | null;
 const errorBanner = document.getElementById("errorBanner") as HTMLElement | null;
 const toastEl = document.getElementById("toast") as HTMLElement | null;
+const contextMenu = document.getElementById("contextMenu") as HTMLElement;
+const confirmOverlay = document.getElementById("confirmOverlay") as HTMLElement;
+const confirmMsg = document.getElementById("confirmMsg") as HTMLElement;
+const confirmOk = document.getElementById("confirmOk") as HTMLButtonElement;
+const confirmCancel = document.getElementById("confirmCancel") as HTMLButtonElement;
 
 let toastTimer: ReturnType<typeof setTimeout> | null = null;
 function showToast(message: string, durationMs = 3000) {
@@ -199,23 +206,129 @@ function applyAutoSettings(s: AutoSettings) {
 	if (shuffleChk) shuffleChk.checked = !!s.shuffle;
 }
 
+// ---------- Pack list rendering ----------
+
+let searchQuery = "";
+
+/** Sort packs: favorites first, then alphabetical. */
+function sortedPacks(packs: PackInfo[]): PackInfo[] {
+	return packs.slice().sort((a, b) => {
+		const af = a.favorited ? 1 : 0;
+		const bf = b.favorited ? 1 : 0;
+		if (af !== bf) return bf - af; // favorites first
+		return a.name.localeCompare(b.name);
+	});
+}
+
+/** Filter packs by search query (name, author, tags, description). */
+function filteredPacks(packs: PackInfo[], query: string): PackInfo[] {
+	if (!query) return packs;
+	const q = query.toLowerCase();
+	return packs.filter((p) => {
+		if (p.name.toLowerCase().includes(q)) return true;
+		if (p.author?.toLowerCase().includes(q)) return true;
+		if (p.description?.toLowerCase().includes(q)) return true;
+		if (p.tags?.some((t) => t.toLowerCase().includes(q))) return true;
+		return false;
+	});
+}
+
+function renderPackList() {
+	if (!packList) return;
+	packList.innerHTML = "";
+	const sorted = sortedPacks(allPacks);
+	const visible = filteredPacks(sorted, searchQuery);
+
+	if (visible.length === 0 && allPacks.length > 0) {
+		const empty = document.createElement("div");
+		empty.className = "pack-list-empty";
+		empty.textContent = searchQuery ? "No packs match your search" : "No packs";
+		packList.appendChild(empty);
+		return;
+	}
+
+	for (const p of visible) {
+		const item = document.createElement("div");
+		item.className = "pack-item";
+		item.dataset.packId = p.id;
+		if (p.id === currentPackId) item.classList.add("active");
+		if (p.runtimeBroken) item.classList.add("broken");
+
+		// Favorite star
+		const fav = document.createElement("span");
+		fav.className = "pack-item-fav" + (p.favorited ? " favorited" : "");
+		fav.textContent = p.favorited ? "\u2605" : "\u2606";
+		fav.title = p.favorited ? "Remove from favorites" : "Add to favorites";
+		fav.addEventListener("click", (e) => {
+			e.stopPropagation();
+			electrobun.rpc?.send?.setPackFavorite({ id: p.id, favorited: !p.favorited });
+		});
+		item.appendChild(fav);
+
+		// Name + metadata
+		const info = document.createElement("div");
+		info.className = "pack-item-info";
+		const nameEl = document.createElement("span");
+		nameEl.className = "pack-item-name";
+		nameEl.textContent = p.runtimeBroken ? `${p.name} \u26A0` : p.name;
+		info.appendChild(nameEl);
+
+		const metaParts: string[] = [];
+		if (p.author) metaParts.push(p.author);
+		if (p.version) metaParts.push(`v${p.version}`);
+		if (metaParts.length > 0) {
+			const meta = document.createElement("span");
+			meta.className = "pack-item-meta";
+			meta.textContent = metaParts.join(" \u00B7 ");
+			info.appendChild(meta);
+		}
+		item.appendChild(info);
+
+		// Context menu button (three dots)
+		const more = document.createElement("span");
+		more.className = "pack-item-more";
+		more.textContent = "\u22EF";
+		more.title = "Actions";
+		more.addEventListener("click", (e) => {
+			e.stopPropagation();
+			openContextMenu(p, e as MouseEvent);
+		});
+		item.appendChild(more);
+
+		// Click to activate
+		item.addEventListener("click", () => {
+			if (p.runtimeBroken) return;
+			electrobun.rpc?.send?.setActivePack({ id: p.id });
+			currentPackId = p.id;
+			renderPackList();
+			renderParamsPanel();
+		});
+
+		// Right-click context menu
+		item.addEventListener("contextmenu", (e) => {
+			e.preventDefault();
+			openContextMenu(p, e as MouseEvent);
+		});
+
+		packList.appendChild(item);
+	}
+}
+
 function populatePacks(packs: PackInfo[], activeId: string | null) {
 	allPacks = packs;
 	currentPackId = activeId;
 
 	const emptyState = document.getElementById("emptyState");
-	const packRow = packSelect.closest(".pack-row") as HTMLElement | null;
+	const packSection = document.querySelector(".pack-section") as HTMLElement | null;
 	const autoRow = document.querySelector(".auto-row") as HTMLElement | null;
 
 	if (packs.length === 0) {
-		// Show empty state, hide pack controls
 		if (emptyState) emptyState.hidden = false;
-		if (packRow) packRow.hidden = true;
+		if (packSection) packSection.hidden = true;
 		if (autoRow) autoRow.hidden = true;
 		if (nextBtn) nextBtn.hidden = true;
-		packSelect.innerHTML = "";
+		packList.innerHTML = "";
 		paramsPanel.hidden = true;
-		// Auto-expand sidebar so user sees the guidance
 		if (document.documentElement.classList.contains("collapsed")) {
 			applyCollapsed(false);
 			electrobun.rpc?.send?.setCollapsed({ collapsed: false });
@@ -224,24 +337,133 @@ function populatePacks(packs: PackInfo[], activeId: string | null) {
 		return;
 	}
 
-	// Has packs — hide empty state, show controls
 	if (emptyState) emptyState.hidden = true;
-	if (packRow) packRow.hidden = false;
+	if (packSection) packSection.hidden = false;
 	if (autoRow) autoRow.hidden = false;
 	if (nextBtn) nextBtn.hidden = false;
+	// Show search when there are enough packs to make it useful
+	if (packSearchRow) packSearchRow.hidden = packs.length < 4;
 
-	packSelect.innerHTML = "";
-	for (const p of packs) {
-		const opt = document.createElement("option");
-		opt.value = p.id;
-		const badge = p.runtimeBroken ? " \u26A0 broken" : "";
-		opt.textContent = `${p.name}${badge}`;
-		if (p.runtimeBroken) opt.disabled = true;
-		if (p.id === activeId) opt.selected = true;
-		packSelect.appendChild(opt);
-	}
+	renderPackList();
 	renderParamsPanel();
+	requestAnimationFrame(() => wgpuTag?.syncDimensions(true));
 }
+
+// ---------- Pack search ----------
+
+if (packSearch) {
+	packSearch.addEventListener("input", () => {
+		searchQuery = packSearch.value.trim();
+		renderPackList();
+	});
+}
+
+// ---------- Context menu ----------
+
+let contextPackId: string | null = null;
+
+function openContextMenu(pack: PackInfo, e: MouseEvent) {
+	contextPackId = pack.id;
+
+	// Update favorite button text
+	const favBtn = contextMenu.querySelector('[data-action="favorite"]');
+	if (favBtn) {
+		const icon = favBtn.querySelector(".context-icon");
+		if (icon) icon.textContent = pack.favorited ? "\u2605" : "\u2606";
+		favBtn.childNodes[favBtn.childNodes.length - 1]!.textContent =
+			pack.favorited ? " Unfavorite" : " Favorite";
+	}
+
+	// Position menu near click
+	contextMenu.hidden = false;
+	const rect = contextMenu.getBoundingClientRect();
+	let x = e.clientX;
+	let y = e.clientY;
+	// Keep within viewport
+	if (x + rect.width > window.innerWidth) x = window.innerWidth - rect.width - 4;
+	if (y + rect.height > window.innerHeight) y = window.innerHeight - rect.height - 4;
+	contextMenu.style.left = `${x}px`;
+	contextMenu.style.top = `${y}px`;
+	wgpuTag?.syncDimensions(true);
+}
+
+function closeContextMenu() {
+	contextMenu.hidden = true;
+	contextPackId = null;
+	wgpuTag?.syncDimensions(true);
+}
+
+// Close context menu on any outside click or Escape
+document.addEventListener("click", () => closeContextMenu());
+document.addEventListener("keydown", (e) => {
+	if (e.key === "Escape") {
+		closeContextMenu();
+		closeConfirmDialog();
+	}
+});
+
+// Handle context menu actions
+contextMenu.addEventListener("click", (e) => {
+	const btn = (e.target as HTMLElement).closest(".context-item") as HTMLElement | null;
+	if (!btn || !contextPackId) return;
+	e.stopPropagation();
+	const action = btn.dataset.action;
+	const packId = contextPackId;
+	closeContextMenu();
+
+	switch (action) {
+		case "favorite": {
+			const pack = allPacks.find((p) => p.id === packId);
+			if (pack) electrobun.rpc?.send?.setPackFavorite({ id: packId, favorited: !pack.favorited });
+			break;
+		}
+		case "resetParams":
+			electrobun.rpc?.send?.resetPackParams({ id: packId });
+			break;
+		case "export":
+			electrobun.rpc?.request?.exportPack({ id: packId }).then((r) => {
+				if (r?.ok) showToast("Exported to Downloads");
+				else if (r?.error) showToast(`Export failed: ${r.error}`);
+			});
+			break;
+		case "reveal":
+			electrobun.rpc?.send?.revealPack({ id: packId });
+			break;
+		case "remove":
+			showRemoveConfirm(packId);
+			break;
+	}
+});
+
+// ---------- Confirm dialog ----------
+
+let confirmCallback: (() => void) | null = null;
+
+function showRemoveConfirm(packId: string) {
+	const pack = allPacks.find((p) => p.id === packId);
+	if (!pack) return;
+	confirmMsg.textContent = `Remove "${pack.name}"? This will delete the pack from your library.`;
+	confirmOverlay.hidden = false;
+	wgpuTag?.syncDimensions(true);
+	confirmCallback = () => {
+		electrobun.rpc?.send?.removePack({ id: packId });
+	};
+}
+
+function closeConfirmDialog() {
+	confirmOverlay.hidden = true;
+	confirmCallback = null;
+	wgpuTag?.syncDimensions(true);
+}
+
+confirmOk.addEventListener("click", () => {
+	if (confirmCallback) confirmCallback();
+	closeConfirmDialog();
+});
+confirmCancel.addEventListener("click", () => closeConfirmDialog());
+confirmOverlay.addEventListener("click", (e) => {
+	if (e.target === confirmOverlay) closeConfirmDialog();
+});
 
 function rgbToHex(rgb: number[]): string {
 	const c = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, "0");
@@ -432,11 +654,7 @@ function renderParamsPanel() {
 	requestAnimationFrame(() => wgpuTag?.syncDimensions(true));
 }
 
-packSelect.addEventListener("change", () => {
-	electrobun.rpc?.send?.setActivePack({ id: packSelect.value });
-	currentPackId = packSelect.value;
-	renderParamsPanel();
-});
+// Pack activation is now handled by click handlers in renderPackList().
 
 if (importBtn) {
 	importBtn.addEventListener("click", async () => {

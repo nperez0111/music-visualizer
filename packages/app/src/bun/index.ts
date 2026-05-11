@@ -216,6 +216,35 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 				return { ok: false, installed, errors: [...errors, String(err)] };
 			}
 		},
+		exportPack: async ({ id }) => {
+			try {
+				const pack = registry.byId(id);
+				if (!pack) return { ok: false, error: "unknown pack" };
+				const safeName = pack.name.replace(/[^a-z0-9._-]/gi, "_");
+				// Create a .viz (zip) from the pack directory and write to Downloads
+				const { readdirSync, readFileSync } = await import("fs");
+				const { relative } = await import("path");
+				const { homedir } = await import("os");
+				const fflate = await import("fflate");
+				const entries: Record<string, Uint8Array> = {};
+				const files = readdirSync(pack.path, { recursive: true, withFileTypes: true });
+				for (const f of files) {
+					if (!f.isFile()) continue;
+					const full = join(f.parentPath ?? f.path, f.name);
+					const rel = relative(pack.path, full);
+					entries[rel] = readFileSync(full);
+				}
+				const zipped = fflate.zipSync(entries, { level: 6 });
+				const downloadsDir = join(homedir(), "Downloads");
+				const savePath = join(downloadsDir, `${safeName}.viz`);
+				writeFileSync(savePath, zipped);
+				// Reveal the exported file in Finder
+				Bun.spawn(["open", "-R", savePath]);
+				return { ok: true };
+			} catch (err) {
+				return { ok: false, error: String(err) };
+			}
+		},
 		},
 		messages: {
 			wgpuViewReady: ({ viewId }) => {
@@ -280,6 +309,23 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 			},
 			applyPreset: ({ packId, presetName }) => {
 				registry.applyPreset(packId, presetName);
+			},
+			resetPackParams: ({ id }) => {
+				registry.resetParams(id);
+				broadcastPacksChanged();
+			},
+			revealPack: ({ id }) => {
+				const pack = registry.byId(id);
+				if (!pack) return;
+				try {
+					Bun.spawn(["open", pack.path]);
+				} catch (err) {
+					console.warn("[packs] failed to reveal pack:", err);
+				}
+			},
+			setPackFavorite: ({ id, favorited }) => {
+				registry.setFavorite(id, favorited);
+				broadcastPacksChanged();
 			},
 		},
 	},
