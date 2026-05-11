@@ -15,13 +15,8 @@ on:
     inputs:
       naga_version:
         description: "naga-cli version to install (e.g. 29.0.0)"
-        required: true
+        required: false
         default: "29.0.0"
-
-# Default version used by the weekly cron (no inputs available on schedule).
-# Update this when bumping the version in Dockerfile / Dockerfile.server.
-env:
-  DEFAULT_NAGA_VERSION: "29.0.0"
 
 permissions:
   contents: read
@@ -35,7 +30,8 @@ jobs:
 
     env:
       IMAGE: ghcr.io/${{ github.repository }}-naga
-      NAGA_VERSION: ${{ inputs.naga_version || env.DEFAULT_NAGA_VERSION }}
+      # inputs.naga_version is empty on schedule triggers; fall back to hardcoded default.
+      NAGA_VERSION: ${{ inputs.naga_version || '29.0.0' }}
 
     steps:
       - uses: actions/checkout@v4
