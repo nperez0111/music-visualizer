@@ -1,6 +1,7 @@
 import {
 	getAllReleaseDids,
 	getReleasesWithoutVersions,
+	getVersionCid,
 	upsertVersion,
 	type getDb,
 } from "./db.ts";
@@ -47,6 +48,7 @@ export interface BackfillResult {
 export interface RefreshResult {
 	didCount: number;
 	upserted: number;
+	skipped: number;
 	errors: string[];
 }
 
@@ -148,11 +150,14 @@ export async function backfillMissingVersions(
 /**
  * Re-fetch ALL version records from PDS for every known DID and upsert them.
  * This updates stale viz_cid values (e.g. after a re-publish with same version string).
+ *
+ * Fast-path: skips records where the local DB already has the same viz_cid,
+ * avoiding unnecessary writes and keeping the operation cheap at scale.
  */
 export async function refreshAllVersions(
 	db: ReturnType<typeof getDb>,
 ): Promise<RefreshResult> {
-	const result: RefreshResult = { didCount: 0, upserted: 0, errors: [] };
+	const result: RefreshResult = { didCount: 0, upserted: 0, skipped: 0, errors: [] };
 
 	const dids = getAllReleaseDids(db);
 	result.didCount = dids.length;
@@ -192,6 +197,13 @@ export async function refreshAllVersions(
 					const rkey = rec.uri.split("/").pop()!;
 					const vizCid = record.viz?.ref?.$link ?? "";
 
+					// Fast-path: skip if the local CID already matches
+					const existingCid = getVersionCid(db, did, rkey);
+					if (existingCid === vizCid) {
+						result.skipped++;
+						continue;
+					}
+
 					upsertVersion(db, {
 						did,
 						rkey,
@@ -215,7 +227,7 @@ export async function refreshAllVersions(
 	}
 
 	console.log(
-		`[backfill] refresh done: ${result.upserted} upserted across ${result.didCount} DID(s), ${result.errors.length} error(s)`,
+		`[backfill] refresh done: ${result.upserted} upserted, ${result.skipped} skipped (unchanged) across ${result.didCount} DID(s), ${result.errors.length} error(s)`,
 	);
 	return result;
 }

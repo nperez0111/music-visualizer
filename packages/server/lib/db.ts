@@ -309,6 +309,11 @@ export function getAllReleaseDids(db: Database): string[] {
 	return (db.prepare("SELECT DISTINCT did FROM releases").all() as Array<{ did: string }>).map(r => r.did);
 }
 
+export function getVersionCid(db: Database, did: string, rkey: string): string | null {
+	const row = db.prepare("SELECT viz_cid FROM versions WHERE did = ? AND rkey = ?").get(did, rkey) as { viz_cid: string } | null;
+	return row?.viz_cid ?? null;
+}
+
 export function clearVersionPreview(db: Database, did: string, rkey: string): void {
 	db.prepare("UPDATE versions SET preview_path = NULL WHERE did = ? AND rkey = ?").run(did, rkey);
 }

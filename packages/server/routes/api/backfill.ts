@@ -61,9 +61,9 @@ export default defineHandler(async (event) => {
 			const refreshResult = await refreshAllVersions(db);
 			await send("progress", {
 				phase: "refresh",
-				current: refreshResult.upserted,
-				total: refreshResult.upserted,
-				detail: `${refreshResult.upserted} upserted across ${refreshResult.didCount} DID(s)`,
+				current: refreshResult.upserted + refreshResult.skipped,
+				total: refreshResult.upserted + refreshResult.skipped,
+				detail: `${refreshResult.upserted} upserted, ${refreshResult.skipped} skipped (unchanged) across ${refreshResult.didCount} DID(s)`,
 			});
 			for (const err of refreshResult.errors) {
 				await send("error", { phase: "refresh", message: err });

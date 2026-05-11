@@ -4,7 +4,7 @@
  * and stores the animated WebP preview via unstorage.
  */
 
-import { spawnSync } from "child_process";
+import { spawn } from "child_process";
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "fs";
 import { join, resolve } from "path";
 import { Client, ok, simpleFetchHandler } from "@atcute/client";
@@ -168,40 +168,65 @@ export async function renderVersionPreview(opts: {
 		}
 
 		// Render animated WebP preview via --stdout (binary on stdout, logs on stderr)
+		// Uses async spawn so the event loop is not blocked during rendering.
 		const storageKey = `${did.replace(/:/g, "_")}_${rkey}.webp`;
 
-		const result = spawnSync("bun", [
-			RENDER_SCRIPT,
-			packDir,
-			"--webp",
-			"--stdout",
-			"--webp-frames", "20",
-			"--webp-duration", "100",
-			"--webp-quality", "75",
-			"--width", "320",
-			"--height", "240",
-		], {
-			cwd: process.env.VIZ_RENDER_CWD ?? resolve(import.meta.dir, "../../.."),
-			stdio: "pipe",
-			timeout: 30_000,
-			env: {
-				...process.env,
-				// Propagate Docker mode to the render subprocess
-				...(process.env.VIZ_DOCKER_MODE ? { VIZ_DOCKER_MODE: "1" } : {}),
-			},
+		const webpBuffer = await new Promise<Buffer | null>((resolvePromise) => {
+			const child = spawn("bun", [
+				RENDER_SCRIPT,
+				packDir,
+				"--webp",
+				"--stdout",
+				"--webp-frames", "20",
+				"--webp-duration", "100",
+				"--webp-quality", "75",
+				"--width", "320",
+				"--height", "240",
+			], {
+				cwd: process.env.VIZ_RENDER_CWD ?? resolve(import.meta.dir, "../../.."),
+				stdio: "pipe",
+				env: {
+					...process.env,
+					...(process.env.VIZ_DOCKER_MODE ? { VIZ_DOCKER_MODE: "1" } : {}),
+				},
+			});
+
+			const chunks: Buffer[] = [];
+			let stderr = "";
+
+			child.stdout.on("data", (chunk: Buffer) => chunks.push(chunk));
+			child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString(); });
+
+			const timer = setTimeout(() => {
+				child.kill("SIGTERM");
+				console.error(`[preview] render timed out for ${did}/${rkey}`);
+				resolvePromise(null);
+			}, 30_000);
+
+			child.on("close", (code) => {
+				clearTimeout(timer);
+				if (code !== 0) {
+					console.error(`[preview] render failed for ${did}/${rkey}: ${stderr.slice(0, 500)}`);
+					resolvePromise(null);
+					return;
+				}
+				const buf = Buffer.concat(chunks);
+				if (buf.length === 0) {
+					console.error(`[preview] render produced no output for ${did}/${rkey}`);
+					resolvePromise(null);
+					return;
+				}
+				resolvePromise(buf);
+			});
+
+			child.on("error", (err) => {
+				clearTimeout(timer);
+				console.error(`[preview] spawn error for ${did}/${rkey}:`, err);
+				resolvePromise(null);
+			});
 		});
 
-		if (result.status !== 0) {
-			const stderr = result.stderr?.toString() ?? "";
-			console.error(`[preview] render failed for ${did}/${rkey}: ${stderr.slice(0, 500)}`);
-			return;
-		}
-
-		const webpBuffer = result.stdout;
-		if (!webpBuffer || webpBuffer.length === 0) {
-			console.error(`[preview] render produced no output for ${did}/${rkey}`);
-			return;
-		}
+		if (!webpBuffer) return;
 
 		// Store preview via unstorage
 		await useStorage("previews").setItemRaw(storageKey, webpBuffer);
