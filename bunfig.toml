@@ -1,2 +1,2 @@
 [test]
-root = "src"
+pathIgnorePatterns = ["**/build/**", "**/node_modules/**"]

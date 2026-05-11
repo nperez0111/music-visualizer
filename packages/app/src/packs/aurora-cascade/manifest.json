@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "name": "Aurora Cascade",
+  "version": "1.0.0",
+  "author": "nickthesick.com",
+  "description": "Shimmering aurora borealis curtains that cascade with the music. Bass drives wave amplitude, treble affects shimmer.",
+  "tags": ["nature", "ambient", "colorful"],
+  "shader": "shader.glsl",
+  "audio": {
+    "features": ["rms", "bass", "mid", "treble", "beat_phase", "bpm"]
+  },
+  "parameters": [
+    { "type": "float", "name": "speed", "label": "speed", "min": 0.1, "max": 4.0, "default": 1.0 },
+    { "type": "float", "name": "layers", "label": "layers", "min": 1.0, "max": 8.0, "default": 4.0 },
+    { "type": "color", "name": "tint", "label": "tint", "default": [0.2, 1.0, 0.6] }
+  ]
+}

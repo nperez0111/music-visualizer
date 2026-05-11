@@ -1,0 +1,25 @@
+{
+	"name": "@catnip/server",
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "bun --bun nitro dev",
+		"build": "nitro build --preset bun"
+	},
+	"dependencies": {
+		"@catnip/shared": "workspace:*",
+		"@catnip/lexicons": "workspace:*",
+		"@atcute/client": "4.2.1",
+		"@atcute/jetstream": "1.1.2",
+		"@atcute/tid": "1.1.2",
+		"@atcute/oauth-node-client": "1.1.0",
+		"@atcute/identity-resolver": "1.2.2",
+		"@atcute/atproto": "3.1.11",
+		"fflate": "0.8.2"
+	},
+	"devDependencies": {
+		"@types/bun": "latest",
+		"nano-jsx": "0.2.1",
+		"nitro": "latest"
+	}
+}

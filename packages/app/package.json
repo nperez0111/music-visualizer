@@ -1,0 +1,37 @@
+{
+	"name": "@catnip/app",
+	"version": "0.0.1",
+	"type": "module",
+	"private": true,
+	"description": "Cat Nip desktop visualizer (Electrobun)",
+	"scripts": {
+		"start": "electrobun dev",
+		"dev": "electrobun dev --watch",
+		"build:canary": "electrobun build --env=canary",
+		"build:audiocap": "bun run scripts/build-audiocap.ts",
+		"build:packs": "bun run scripts/build-packs.ts",
+		"test": "bun test",
+		"test:gpu": "bun run scripts/test-packs-gpu.ts",
+		"render-pack": "bun run scripts/render-pack.ts",
+		"build:gallery": "bun run scripts/build-gallery.ts"
+	},
+	"dependencies": {
+		"@atcute/client": "4.2.1",
+		"@catnip/shared": "workspace:*",
+		"electrobun": "1.18.1",
+		"fflate": "0.8.2",
+		"pixelmatch": "7.2.0",
+		"pngjs": "7.0.0",
+		"wasm-webp": "0.1.0"
+	},
+	"devDependencies": {
+		"@atcute/atproto": "3.1.11",
+		"@atcute/identity-resolver": "1.2.2",
+		"@types/bun": "latest",
+		"@types/pngjs": "6.0.5",
+		"assemblyscript": "0.28.17"
+	},
+	"patchedDependencies": {
+		"electrobun@1.18.1": "packages/app/patches/electrobun@1.18.1.patch"
+	}
+}

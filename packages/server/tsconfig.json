@@ -1,0 +1,15 @@
+{
+	"compilerOptions": {
+		"target": "ESNext",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"allowImportingTsExtensions": true,
+		"jsx": "react-jsx",
+		"jsxImportSource": "nano-jsx",
+		"strict": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"isolatedModules": true
+	},
+	"include": ["routes", "plugins", "lib", "*.ts"]
+}

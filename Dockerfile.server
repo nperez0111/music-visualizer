@@ -1,0 +1,206 @@
+# Production image for the Cat Nip registry server (Nitro + Bun) with
+# headless GPU preview rendering via Mesa lavapipe (CPU Vulkan).
+#
+# Multi-stage build:
+#   1. deps     — bun install (cached by package.json changes only)
+#   2. native   — compile headless GPU shim from headless-shim.c
+#   3. builder  — nitro build + naga-cli for GLSL transpilation
+#   4. runtime  — Debian slim + Mesa lavapipe + Nitro bundle + renderer
+#
+# The Nitro bundle is self-contained (~300 KB). Preview rendering needs the
+# headless GPU stack: libwebgpu_dawn.so, libheadlessshim.so, and Mesa
+# lavapipe for CPU Vulkan. No physical GPU required.
+#
+# Build:
+#   docker build -f Dockerfile.server -t catnip-server .
+#
+# Run:
+#   docker run -p 3000:3000 \
+#     -v catnip-data:/app/data \
+#     -e CATNIP_DATA_DIR=/app/data \
+#     catnip-server
+
+# ── Stage 1: install workspace deps ─────────────────────────────────────────
+FROM oven/bun:1 AS deps
+
+WORKDIR /build
+
+# Copy workspace root files first (cache-friendly layer)
+COPY package.json bun.lock ./
+
+# Copy only the package.json files for workspace packages the server depends on.
+# This lets Docker cache the bun install layer when only source code changes.
+COPY packages/server/package.json ./packages/server/package.json
+COPY packages/shared/package.json ./packages/shared/package.json
+COPY packages/lexicons/package.json ./packages/lexicons/package.json
+# The remaining workspace packages need stubs so bun install doesn't fail
+# on the "packages/*" workspace glob.
+COPY packages/app/package.json ./packages/app/package.json
+COPY packages/cli/package.json ./packages/cli/package.json
+# Bun needs the patch file referenced by packages/app/package.json
+COPY packages/app/patches ./packages/app/patches
+
+RUN bun install --frozen-lockfile
+
+# ── Stage 2: build native GPU shim ─────────────────────────────────────────
+# Compiles headless-shim.c against libwebgpu_dawn.so from the electrobun
+# distribution. This tiny .so replaces libNativeWrapper.so (which needs
+# GTK/WebKit) with a lightweight shim that only wraps the wgpu C API for
+# buffer readback and by-value struct calling conventions.
+FROM deps AS native
+
+# GCC is needed to compile the shim
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY packages/app/scripts/headless-shim.c ./packages/app/scripts/headless-shim.c
+COPY packages/app/electrobun.config.ts ./packages/app/electrobun.config.ts
+
+# Create stubs for everything electrobun.config.ts copy: references
+RUN mkdir -p packages/app/src/native/audiocap packages/app/src/packs \
+        packages/app/src/mainview packages/app/src/bun/packs && \
+    printf '#!/bin/sh\nexit 1\n' > packages/app/src/native/audiocap/audiocap && \
+    chmod +x packages/app/src/native/audiocap/audiocap && \
+    touch packages/app/src/mainview/index.html packages/app/src/mainview/index.css && \
+    touch packages/app/src/mainview/index.ts packages/app/src/bun/index.ts && \
+    touch packages/app/src/bun/packs/runtime-worker.ts
+
+# Run electrobun build to fetch native libs (libwebgpu_dawn.so), then compile shim.
+# Also resolve symlinked npm modules needed at runtime to a fixed path (bun uses
+# .bun/<pkg>@<ver>/node_modules/<pkg> symlinks that COPY --from= can't follow).
+RUN cd packages/app && bunx electrobun build --env=canary || true && cd /build && \
+    DIST=$(ls -d packages/app/node_modules/electrobun/dist-linux-* node_modules/electrobun/dist-linux-* 2>/dev/null | head -1) && \
+    if [ -z "$DIST" ]; then echo "No electrobun dist dir found" && exit 1; fi && \
+    gcc -shared -fPIC -O2 \
+        -o "$DIST/libheadlessshim.so" \
+        packages/app/scripts/headless-shim.c \
+        -L"$DIST" -lwebgpu_dawn \
+        -Wl,-rpath,'$ORIGIN' && \
+    mkdir -p /opt/electrobun && \
+    cp "$DIST/libwebgpu_dawn.so" /opt/electrobun/ && \
+    cp "$DIST/libheadlessshim.so" /opt/electrobun/ && \
+    mkdir -p /opt/npm-runtime && \
+    find /build -path "*/electrobun/dist/api/bun/webGPU.ts" -print -quit | head -1 | xargs -I{} cp {} /opt/npm-runtime/webGPU.ts && \
+    WASMWEBP=$(find /build -path "*/node_modules/wasm-webp/package.json" -print -quit | head -1 | xargs dirname) && \
+    cp -rL "$WASMWEBP" /opt/npm-runtime/wasm-webp && \
+    FFLATE=$(find /build -path "*/node_modules/fflate/package.json" -not -path "*/wasm-webp/*" -print -quit | head -1 | xargs dirname) && \
+    cp -rL "$FFLATE" /opt/npm-runtime/fflate && \
+    VALIBOT=$(find /build -path "*/node_modules/valibot/package.json" -print -quit | head -1 | xargs dirname) && \
+    cp -rL "$VALIBOT" /opt/npm-runtime/valibot
+
+# ── Stage 3: build server + install naga ────────────────────────────────────
+FROM deps AS builder
+
+# Install Rust toolchain + naga-cli for GLSL→WGSL transpilation at runtime.
+# GCC is needed as a linker for cargo builds.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl ca-certificates gcc libc6-dev && \
+    rm -rf /var/lib/apt/lists/* && \
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --profile minimal --default-toolchain stable && \
+    export PATH="/root/.cargo/bin:$PATH" && \
+    cargo install naga-cli && \
+    strip /root/.cargo/bin/naga && \
+    cp /root/.cargo/bin/naga /usr/local/bin/naga && \
+    rustup self uninstall -y && \
+    rm -rf /root/.cargo /root/.rustup
+
+# Copy the actual source for workspace deps that Nitro needs to bundle
+COPY packages/shared/src ./packages/shared/src
+COPY packages/shared/tsconfig.json ./packages/shared/tsconfig.json
+COPY packages/lexicons/src ./packages/lexicons/src
+COPY packages/lexicons/tsconfig.json ./packages/lexicons/tsconfig.json
+
+# Copy the full server package
+COPY packages/server ./packages/server
+
+WORKDIR /build/packages/server
+RUN bun run build
+
+# ── Stage 4: production runtime ─────────────────────────────────────────────
+# Debian slim (not Alpine) — native .so files are glibc-linked. Includes Mesa
+# lavapipe for CPU Vulkan rendering and curl for the healthcheck.
+FROM oven/bun:1-slim AS runtime
+
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
+
+# Mesa lavapipe (CPU Vulkan ICD) + Vulkan loader + curl for healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        mesa-vulkan-drivers libvulkan1 \
+        curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy self-contained Nitro bundle (~300 KB)
+COPY --from=builder /build/packages/server/.output ./
+
+# ── GPU rendering stack ─────────────────────────────────────────────────────
+# Copy native libraries (libwebgpu_dawn.so ~19 MB, libheadlessshim.so ~12 KB)
+COPY --from=native /opt/electrobun/libwebgpu_dawn.so /opt/gpu/
+COPY --from=native /opt/electrobun/libheadlessshim.so /opt/gpu/
+
+# Copy naga binary for GLSL→WGSL transpilation
+COPY --from=builder /usr/local/bin/naga /usr/local/bin/naga
+
+# Copy render script and its transitive source dependencies
+COPY packages/app/scripts/render-pack-debug.ts /opt/renderer/scripts/render-pack-debug.ts
+# GPU subsystem
+COPY packages/app/src/bun/gpu/electrobun-gpu.ts /opt/renderer/src/bun/gpu/electrobun-gpu.ts
+COPY packages/app/src/bun/gpu/wgpu-helpers.ts /opt/renderer/src/bun/gpu/wgpu-helpers.ts
+COPY packages/app/src/bun/gpu/pipeline.ts /opt/renderer/src/bun/gpu/pipeline.ts
+COPY packages/app/src/bun/gpu/renderer.ts /opt/renderer/src/bun/gpu/renderer.ts
+# Engine (feature smoother + uniform writer)
+COPY packages/app/src/bun/engine/feature-smoother.ts /opt/renderer/src/bun/engine/feature-smoother.ts
+COPY packages/app/src/bun/engine/uniform-writer.ts /opt/renderer/src/bun/engine/uniform-writer.ts
+# Audio types (imported by engine)
+COPY packages/app/src/bun/audio/analysis.ts /opt/renderer/src/bun/audio/analysis.ts
+COPY packages/app/src/bun/audio/ring-buffer.ts /opt/renderer/src/bun/audio/ring-buffer.ts
+# Pack subsystem
+COPY packages/app/src/bun/packs/headless-render.ts /opt/renderer/src/bun/packs/headless-render.ts
+COPY packages/app/src/bun/packs/loader.ts /opt/renderer/src/bun/packs/loader.ts
+COPY packages/app/src/bun/packs/runtime.ts /opt/renderer/src/bun/packs/runtime.ts
+COPY packages/app/src/bun/packs/runtime-worker.ts /opt/renderer/src/bun/packs/runtime-worker.ts
+COPY packages/app/src/bun/packs/parameters.ts /opt/renderer/src/bun/packs/parameters.ts
+COPY packages/app/src/bun/packs/png-encode.ts /opt/renderer/src/bun/packs/png-encode.ts
+COPY packages/app/src/bun/packs/hash.ts /opt/renderer/src/bun/packs/hash.ts
+COPY packages/app/src/bun/packs/limits.ts /opt/renderer/src/bun/packs/limits.ts
+COPY packages/app/src/bun/packs/glsl-transpile.ts /opt/renderer/src/bun/packs/glsl-transpile.ts
+COPY packages/app/src/bun/packs/glsl-preprocess.ts /opt/renderer/src/bun/packs/glsl-preprocess.ts
+# Paths module
+COPY packages/app/src/bun/paths.ts /opt/renderer/src/bun/paths.ts
+
+# Copy electrobun webGPU.ts (deep import, bypasses barrel — resolved from symlinks in native stage)
+COPY --from=native /opt/npm-runtime/webGPU.ts /opt/renderer/node_modules/electrobun/dist/api/bun/webGPU.ts
+# wasm-webp (pure JS/WASM — animated WebP encoding)
+COPY --from=native /opt/npm-runtime/wasm-webp /opt/renderer/node_modules/wasm-webp
+# fflate (pure JS — PNG compression in png-encode.ts)
+COPY --from=native /opt/npm-runtime/fflate /opt/renderer/node_modules/fflate
+# valibot (dependency of @catnip/shared for manifest validation)
+COPY --from=native /opt/npm-runtime/valibot /opt/renderer/node_modules/valibot
+# @catnip/shared (workspace dep — manifest validation, hashing, limits)
+COPY packages/shared/src /opt/renderer/node_modules/@catnip/shared/src
+COPY packages/shared/package.json /opt/renderer/node_modules/@catnip/shared/package.json
+
+# ── Environment ─────────────────────────────────────────────────────────────
+# Server
+ENV CATNIP_DATA_DIR=/app/data
+ENV HOST=0.0.0.0
+ENV PORT=3000
+
+# GPU rendering — force Mesa lavapipe (CPU Vulkan, no hardware GPU needed)
+ENV VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.json
+ENV VIZ_DOCKER_MODE=1
+ENV VIZ_BUNDLE_NATIVE_DIR=/opt/gpu
+ENV ELECTROBUN_WGPU_PATH=/opt/gpu/libwebgpu_dawn.so
+ENV LD_LIBRARY_PATH=/opt/gpu
+ENV VIZ_RENDER_SCRIPT=/opt/renderer/scripts/render-pack-debug.ts
+ENV VIZ_RENDER_CWD=/opt/renderer
+
+EXPOSE 3000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD curl -sf http://127.0.0.1:3000/api/health || exit 1
+
+CMD ["bun", "run", "server/index.mjs"]

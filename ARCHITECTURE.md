@@ -7,7 +7,7 @@ first if you just want to use the app.
 ## High-level diagram
 
 ```
-+-------------------- Bun main process (src/bun/index.ts) -------------------+
++------------- Bun main process (packages/app/src/bun/index.ts) -------------+
 |                                                                            |
 |  +------------------+   +-------------------+   +----------------------+   |
 |  | audiocap         |   | wgpu-native FFI   |   | pack registry        |   |
@@ -71,39 +71,35 @@ The webview only sends control messages and displays state.
 ## File layout
 
 ```
-src/
-├── bun/                      # main process
-│   ├── index.ts              # entry point: windows, frame loop, RPC
-│   ├── gpu/
-│   │   ├── wgpu-helpers.ts   # WGPU descriptor builders + constants
-│   │   ├── renderer.ts       # instance/adapter/device/queue/surface
-│   │   ├── pipeline.ts       # createPackPipeline (one per pack)
-│   │   └── transition.ts     # A/B render targets + composite shader
-│   ├── audio/
-│   │   ├── capture.ts        # spawns audiocap, parses framed PCM
-│   │   ├── ring-buffer.ts    # mono Float32 circular buffer
-│   │   └── analysis.ts       # Hann FFT, energy bands, simple BPM
-│   ├── packs/
-│   │   ├── loader.ts         # scan dirs, validate manifests
-│   │   ├── runtime.ts        # WASM ABI host runtime
-│   │   └── import.ts         # .viz extraction (zip via fflate)
-│   └── db/
-│       └── index.ts          # bun:sqlite open + preferences KV
-│
-├── mainview/                 # single-window webview (sidebar + embedded WGPU)
-│   ├── index.html
-│   ├── index.css
-│   └── index.ts              # RPC, sidebar toggle, WGPU ready, meter
-│
-├── native/audiocap/          # Rust CLI: cpal loopback -> framed PCM
-│   ├── Cargo.toml
-│   └── src/main.rs
-│
-└── packs/                    # built-in packs
-    ├── gradient/{manifest.json, shader.wgsl}
-    ├── plasma/{manifest.json, shader.wgsl}
-    ├── glsl-plasma/{manifest.json, shader.glsl}   # GLSL (Shadertoy convention)
-    └── wasm-color/{manifest.json, shader.wgsl, pack.ts, pack.wasm}
+packages/
+├── app/                          # Electrobun desktop visualizer
+│   ├── electrobun.config.ts
+│   ├── scripts/                  # build/test/render scripts
+│   └── src/
+│       ├── bun/                  # main process
+│       │   ├── index.ts          # entry point: windows, frame loop, RPC
+│       │   ├── gpu/
+│       │   │   ├── wgpu-helpers.ts
+│       │   │   ├── renderer.ts
+│       │   │   ├── pipeline.ts
+│       │   │   └── transition.ts
+│       │   ├── audio/
+│       │   │   ├── capture.ts
+│       │   │   ├── ring-buffer.ts
+│       │   │   └── analysis.ts
+│       │   ├── packs/
+│       │   │   ├── loader.ts
+│       │   │   ├── runtime.ts
+│       │   │   └── import.ts
+│       │   └── db/
+│       │       └── index.ts
+│       ├── mainview/             # webview (sidebar + embedded WGPU)
+│       ├── native/audiocap/      # Rust CLI: cpal loopback -> framed PCM
+│       └── packs/                # built-in packs
+├── shared/                       # manifest types, validation, hashing, limits
+├── lexicons/                     # AT Protocol schemas + generated TypeScript
+├── cli/                          # CLI tool (catnip)
+└── server/                       # Nitro server (website + API + indexer)
 ```
 
 ## Render path
@@ -168,7 +164,7 @@ ignores any bytes the struct doesn't reach.
 
 ## Audio path
 
-### Capture (`src/native/audiocap/`)
+### Capture (`packages/app/src/native/audiocap/`)
 
 A small Rust CLI built on [cpal](https://github.com/RustAudio/cpal) that
 opens the platform-appropriate audio stream. Two modes:
@@ -278,13 +274,13 @@ GLSL shaders use the Shadertoy entry point
 `void mainImage(out vec4 fragColor, in vec2 fragCoord)` and are
 automatically transpiled to WGSL at load time via:
 
-1. **Preprocessing** (`src/bun/packs/glsl-preprocess.ts`): injects
+1. **Preprocessing** (`packages/app/src/bun/packs/glsl-preprocess.ts`): injects
    `#version 450`, a uniform block with explicit `layout` bindings
    matching the Cat Nip buffer layout, Shadertoy compatibility aliases
    (`iTime`, `iResolution`, `iTimeDelta`), and wraps `mainImage` into
    `void main()`. Also fixes `mat2(a,b,c,d)` scalar constructors.
 2. **Naga CLI** (`naga input.frag.glsl output.wgsl`): translates GLSL 450
-   to WGSL. Binary resolved by `findNagaBinary()` in `src/bun/paths.ts`.
+   to WGSL. Binary resolved by `findNagaBinary()` in `packages/app/src/bun/paths.ts`.
 3. **Post-processing**: renames entry points to `vs_main`/`fs_main`,
    renames the uniform variable to `u`, prepends the fullscreen triangle
    vertex shader.
@@ -382,9 +378,9 @@ metadata is a future addition.)
 ## IPC
 
 `Electrobun.BrowserView.defineRPC` provides typed bidirectional RPC
-between Bun and the webview. Schema lives in `src/shared/rpc-types.ts`
-(single source of truth), consumed by `src/bun/index.ts` and
-`src/mainview/index.ts`.
+between Bun and the webview. Schema lives in `packages/app/src/shared/rpc-types.ts`
+(single source of truth), consumed by `packages/app/src/bun/index.ts` and
+`packages/app/src/mainview/index.ts`.
 
 Bun-side:
 

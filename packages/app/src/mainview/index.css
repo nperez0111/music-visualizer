@@ -1,0 +1,466 @@
+:root {
+	color-scheme: dark;
+	font-family: "SF Pro Text", "SF Pro", -apple-system, system-ui, sans-serif;
+	background: #000;
+}
+
+html, body {
+	margin: 0;
+	padding: 0;
+	height: 100%;
+	background: #000;
+	color: #f0f0f5;
+	overflow: hidden;
+}
+
+/* Hide panel until JS has applied the persisted collapsed/expanded state. */
+html.loading .panel { visibility: hidden; }
+
+/* ---------- App shell: visualizer + floating panel overlay ---------- */
+
+.app {
+	position: relative;
+	width: 100%;
+	height: 100%;
+}
+
+.visualizer {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	background: #000;
+}
+
+/* ---------- Floating panel ---------- */
+
+.sidebar {
+	position: absolute;
+	top: 38px;
+	right: 12px;
+	width: 280px;
+	box-sizing: border-box;
+
+	padding: 12px 14px;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+
+	/* Opaque dark background — no border-radius so it matches
+	   the rectangular GPU mask exactly. */
+	background: rgba(22, 24, 30, 0.96);
+	box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+
+	overflow: hidden;
+	z-index: 1;
+	/* No CSS transition — expand/collapse uses FLIP animation in JS
+	   so the layout is final before the mask is measured. */
+}
+
+/* ---------- Collapsed state ---------- */
+
+html.collapsed .sidebar {
+	display: none;
+}
+
+/* Floating toggle pill when sidebar is collapsed */
+#sidebarTab {
+	display: none;
+	position: fixed;
+	top: 42px;
+	right: 12px;
+	width: 40px;
+	height: 40px;
+	padding: 0;
+	/* No border-radius — must match rectangular mask exactly */
+	border-radius: 0;
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	background: rgba(22, 24, 30, 0.94);
+	box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+	color: #f0f0f5;
+	font-size: 32px;
+	line-height: 1;
+	font-family: inherit;
+	padding-bottom: 4px;
+	cursor: pointer;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	z-index: 10;
+	transition: background 0.15s ease, transform 0.15s ease;
+}
+#sidebarTab:hover {
+	background: rgba(30, 32, 42, 0.96);
+	transform: scale(1.03);
+}
+#sidebarTab:active {
+	transform: scale(0.97);
+}
+html.collapsed #sidebarTab { display: flex; }
+
+/* ---------- Header ---------- */
+
+header {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	margin-bottom: 10px;
+	user-select: none;
+}
+
+.dot {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: #4ade80;
+	box-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+	flex-shrink: 0;
+}
+
+.title {
+	margin: 0;
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.01em;
+	flex: 1;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	opacity: 0.9;
+}
+
+.ver {
+	font-size: 9px;
+	opacity: 0.35;
+	font-weight: 500;
+	font-family: "SF Mono", ui-monospace, monospace;
+}
+
+/* ---------- Buttons ---------- */
+
+.btn {
+	background: rgba(255, 255, 255, 0.08);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	color: inherit;
+	font: inherit;
+	font-size: 11px;
+	width: 24px;
+	height: 24px;
+	border-radius: 7px;
+	cursor: pointer;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	transition: background 0.12s ease, transform 0.1s ease;
+}
+.btn:hover {
+	background: rgba(255, 255, 255, 0.14);
+	transform: scale(1.05);
+}
+.btn:active {
+	background: rgba(255, 255, 255, 0.20);
+	transform: scale(0.95);
+}
+
+#permFixBtn {
+	width: auto;
+	padding: 0 8px;
+	height: 20px;
+	font-size: 10px;
+	letter-spacing: 0.04em;
+	color: #fbbf24;
+	border-color: rgba(251, 191, 36, 0.3);
+	border-radius: 6px;
+}
+#permFixBtn:hover { background: rgba(251, 191, 36, 0.12); }
+
+/* ---------- Audio meter ---------- */
+
+.meter {
+	height: 4px;
+	background: rgba(255, 255, 255, 0.06);
+	border-radius: 2px;
+	overflow: hidden;
+	margin-bottom: 10px;
+}
+.bar {
+	height: 100%;
+	width: 0%;
+	background: linear-gradient(90deg, #6ee7b7, #fbbf24, #f87171);
+	border-radius: 2px;
+	transition: width 0.08s linear;
+}
+
+/* ---------- Control rows ---------- */
+
+.row {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	gap: 8px;
+	font-size: 11px;
+	margin-bottom: 5px;
+}
+.pack-row { margin-bottom: 7px; }
+
+.select {
+	flex: 1;
+	background: rgba(255, 255, 255, 0.07);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	color: inherit;
+	font: inherit;
+	font-size: 11px;
+	padding: 4px 8px;
+	border-radius: 7px;
+	cursor: pointer;
+	-webkit-appearance: none;
+	appearance: none;
+	background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><polygon points='0,0 10,0 5,6' fill='rgba(240,240,245,0.5)'/></svg>");
+	background-repeat: no-repeat;
+	background-position: right 8px center;
+	padding-right: 24px;
+	transition: background 0.12s ease;
+}
+.select-sm { flex: 0 0 auto; }
+.select:hover { background-color: rgba(255, 255, 255, 0.12); }
+.select:focus { outline: 1px solid rgba(110, 231, 183, 0.3); outline-offset: -1px; }
+.select option {
+	background: #1a1c22;
+	color: #f0f0f5;
+}
+
+.label {
+	opacity: 0.4;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	font-size: 10px;
+	font-weight: 500;
+}
+.value { font-variant-numeric: tabular-nums; }
+.muted { opacity: 0.5; }
+
+.hint {
+	margin: 8px 0 0;
+	font-size: 10px;
+	opacity: 0.35;
+	line-height: 1.4;
+}
+
+/* ---------- Pack parameter widgets ---------- */
+
+.params-panel {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	margin-top: 10px;
+	padding-top: 8px;
+	border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.param-row .label { flex: 0 0 auto; min-width: 56px; }
+.param-row .value { font-size: 10px; opacity: 0.6; min-width: 28px; text-align: right; font-family: "SF Mono", ui-monospace, monospace; }
+
+.param-slider {
+	flex: 1;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+
+.param-multi {
+	flex: 1;
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+}
+
+.slider {
+	flex: 1;
+	-webkit-appearance: none;
+	appearance: none;
+	height: 3px;
+	background: rgba(255, 255, 255, 0.10);
+	border-radius: 2px;
+	outline: none;
+	cursor: pointer;
+}
+.slider::-webkit-slider-thumb {
+	-webkit-appearance: none;
+	width: 14px;
+	height: 14px;
+	border-radius: 50%;
+	background: #f0f0f5;
+	cursor: pointer;
+	border: none;
+	box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+	transition: transform 0.1s ease;
+}
+.slider::-webkit-slider-thumb:hover {
+	transform: scale(1.15);
+}
+.slider:active::-webkit-slider-thumb {
+	transform: scale(0.95);
+}
+
+.checkbox {
+	width: 14px;
+	height: 14px;
+	margin: 0;
+	cursor: pointer;
+	accent-color: #6ee7b7;
+}
+
+.color-input {
+	width: 28px;
+	height: 20px;
+	padding: 0;
+	border: 1px solid rgba(255, 255, 255, 0.1);
+	border-radius: 6px;
+	background: transparent;
+	cursor: pointer;
+}
+
+/* ---------- Auto-transition row ---------- */
+
+.auto-row {
+	gap: 6px;
+}
+.auto-row .label { flex: 0 0 auto; min-width: 28px; }
+
+.check-inline {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 10px;
+	opacity: 0.8;
+	cursor: pointer;
+	user-select: none;
+}
+.check-inline input[type="checkbox"] {
+	width: 12px;
+	height: 12px;
+	margin: 0;
+	accent-color: #6ee7b7;
+	cursor: pointer;
+}
+
+.num {
+	width: 40px;
+	background: rgba(255, 255, 255, 0.07);
+	border: 1px solid rgba(255, 255, 255, 0.08);
+	color: inherit;
+	font: inherit;
+	font-size: 10px;
+	padding: 3px 5px;
+	border-radius: 6px;
+	-webkit-appearance: none;
+	appearance: none;
+	font-variant-numeric: tabular-nums;
+	font-family: "SF Mono", ui-monospace, monospace;
+}
+.num:focus { outline: 1px solid rgba(110, 231, 183, 0.3); }
+
+#nextBtn { font-size: 13px; }
+
+/* ---------- Drag-drop overlay ---------- */
+
+html.dropping .sidebar {
+	border-color: rgba(110, 231, 183, 0.7);
+	box-shadow:
+		0 0 0 2px rgba(110, 231, 183, 0.25) inset,
+		0 8px 32px rgba(0, 0, 0, 0.4);
+	background: rgba(28, 38, 34, 0.95);
+}
+
+html.dropping .sidebar::after {
+	content: "drop .viz to import";
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	font-weight: 600;
+	color: #6ee7b7;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	pointer-events: none;
+	background: rgba(15, 22, 18, 0.5);
+}
+
+/* ---------- Empty-state (no packs installed) ---------- */
+
+.empty-state {
+	text-align: center;
+	padding: 16px 8px 8px;
+	user-select: none;
+}
+.empty-heading {
+	margin: 0 0 8px;
+	font-size: 12px;
+	font-weight: 600;
+	opacity: 0.7;
+}
+.empty-body {
+	margin: 0 0 4px;
+	font-size: 11px;
+	opacity: 0.5;
+}
+.empty-link {
+	display: inline-block;
+	font-size: 12px;
+	font-weight: 600;
+	color: #6ee7b7;
+	text-decoration: none;
+	letter-spacing: 0.01em;
+	transition: color 0.15s ease;
+}
+.empty-link:hover {
+	color: #a7f3d0;
+	text-decoration: underline;
+}
+.empty-hint {
+	margin: 12px 0 0;
+	font-size: 10px;
+	opacity: 0.3;
+}
+
+/* ---------- Toast notification ---------- */
+
+.toast {
+	position: fixed;
+	bottom: 20px;
+	left: 50%;
+	transform: translateX(-50%) translateY(12px);
+	padding: 8px 16px;
+	background: rgba(30, 32, 42, 0.95);
+	border: 1px solid rgba(110, 231, 183, 0.3);
+	border-radius: 8px;
+	color: #6ee7b7;
+	font-size: 12px;
+	font-weight: 500;
+	letter-spacing: 0.01em;
+	box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+	opacity: 0;
+	transition: opacity 0.25s ease, transform 0.25s ease;
+	pointer-events: none;
+	z-index: 100;
+	white-space: nowrap;
+}
+.toast.show {
+	opacity: 1;
+	transform: translateX(-50%) translateY(0);
+}
+
+/* ---------- Render-error banner ---------- */
+
+.error-banner {
+	margin-top: 8px;
+	padding: 6px 8px;
+	border-radius: 8px;
+	background: rgba(248, 113, 113, 0.10);
+	border: 1px solid rgba(248, 113, 113, 0.3);
+	color: #fecaca;
+	font-size: 10px;
+	line-height: 1.35;
+	word-break: break-word;
+}

@@ -1,0 +1,26 @@
+{
+	"lexicon": 1,
+	"id": "com.nickthesick.catnip.star",
+	"defs": {
+		"main": {
+			"type": "record",
+			"key": "tid",
+			"description": "A user stars a release. TID-based rkey, server-side dedup.",
+			"record": {
+				"type": "object",
+				"required": ["subject", "createdAt"],
+				"properties": {
+					"subject": {
+						"type": "string",
+						"format": "at-uri",
+						"description": "AT-URI of the com.nickthesick.catnip.release record being starred"
+					},
+					"createdAt": {
+						"type": "string",
+						"format": "datetime"
+					}
+				}
+			}
+		}
+	}
+}

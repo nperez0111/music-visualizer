@@ -5,8 +5,10 @@ name: render-packs
 # trivially empty, and uploads the gallery as a workflow artifact you can
 # browse from the run page. Pure software rendering — no GPU passthrough.
 #
-# The Docker image pre-bakes: Mesa lavapipe, GTK/WebKit, GCC, naga,
-# electrobun native libs, the wgpu ABI shim, and the version.json shim.
+# The Docker image pre-bakes: Mesa lavapipe, libwebgpu_dawn.so,
+# libheadlessshim.so (with buffer readback), naga, and the version.json shim.
+# GTK/WebKit is NOT needed — the extended headless shim replaces
+# libNativeWrapper.so for headless rendering.
 # The only source-dependent steps are: checkout, bun install, build:packs,
 # and the actual render test.
 
@@ -52,12 +54,13 @@ jobs:
       - name: Render every pack
         # The Docker image sets VIZ_BUNDLE_NATIVE_DIR=/opt/electrobun and
         # LD_LIBRARY_PATH=/opt/electrobun, so the test finds the pre-built
-        # native libs (bun, libwebgpu_dawn.so, libheadlessshim.so) there.
-        # We use /opt/electrobun/bun as the test runner so the dynamic loader
-        # resolves dlopen'd .so files via that binary's RUNPATH.
+        # native libs (libwebgpu_dawn.so, libheadlessshim.so) there.
+        # System bun works because electrobun-gpu.ts falls back to loading
+        # readback symbols from libheadlessshim.so when libNativeWrapper.so
+        # is unavailable.
         env:
           VIZ_PACKS_RENDER_TEST: "1"
-        run: /opt/electrobun/bun test src/packs/render.test.ts
+        run: cd packages/app && bun test src/packs/render.test.ts
 
       - name: Upload pack snapshots
         # Always upload, even on test failure — a failed pack with a corrupt
@@ -67,8 +70,8 @@ jobs:
         with:
           name: pack-snapshots
           path: |
-            tests/snapshots/packs/*.png
-            tests/snapshots/packs/*.webp
+            packages/app/tests/snapshots/packs/*.png
+            packages/app/tests/snapshots/packs/*.webp
           retention-days: 14
           if-no-files-found: warn
 
@@ -96,7 +99,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: pack-snapshots
-          path: tests/snapshots/packs
+          path: packages/app/tests/snapshots/packs
 
       - name: Build gallery site
         run: bun run build:gallery

@@ -26,7 +26,7 @@ The script auto-detects the bundle location.
 ### The Debug Script
 
 ```
-bun scripts/render-pack-debug.ts <slug> [options]
+bun packages/app/scripts/render-pack-debug.ts <slug> [options]
 ```
 
 | Option | Description | Default |
@@ -48,17 +48,17 @@ bun scripts/render-pack-debug.ts <slug> [options]
 ### The Simple Script (CI/quick use)
 
 ```
-bun scripts/render-pack.ts <slug> [out.png]
+bun packages/app/scripts/render-pack.ts <slug> [out.png]
 ```
 
 No options — renders with manifest defaults, 120 frames, 1024x768. Env var overrides: `VIZ_RENDER_WIDTH`, `VIZ_RENDER_HEIGHT`, `VIZ_RENDER_FRAMES`.
 
 ### The Programmatic API
 
-Both scripts call `renderPackToPng()` from `src/bun/packs/headless-render.ts`:
+Both scripts call `renderPackToPng()` from `packages/app/src/bun/packs/headless-render.ts`:
 
 ```ts
-import { renderPackToPng } from "./src/bun/packs/headless-render";
+import { renderPackToPng } from "./packages/app/src/bun/packs/headless-render";
 
 await renderPackToPng({
   pack,                    // loaded Pack object
@@ -85,7 +85,7 @@ await renderPackToPng({
 Render the pack with all defaults and inspect the output:
 
 ```bash
-bun scripts/render-pack-debug.ts <slug>
+bun packages/app/scripts/render-pack-debug.ts <slug>
 # opens /tmp/<slug>.png
 open /tmp/<slug>.png    # macOS
 xdg-open /tmp/<slug>.png  # Linux
@@ -96,7 +96,7 @@ xdg-open /tmp/<slug>.png  # Linux
 Use `--time` to simulate to a specific point. The renderer runs at 60fps, so `--time 3.5` renders 210 frames and captures the last one:
 
 ```bash
-bun scripts/render-pack-debug.ts <slug> --time 3.5
+bun packages/app/scripts/render-pack-debug.ts <slug> --time 3.5
 ```
 
 This is useful for debugging time-dependent effects like beat-synced animations or oscillating patterns.
@@ -106,33 +106,33 @@ This is useful for debugging time-dependent effects like beat-synced animations 
 First, list the pack's parameters to see what's available:
 
 ```bash
-bun scripts/render-pack-debug.ts <slug> --list-params
+bun packages/app/scripts/render-pack-debug.ts <slug> --list-params
 ```
 
 Then render with overrides:
 
 ```bash
 # Single parameter
-bun scripts/render-pack-debug.ts bloom-pulse --param rings=24
+bun packages/app/scripts/render-pack-debug.ts bloom-pulse --param rings=24
 
 # Multiple parameters
-bun scripts/render-pack-debug.ts bloom-pulse --param rings=24 --param bloomAmt=1.5
+bun packages/app/scripts/render-pack-debug.ts bloom-pulse --param rings=24 --param bloomAmt=1.5
 
 # Color parameter (brackets optional)
-bun scripts/render-pack-debug.ts bloom-pulse --param tint=[1,0,0]
-bun scripts/render-pack-debug.ts bloom-pulse --param tint=1,0,0
+bun packages/app/scripts/render-pack-debug.ts bloom-pulse --param tint=[1,0,0]
+bun packages/app/scripts/render-pack-debug.ts bloom-pulse --param tint=1,0,0
 ```
 
 ### Apply a preset
 
 ```bash
-bun scripts/render-pack-debug.ts bloom-pulse --preset Inferno
+bun packages/app/scripts/render-pack-debug.ts bloom-pulse --preset Inferno
 ```
 
 You can also layer `--param` overrides on top of a preset:
 
 ```bash
-bun scripts/render-pack-debug.ts bloom-pulse --preset Inferno --param rings=8
+bun packages/app/scripts/render-pack-debug.ts bloom-pulse --preset Inferno --param rings=8
 ```
 
 ### Capture a sequence of frames
@@ -140,7 +140,7 @@ bun scripts/render-pack-debug.ts bloom-pulse --preset Inferno --param rings=8
 Capture at specific frame indices to see how the visual evolves over time:
 
 ```bash
-bun scripts/render-pack-debug.ts <slug> --capture-frames 0,30,60,90,119
+bun packages/app/scripts/render-pack-debug.ts <slug> --capture-frames 0,30,60,90,119
 ```
 
 This writes:
@@ -156,7 +156,7 @@ This writes:
 Use `--capture-times` to capture at specific simulated times (in seconds). Frame counts are automatically extended to cover the latest time:
 
 ```bash
-bun scripts/render-pack-debug.ts <slug> --capture-times 0,0.5,1.0,1.5,2.0
+bun packages/app/scripts/render-pack-debug.ts <slug> --capture-times 0,0.5,1.0,1.5,2.0
 ```
 
 This writes time-stamped PNGs:
@@ -172,7 +172,7 @@ This writes time-stamped PNGs:
 Use `--capture-every` with `--time` for uniform temporal sampling:
 
 ```bash
-bun scripts/render-pack-debug.ts <slug> --capture-every 0.5 --time 3.0
+bun packages/app/scripts/render-pack-debug.ts <slug> --capture-every 0.5 --time 3.0
 ```
 
 This captures at 0s, 0.5s, 1.0s, 1.5s, 2.0s, 2.5s, 3.0s — 7 frames total.
@@ -180,7 +180,7 @@ This captures at 0s, 0.5s, 1.0s, 1.5s, 2.0s, 2.5s, 3.0s — 7 frames total.
 This is the recommended way to debug timing issues or verify temporal evolution. You can then diff sequential frames:
 
 ```bash
-bun scripts/diff-png.ts /tmp/<slug>_t0.0s.png /tmp/<slug>_t1.0s.png
+bun packages/app/scripts/diff-png.ts /tmp/<slug>_t0.0s.png /tmp/<slug>_t1.0s.png
 ```
 
 ### Debug with specific audio features
@@ -189,13 +189,13 @@ Override the synthetic audio to test how a shader responds to particular audio c
 
 ```bash
 # Maximum bass, no treble
-bun scripts/render-pack-debug.ts <slug> --audio bass=1.0 --audio treble=0
+bun packages/app/scripts/render-pack-debug.ts <slug> --audio bass=1.0 --audio treble=0
 
 # Silent (all zeros)
-bun scripts/render-pack-debug.ts <slug> --audio rms=0 --audio peak=0 --audio bass=0 --audio mid=0 --audio treble=0
+bun packages/app/scripts/render-pack-debug.ts <slug> --audio rms=0 --audio peak=0 --audio bass=0 --audio mid=0 --audio treble=0
 
 # Specific BPM and beat phase
-bun scripts/render-pack-debug.ts <slug> --audio bpm=140 --audio beat_phase=0.5
+bun packages/app/scripts/render-pack-debug.ts <slug> --audio bpm=140 --audio beat_phase=0.5
 ```
 
 Valid audio keys: `rms`, `peak`, `bass`, `mid`, `treble`, `bpm`, `beat_phase`. Unspecified keys fall back to the default `fakeFeatures()` sinusoidal animation.
@@ -205,7 +205,7 @@ Valid audio keys: `rms`, `peak`, `bass`, `mid`, `treble`, `bpm`, `beat_phase`. U
 For quick iteration, render at a smaller size with fewer frames:
 
 ```bash
-bun scripts/render-pack-debug.ts <slug> --width 320 --height 240 --frames 30
+bun packages/app/scripts/render-pack-debug.ts <slug> --width 320 --height 240 --frames 30
 ```
 
 ### Combine everything
@@ -213,7 +213,7 @@ bun scripts/render-pack-debug.ts <slug> --width 320 --height 240 --frames 30
 All options compose:
 
 ```bash
-bun scripts/render-pack-debug.ts bloom-pulse \
+bun packages/app/scripts/render-pack-debug.ts bloom-pulse \
   --preset Inferno \
   --param rings=8 \
   --audio bass=1.0 \
@@ -271,14 +271,14 @@ Pack parameters support these types in `--param` values:
 
 | File | Role |
 |------|------|
-| `scripts/render-pack-debug.ts` | Debug CLI with full parameter/audio/timing control |
-| `scripts/render-pack.ts` | Simple CI CLI (defaults only, env-var overrides) |
-| `src/bun/packs/headless-render.ts` | Core `renderPackToPng()` — the shared rendering engine |
-| `src/bun/engine/feature-smoother.ts` | `fakeFeatures()` and `fakeSpectrum()` — synthetic audio |
-| `src/bun/packs/parameters.ts` | Parameter coercion, packing, and default values |
-| `src/bun/packs/loader.ts` | Pack loading and manifest validation |
-| `src/bun/gpu/renderer.ts` | `createHeadlessRenderer()` — no-window GPU init |
-| `src/bun/gpu/pipeline.ts` | Pack shader pipeline construction |
+| `packages/app/scripts/render-pack-debug.ts` | Debug CLI with full parameter/audio/timing control |
+| `packages/app/scripts/render-pack.ts` | Simple CI CLI (defaults only, env-var overrides) |
+| `packages/app/src/bun/packs/headless-render.ts` | Core `renderPackToPng()` — the shared rendering engine |
+| `packages/app/src/bun/engine/feature-smoother.ts` | `fakeFeatures()` and `fakeSpectrum()` — synthetic audio |
+| `packages/app/src/bun/packs/parameters.ts` | Parameter coercion, packing, and default values |
+| `packages/app/src/bun/packs/loader.ts` | Pack loading and manifest validation |
+| `packages/app/src/bun/gpu/renderer.ts` | `createHeadlessRenderer()` — no-window GPU init |
+| `packages/app/src/bun/gpu/pipeline.ts` | Pack shader pipeline construction |
 
 ## Troubleshooting
 
