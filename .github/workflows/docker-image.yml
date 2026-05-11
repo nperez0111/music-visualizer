@@ -6,9 +6,12 @@ name: docker-image
 # Triggers:
 #   - Push to main that touches the Dockerfile, this workflow, or files
 #     that are COPY'd into the image (package.json, bun.lock, etc.)
-#   - Manual dispatch (e.g. to pick up new base-image security patches)
+#   - Weekly cron (Sundays 07:00 UTC) to pick up base-image security patches
+#   - Manual dispatch
 
 on:
+  schedule:
+    - cron: "0 7 * * 0"  # Every Sunday at 07:00 UTC (1h after naga-image)
   workflow_dispatch:
   push:
     branches: [main]

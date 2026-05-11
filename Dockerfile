@@ -69,25 +69,7 @@ RUN bun install --frozen-lockfile && \
 		> /opt/Resources/version.json
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Stage 2: Build naga CLI from source
-# ─────────────────────────────────────────────────────────────────────────────
-FROM oven/bun:1.3.13-debian AS naga
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-		ca-certificates curl gcc libc6-dev \
-	&& rm -rf /var/lib/apt/lists/*
-
-ENV RUSTUP_HOME="/usr/local/rustup" \
-	CARGO_HOME="/usr/local/cargo" \
-	PATH="/usr/local/cargo/bin:${PATH}"
-
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
-		| sh -s -- -y --profile minimal --default-toolchain stable && \
-	cargo install naga-cli && \
-	strip /usr/local/cargo/bin/naga
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Stage 3: Runtime image — minimal system deps + pre-built artifacts
+# Stage 2: Runtime image — minimal system deps + pre-built artifacts
 # ─────────────────────────────────────────────────────────────────────────────
 FROM oven/bun:1.3.13-debian
 
@@ -106,8 +88,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=native /opt/electrobun /opt/electrobun
 COPY --from=native /opt/Resources /opt/Resources
 
-# Copy naga binary
-COPY --from=naga /usr/local/cargo/bin/naga /usr/local/bin/naga
+# Copy naga binary (pre-built multi-arch image, see Dockerfile.naga + naga-image.yml)
+COPY --from=ghcr.io/nperez0111/cat-nip-naga:29.0.0 /naga /usr/local/bin/naga
 
 # ── Environment ──────────────────────────────────────────────────────────────
 # Force Vulkan to use lavapipe (Mesa's CPU rasterizer).

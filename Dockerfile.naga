@@ -1,0 +1,31 @@
+# Minimal image containing only the naga-cli binary (GLSL→WGSL transpiler).
+# Built once per version bump, pushed to GHCR, and referenced by other
+# Dockerfiles via COPY --from=ghcr.io/.../cat-nip-naga:<version> /naga ...
+#
+# Build:
+#   docker buildx build -f Dockerfile.naga \
+#     --platform linux/amd64,linux/arm64 \
+#     --build-arg NAGA_VERSION=29.0.0 \
+#     -t ghcr.io/nperez0111/cat-nip-naga:29.0.0 \
+#     --push .
+
+FROM debian:bookworm-slim AS build
+
+ARG NAGA_VERSION=29.0.0
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl gcc libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV RUSTUP_HOME="/usr/local/rustup" \
+    CARGO_HOME="/usr/local/cargo" \
+    PATH="/usr/local/cargo/bin:${PATH}"
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+        | sh -s -- -y --profile minimal --default-toolchain stable && \
+    cargo install naga-cli --version "${NAGA_VERSION}" && \
+    strip /usr/local/cargo/bin/naga
+
+# Squash to just the binary.
+FROM scratch
+COPY --from=build /usr/local/cargo/bin/naga /naga
