@@ -5,6 +5,8 @@ import {
 	makeRenderPassColorAttachment,
 	makeRenderPassDescriptor,
 	makeSurfaceTexture,
+	updateCommandBufferArray,
+	updateRenderPassColorAttachmentView,
 } from "../gpu/wgpu-helpers";
 import type { Renderer } from "../gpu/renderer";
 import type { TransitionRig } from "../gpu/transition";
@@ -38,28 +40,30 @@ export type RenderFrameDeps = {
  */
 export function createRenderDriver(deps: RenderFrameDeps): () => void {
 	const native = WGPU.native;
-	// Captured via closure — its backing buffer stays alive for the lifetime
-	// of the driver.
+	// Pre-allocated descriptors — backing buffers stay alive for the lifetime
+	// of the driver. We update only the fields that change per-frame.
 	const encoderDesc = makeCommandEncoderDescriptor();
+	const colorAttachment = makeRenderPassColorAttachment(0, [0, 0, 0, 1]);
+	const renderPassDesc = makeRenderPassDescriptor(colorAttachment.ptr);
+	const surfaceTexture = makeSurfaceTexture();
+	const commandArray = makeCommandBufferArray(0);
 	let lastFrame = deps.startTimeMs;
 	let lastAudioLevelPushMs = 0;
 
-	function renderPackPass(encoder: number, pack: Pack, finalTargetView: number): boolean {
-		const pp = deps.pipelineCache.ensure(pack);
-		if (!pp) return false;
+	function renderPackPass(encoder: number, pp: PackPipeline, finalTargetView: number): void {
 		const totalPasses = 1 + pp.extraPasses.length;
 		for (let i = 0; i < totalPasses; i++) {
 			// Pass 0 → intermediateView[0] (or final target if no extras).
 			// Pass i (1..N) → intermediateView[i] (or final target if last).
 			const isLast = i === totalPasses - 1;
-			const targetView = isLast ? finalTargetView : pp.intermediateView[i]!;
+			const targetView = isLast ? finalTargetView : pp.intermediateView[i];
 
-			const pipelineHandle = i === 0 ? pp.pipeline : pp.extraPasses[i - 1]!.pipeline;
-			const uniformBg = i === 0 ? pp.bindGroup : pp.extraPasses[i - 1]!.uniformBindGroup;
-			const paramBg = i === 0 ? pp.paramBindGroup : pp.extraPasses[i - 1]!.paramBindGroup;
+			const pipelineHandle = i === 0 ? pp.pipeline : pp.extraPasses[i - 1].pipeline;
+			const uniformBg = i === 0 ? pp.bindGroup : pp.extraPasses[i - 1].uniformBindGroup;
+			const paramBg = i === 0 ? pp.paramBindGroup : pp.extraPasses[i - 1].paramBindGroup;
 
-			const colorAttachment = makeRenderPassColorAttachment(targetView, [0, 0, 0, 1]);
-			const renderPassDesc = makeRenderPassDescriptor(colorAttachment.ptr);
+			// Reuse pre-allocated descriptors — just update the target view.
+			updateRenderPassColorAttachmentView(colorAttachment, targetView);
 			const pass = native.symbols.wgpuCommandEncoderBeginRenderPass(
 				asPtr(encoder),
 				asPtr(renderPassDesc.ptr),
@@ -76,7 +80,7 @@ export function createRenderDriver(deps: RenderFrameDeps): () => void {
 				native.symbols.wgpuRenderPassEncoderSetBindGroup(
 					asPtr(pass),
 					3,
-					asPtr(pp.extraPasses[i - 1]!.inputBindGroup),
+					asPtr(pp.extraPasses[i - 1].inputBindGroup),
 					0,
 					asPtr(0),
 				);
@@ -84,7 +88,6 @@ export function createRenderDriver(deps: RenderFrameDeps): () => void {
 			native.symbols.wgpuRenderPassEncoderDraw(asPtr(pass), 3, 1, 0, 0);
 			native.symbols.wgpuRenderPassEncoderEnd(asPtr(pass));
 		}
-		return true;
 	}
 
 	function writePackUniforms(nowMs: number, pack: Pack, pipeline: PackPipeline): void {
@@ -105,16 +108,22 @@ export function createRenderDriver(deps: RenderFrameDeps): () => void {
 		lastFrame = now;
 		const elapsed = (now - deps.startTimeMs) / 1000;
 
-		const size = deps.renderer.getSize();
-		deps.renderer.reconfigure(size.width, size.height);
+		// Surface is always at full retina resolution so it fills the window.
+		const surfaceSize = deps.renderer.getSize();
+		deps.renderer.reconfigure(surfaceSize.width, surfaceSize.height);
+
+		// Pack shaders render into intermediate targets at the (possibly
+		// reduced) render size. The composite pass upscales to the surface.
+		const renderSize = deps.renderer.getRenderSize();
 		const prevGenBefore = deps.transitionRig.prevGeneration();
-		deps.transitionRig.setSize(size.width, size.height);
+		deps.transitionRig.setSize(renderSize.width, renderSize.height);
 		if (deps.transitionRig.prevGeneration() !== prevGenBefore) {
-			deps.pipelineCache.rebuildResizeAffected(size.width, size.height);
+			deps.pipelineCache.rebuildResizeAffected(renderSize.width, renderSize.height);
 		}
 
 		const live = deps.smoother.update(now, elapsed, deps.capture.status === "capturing");
-		deps.uniforms.fillHost(now, deps.startTimeMs, delta, size, deps.smoother.smoothed, deps.smoother.spectrum);
+		// Shaders see the render size as their resolution (so UV calculations are correct).
+		deps.uniforms.fillHost(now, deps.startTimeMs, delta, renderSize, deps.smoother.smoothed, deps.smoother.spectrum);
 		if (live && now - lastAudioLevelPushMs > 100) {
 			lastAudioLevelPushMs = now;
 			deps.pushAudioLevel(live.rms, live.peak);
@@ -127,13 +136,14 @@ export function createRenderDriver(deps: RenderFrameDeps): () => void {
 		if (!t.from) return;
 
 		// Per-pack uniforms — separate buffers so from/to don't smear during a
-		// crossfade.
+		// crossfade.  ensure() is called once per pack; the result is reused by
+		// both writePackUniforms and renderPackPass (avoiding redundant lookups).
 		const fromPipe = deps.pipelineCache.ensure(t.from);
-		if (fromPipe) writePackUniforms(now, t.from, fromPipe);
+		if (!fromPipe) return;
+		writePackUniforms(now, t.from, fromPipe);
 		const toPipe = t.to ? deps.pipelineCache.ensure(t.to) : null;
 		if (t.to && toPipe) writePackUniforms(now, t.to, toPipe);
 
-		const surfaceTexture = makeSurfaceTexture();
 		WGPUBridge.surfaceGetCurrentTexture(deps.renderer.surface, surfaceTexture.ptr);
 		const status = surfaceTexture.view.getUint32(16, true);
 		if (status !== 1 && status !== 2) return;
@@ -149,23 +159,19 @@ export function createRenderDriver(deps: RenderFrameDeps): () => void {
 		) as number;
 
 		// Pass 1: from-pack -> target A
-		if (!renderPackPass(encoder, t.from, deps.transitionRig.targetAView())) {
-			native.symbols.wgpuTextureViewRelease(asPtr(swapView));
-			native.symbols.wgpuTextureRelease(asPtr(texPtr));
-			return;
-		}
+		renderPackPass(encoder, fromPipe, deps.transitionRig.targetAView());
 		// Pass 2 (only during transition): to-pack -> target B
-		if (t.to) {
-			renderPackPass(encoder, t.to, deps.transitionRig.targetBView());
+		if (toPipe) {
+			renderPackPass(encoder, toPipe, deps.transitionRig.targetBView());
 		}
-		// Pass 3: composite -> swapchain
-		deps.transitionRig.composite(encoder, swapView, t.mix, t.variant);
+		// Pass 3: composite -> swapchain (at full surface resolution)
+		deps.transitionRig.composite(encoder, swapView, t.mix, t.variant, surfaceSize.width, surfaceSize.height);
 		// Snapshot targetA into the prev-frame texture so the next frame's
 		// packs can sample it via @group(2).
 		deps.transitionRig.copyTargetAToPrev(encoder);
 
 		const commandBuffer = native.symbols.wgpuCommandEncoderFinish(asPtr(encoder), asPtr(0)) as number;
-		const commandArray = makeCommandBufferArray(commandBuffer);
+		updateCommandBufferArray(commandArray, commandBuffer);
 		native.symbols.wgpuQueueSubmit(asPtr(deps.renderer.queue), 1, asPtr(commandArray.ptr));
 		WGPUBridge.surfacePresent(deps.renderer.surface);
 

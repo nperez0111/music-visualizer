@@ -65,12 +65,12 @@ function extractParamsFieldNames(wgsl: string): string[] | null {
 	const stripped = stripComments(wgsl);
 	const m = /struct\s+Params\s*\{([^}]*)\}/m.exec(stripped);
 	if (!m) return null;
-	const body = m[1]!;
+	const body = m[1];
 	const fields: string[] = [];
 	// Each field is `name : type ,?`. We only need the name + the literal `vec4<f32>` type.
 	const fieldRe = /([A-Za-z_][A-Za-z0-9_]*)\s*:\s*vec4\s*<\s*f32\s*>/g;
 	let f: RegExpExecArray | null;
-	while ((f = fieldRe.exec(body))) fields.push(f[1]!);
+	while ((f = fieldRe.exec(body))) fields.push(f[1]);
 	return fields;
 }
 
@@ -93,7 +93,7 @@ describe("packs (static checks)", () => {
 				raw = JSON.parse(manifestText);
 			} catch (err) {
 				test("manifest.json parses as JSON", () => {
-					throw new Error(`failed to read/parse ${manifestPath}: ${err}`);
+					throw new Error(`failed to read/parse ${manifestPath}: ${err}`, { cause: err });
 				});
 				return;
 			}
@@ -141,20 +141,32 @@ describe("packs (static checks)", () => {
 			} catch {}
 
 			const hasParams = (m.parameters?.length ?? 0) > 0;
+			const isGlsl = m.shader.endsWith(".glsl");
 			const mainStripped = stripComments(mainShader);
+			// GLSL packs get @group(1) / struct Params injected by the
+			// preprocessor (tested separately in glsl-preprocess.test.ts).
+			// Only check the raw shader source for WGSL packs.
 			const mainHasGroup1 = /@group\s*\(\s*1\s*\)/.test(mainStripped);
+			// GLSL packs may also declare params manually via layout(set=1,...)
+			const glslHasGroup1 = /layout\s*\(\s*set\s*=\s*1\s*,/.test(mainStripped);
 
-			test("@group(1) binding presence matches manifest parameters", () => {
-				if (hasParams) {
-					expect(mainHasGroup1).toBe(true);
-				} else {
-					// Pack with no parameters — shader must not bind group 1, since the
-					// host wouldn't allocate a parameter buffer.
-					expect(mainHasGroup1).toBe(false);
-				}
-			});
+			if (!isGlsl) {
+				test("@group(1) binding presence matches manifest parameters", () => {
+					if (hasParams) {
+						expect(mainHasGroup1).toBe(true);
+					} else {
+						// Pack with no parameters — shader must not bind group 1, since the
+						// host wouldn't allocate a parameter buffer.
+						expect(mainHasGroup1).toBe(false);
+					}
+				});
+			} else if (!hasParams) {
+				test("GLSL shader does not manually declare set=1 (no params)", () => {
+					expect(glslHasGroup1).toBe(false);
+				});
+			}
 
-			if (hasParams) {
+			if (hasParams && !isGlsl) {
 				const fields = extractParamsFieldNames(mainShader);
 
 				test("declares `struct Params` with vec4<f32> fields", () => {
@@ -180,16 +192,20 @@ describe("packs (static checks)", () => {
 				if (!existsSync(passPath)) continue;
 				const passShader = readFileSync(passPath, "utf8");
 				const passStripped = stripComments(passShader);
+				const passIsGlsl = pass.shader.endsWith(".glsl");
 
-				if (hasParams) {
+				// GLSL extra passes get bindings injected by the preprocessor.
+				if (hasParams && !passIsGlsl) {
 					test(`${pass.shader}: declares @group(1) (pack has parameters)`, () => {
 						expect(/@group\s*\(\s*1\s*\)/.test(passStripped)).toBe(true);
 					});
 				}
 
-				test(`${pass.shader}: declares @group(3) input binding`, () => {
-					expect(/@group\s*\(\s*3\s*\)/.test(passStripped)).toBe(true);
-				});
+				if (!passIsGlsl) {
+					test(`${pass.shader}: declares @group(3) input binding`, () => {
+						expect(/@group\s*\(\s*3\s*\)/.test(passStripped)).toBe(true);
+					});
+				}
 			}
 		});
 	}

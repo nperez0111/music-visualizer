@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "name": "Seascape",
+  "version": "1.0.0",
+  "author": "Alexander Alekseev (TDM)",
+  "description": "Procedural ocean with height-map tracing and Fresnel reflections. Bass drives wave height, mid modulates speed, treble adds specular shimmer, beat phase pulses water glow. Original shader CC BY-NC-SA 3.0.",
+  "tags": ["glsl", "ocean", "water", "nature", "raymarching"],
+  "shader": "shader.glsl",
+  "audio": {
+    "features": ["bass", "mid", "treble", "beat_phase"]
+  },
+  "parameters": [
+    { "type": "float", "name": "speed", "label": "speed", "min": 0.1, "max": 3.0, "default": 1.0 },
+    { "type": "float", "name": "wave_height", "label": "wave height", "min": 0.1, "max": 1.5, "default": 0.6 },
+    { "type": "float", "name": "choppy", "label": "choppiness", "min": 1.0, "max": 8.0, "default": 4.0 },
+    { "type": "color", "name": "water_tint", "label": "water tint", "default": [1.0, 1.0, 1.0] }
+  ]
+}

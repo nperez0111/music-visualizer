@@ -139,25 +139,30 @@ function postProcessWgsl(raw: string): string {
 		"$1fs_main$2",
 	);
 
-	// Rename Naga's `global_1` params variable to `p` BEFORE renaming `global`.
+	// Rename Naga's `global_1` params variable to `_cn_p` (collision-safe).
 	// Naga outputs: `var<uniform> global_1: Params;`
-	// Cat Nip expects: `var<uniform> p: Params;`
+	// We use `_cn_p` instead of bare `p` because Shadertoy shaders commonly
+	// declare a local `vec3 p` (e.g., ray position), which would shadow a
+	// module-level `p` and break parameter access.
 	// Order matters: must do global_1 before global to avoid partial matches.
 	wgsl = wgsl.replace(
 		/var<uniform>\s+global_1\s*:\s*Params/,
-		"var<uniform> p: Params",
+		"var<uniform> _cn_p: Params",
 	);
-	wgsl = wgsl.replace(/\bglobal_1\./g, "p.");
+	wgsl = wgsl.replace(/\bglobal_1\./g, "_cn_p.");
 
-	// Rename Naga's `global` uniform variable to `u` for Cat Nip convention.
+	// Rename Naga's `global` uniform variable to `_cn_u` (collision-safe).
 	// Naga outputs: `var<uniform> global: Uniforms;`
-	// Cat Nip expects: `var<uniform> u: Uniforms;`
+	// We use `_cn_u` instead of bare `u` because Shadertoy shaders commonly
+	// declare a local `vec2 u`, which would shadow a module-level `u` and
+	// break uniform access (e.g. `u.resolution` resolving to the local vec2).
+	// The GPU pipeline binds by @group(0)/@binding(0), not by variable name.
 	wgsl = wgsl.replace(
 		/var<uniform>\s+global\s*:\s*Uniforms/,
-		"var<uniform> u: Uniforms",
+		"var<uniform> _cn_u: Uniforms",
 	);
-	// Also replace all references to `global.` with `u.`
-	wgsl = wgsl.replace(/\bglobal\./g, "u.");
+	// Also replace all references to `global.` with `_cn_u.`
+	wgsl = wgsl.replace(/\bglobal\./g, "_cn_u.");
 
 	// Prepend vertex shader
 	wgsl = FULLSCREEN_VERTEX_SHADER + "\n" + wgsl;

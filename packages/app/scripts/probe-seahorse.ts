@@ -64,8 +64,8 @@ function iteratePerturb(
 	let dx = f(0), dy = f(0);
 	const dcxF = f(dcx), dcyF = f(dcy);
 	for (let i = 0; i < refLen; i++) {
-		const Zx = orbit[i * 2]!;
-		const Zy = orbit[i * 2 + 1]!;
+		const Zx = orbit[i * 2];
+		const Zy = orbit[i * 2 + 1];
 		const zx = f(Zx + dx);
 		const zy = f(Zy + dy);
 		const z2 = f(zx * zx + zy * zy);

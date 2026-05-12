@@ -85,9 +85,9 @@ export class TransitionController {
 
 	setAutoSettings(s: AutoSettings): void {
 		this.autoSettings = {
-			enabled: !!s.enabled,
+			enabled: s.enabled,
 			seconds: Math.max(5, Math.round(s.seconds)),
-			shuffle: !!s.shuffle,
+			shuffle: s.shuffle,
 		};
 		this.rescheduleAutoTimer();
 	}
@@ -120,7 +120,7 @@ export class TransitionController {
 		if (this.autoSettings.shuffle) {
 			// Try a few times to avoid landing back on the active pack.
 			for (let i = 0; i < 16; i++) {
-				const cand = packs[Math.floor(Math.random() * packs.length)]!;
+				const cand = packs[Math.floor(Math.random() * packs.length)];
 				if (this.active && cand.id !== this.active.id) return cand;
 				if (!this.active) return cand;
 			}

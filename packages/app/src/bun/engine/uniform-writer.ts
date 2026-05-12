@@ -71,7 +71,7 @@ export class UniformWriter {
 		v.setFloat32(40, features.beat_phase, true);
 		v.setFloat32(44, 0, true);
 		for (let i = 0; i < this.bins; i++) {
-			v.setFloat32(48 + i * 4, spectrum[i]!, true);
+			v.setFloat32(48 + i * 4, spectrum[i], true);
 		}
 	}
 

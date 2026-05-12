@@ -27,7 +27,7 @@ struct FragmentOutput {
 }
 
 @group(0) @binding(0) 
-var<uniform> u: Uniforms;
+var<uniform> _cn_u: Uniforms;
 var<private> _fragColor: vec4<f32>;
 var<private> gl_FragCoord_1: vec4<f32>;
 
@@ -57,30 +57,30 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
     var energy: f32;
 
     fragCoord_1 = fragCoord;
-    let _e28 = u.bass;
+    let _e28 = _cn_u.bass;
     speed = (0.01f + (_e28 * 0.005f));
-    let _e34 = u.rms;
+    let _e34 = _cn_u.rms;
     brightness = (0.0015f + (_e34 * 0.002f));
-    let _e40 = u.treble;
+    let _e40 = _cn_u.treble;
     distfading = (0.73f - (_e40 * 0.1f));
     let _e45 = fragCoord_1;
-    let _e47 = u.resolution;
+    let _e47 = _cn_u.resolution;
     uv = ((_e45.xy / vec3<f32>(_e47.x, _e47.y, 1f).xy) - vec2(0.5f));
     let _e59 = uv;
-    let _e61 = u.resolution;
-    let _e67 = u.resolution;
+    let _e61 = _cn_u.resolution;
+    let _e67 = _cn_u.resolution;
     uv.y = (_e59.y * (vec3<f32>(_e61.x, _e61.y, 1f).y / vec3<f32>(_e67.x, _e67.y, 1f).x));
     let _e75 = uv;
     let _e77 = (_e75 * 0.8f);
     dir = vec3<f32>(_e77.x, _e77.y, 1f);
-    let _e83 = u.time_ms;
+    let _e83 = _cn_u.time_ms;
     let _e86 = speed;
     time = (((_e83 / 1000f) * _e86) + 0.25f);
     let _e92 = time;
-    let _e96 = u.mid;
+    let _e96 = _cn_u.mid;
     a1_ = ((0.5f + (_e92 * 0.3f)) + (_e96 * 0.1f));
     let _e102 = time;
-    let _e106 = u.treble;
+    let _e106 = _cn_u.treble;
     a2_ = ((0.8f + (_e102 * 0.2f)) + (_e106 * 0.05f));
     let _e111 = a1_;
     let _e113 = a1_;
@@ -178,8 +178,8 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
             let _e294 = v;
             let _e295 = fade;
             v = (_e294 + vec3(_e295));
-            let _e299 = u.beat_phase;
-            let _e300 = u.peak;
+            let _e299 = _cn_u.beat_phase;
+            let _e300 = _cn_u.peak;
             pulse = (1f + ((_e299 * _e300) * 0.5f));
             let _e306 = v;
             let _e307 = s;
@@ -208,7 +208,7 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
     let _e334 = v;
     let _e337 = v;
     v = mix(vec3(length(_e334)), _e337, vec3(0.85f));
-    let _e342 = u.rms;
+    let _e342 = _cn_u.rms;
     energy = (1f + (_e342 * 0.5f));
     let _e347 = v;
     let _e350 = energy;
@@ -218,12 +218,17 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
 }
 
 fn main_1() {
+    var _fc: vec2<f32>;
     var local: vec4<f32>;
 
-    let _e27 = gl_FragCoord_1;
-    mainImage((&local), _e27.xy);
-    let _e31 = local;
-    _fragColor = _e31;
+    let _e26 = gl_FragCoord_1;
+    let _e28 = _cn_u.resolution;
+    let _e30 = gl_FragCoord_1;
+    _fc = vec2<f32>(_e26.x, (_e28.y - _e30.y));
+    let _e36 = _fc;
+    mainImage((&local), _e36);
+    let _e39 = local;
+    _fragColor = _e39;
     return;
 }
 

@@ -8,6 +8,7 @@ import { spawn } from "child_process";
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "fs";
 import { join, resolve } from "path";
 import { Client, ok, simpleFetchHandler } from "@atcute/client";
+import type {} from "@atcute/atproto";
 import { getDb, setVersionPreview, setVersionTags } from "./db.ts";
 import { resolvePdsEndpoint } from "./did.ts";
 import { validateManifest } from "@catnip/shared/manifest";
@@ -15,7 +16,7 @@ import { PACK_LIMITS } from "@catnip/shared/limits";
 import { unzipSync } from "fflate";
 import { useStorage } from "nitro/storage";
 
-const UNSAFE_PATH = /(^|[\\\/])\.\.([\\\/]|$)|\\|\0/;
+const UNSAFE_PATH = /(^|[\\/])\.\.([\\/]|$)|\\|\0/;
 
 function isUnsafePath(rel: string): boolean {
 	if (!rel) return true;
@@ -104,7 +105,7 @@ export async function renderVersionPreview(opts: {
 
 		let totalUncompressed = 0;
 		for (const k of fileKeys) {
-			const sz = entries[k]!.byteLength;
+			const sz = entries[k].byteLength;
 			if (sz > PACK_LIMITS.MAX_ENTRY_BYTES) {
 				console.error(
 					`[preview] entry "${k}" too large for ${did}/${rkey}: ${sz} > ${PACK_LIMITS.MAX_ENTRY_BYTES}`,

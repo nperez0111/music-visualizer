@@ -38,7 +38,11 @@ export class AudioCapture {
 
 	private proc: Bun.Subprocess | null = null;
 	private listeners: StatusListener[] = [];
-	private pending: Uint8Array = new Uint8Array(0);
+	// Pre-allocated parsing state: reusable concat buffer grows as needed
+	// (never shrinks) so steady-state pipe reads produce zero allocations.
+	private pendingLen = 0;
+	private concatBuf = new Uint8Array(32768);
+	private concatView = new DataView(this.concatBuf.buffer);
 
 	constructor(private readonly buffer: RingBuffer) {}
 
@@ -79,7 +83,7 @@ export class AudioCapture {
 		void this.consumeStdout();
 		void this.consumeStderr();
 
-		this.proc.exited.then((code) => {
+		void this.proc.exited.then((code) => {
 			if (this.status === "capturing" || this.status === "starting") {
 				this.setStatus(code === 0 ? "idle" : "error", `audiocap exited with code ${code}`);
 			}
@@ -171,20 +175,27 @@ export class AudioCapture {
 		}
 	}
 
+	/** Ensure concatBuf is large enough for `needed` bytes, growing if necessary. */
+	private ensureConcatCapacity(needed: number): void {
+		if (this.concatBuf.byteLength >= needed) return;
+		// Double or use needed, whichever is larger.
+		const newSize = Math.max(this.concatBuf.byteLength * 2, needed);
+		const newBuf = new Uint8Array(newSize);
+		newBuf.set(this.concatBuf.subarray(0, this.pendingLen));
+		this.concatBuf = newBuf;
+		this.concatView = new DataView(newBuf.buffer);
+	}
+
 	private parseFrames(chunk: Uint8Array) {
-		// Concatenate any pending bytes from a partial frame.
-		let combined: Uint8Array;
-		if (this.pending.byteLength === 0) {
-			combined = chunk;
-		} else {
-			combined = new Uint8Array(this.pending.byteLength + chunk.byteLength);
-			combined.set(this.pending, 0);
-			combined.set(chunk, this.pending.byteLength);
-		}
+		// Append chunk to the reusable concat buffer (no allocation in steady state).
+		const totalLen = this.pendingLen + chunk.byteLength;
+		this.ensureConcatCapacity(totalLen);
+		this.concatBuf.set(chunk, this.pendingLen);
+		this.pendingLen = totalLen;
 
 		let offset = 0;
-		const view = new DataView(combined.buffer, combined.byteOffset, combined.byteLength);
-		while (combined.byteLength - offset >= FRAME_HEADER_BYTES) {
+		const view = this.concatView;
+		while (this.pendingLen - offset >= FRAME_HEADER_BYTES) {
 			const magic = view.getUint32(offset, true);
 			if (magic !== FRAME_MAGIC) {
 				// Resync: skip one byte and try again. Should be rare given a
@@ -197,16 +208,17 @@ export class AudioCapture {
 			const frameCount = view.getUint32(offset + 12, true);
 			const payloadBytes = channels * frameCount * 4;
 			const totalBytes = FRAME_HEADER_BYTES + payloadBytes;
-			if (combined.byteLength - offset < totalBytes) break; // wait for more
+			if (this.pendingLen - offset < totalBytes) break; // wait for more
 
-			// Slice produces a fresh, 4-byte-aligned ArrayBuffer we can wrap
-			// directly as Float32Array — avoids a per-sample copy through DataView.
+			// The payload starts at a 16-byte aligned offset (header is 16 bytes),
+			// so it's 4-byte aligned — safe to wrap as Float32Array directly from
+			// the concat buffer without a copy.
 			const payloadStart = offset + FRAME_HEADER_BYTES;
-			const payloadBuf = combined.buffer.slice(
-				combined.byteOffset + payloadStart,
-				combined.byteOffset + payloadStart + payloadBytes,
+			const payload = new Float32Array(
+				this.concatBuf.buffer,
+				payloadStart,
+				channels * frameCount,
 			);
-			const payload = new Float32Array(payloadBuf);
 
 			if (this.sampleRate !== sampleRate) this.sampleRate = sampleRate;
 			if (this.channels !== channels) this.channels = channels;
@@ -222,7 +234,7 @@ export class AudioCapture {
 				for (let f = 0; f < frameCount; f++) {
 					let sum = 0;
 					const base = f * channels;
-					for (let c = 0; c < channels; c++) sum += payload[base + c]!;
+					for (let c = 0; c < channels; c++) sum += payload[base + c];
 					tmp[f] = sum * inv;
 				}
 				this.buffer.writeMono(tmp, frameCount);
@@ -231,6 +243,11 @@ export class AudioCapture {
 			offset += totalBytes;
 		}
 
-		this.pending = offset === 0 ? combined : combined.slice(offset);
+		// Shift remaining bytes to the front of concatBuf (no allocation).
+		const remaining = this.pendingLen - offset;
+		if (remaining > 0 && offset > 0) {
+			this.concatBuf.copyWithin(0, offset, this.pendingLen);
+		}
+		this.pendingLen = remaining;
 	}
 }

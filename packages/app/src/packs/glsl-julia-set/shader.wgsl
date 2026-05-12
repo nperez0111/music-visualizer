@@ -27,7 +27,7 @@ struct FragmentOutput {
 }
 
 @group(0) @binding(0) 
-var<uniform> u: Uniforms;
+var<uniform> _cn_u: Uniforms;
 var<private> _fragColor: vec4<f32>;
 var<private> gl_FragCoord_1: vec4<f32>;
 
@@ -157,15 +157,15 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
 
     fragCoord_1 = fragCoord;
     let _e28 = fragCoord_1;
-    let _e30 = u.resolution;
-    let _e39 = u.resolution;
+    let _e30 = _cn_u.resolution;
+    let _e39 = _cn_u.resolution;
     uv = ((2f * (_e28 - (0.5f * vec3<f32>(_e30.x, _e30.y, 1f).xy))) / vec2(vec3<f32>(_e39.x, _e39.y, 1f).y));
-    let _e49 = u.bass;
+    let _e49 = _cn_u.bass;
     zoomLevel = (1.5f - (_e49 * 0.3f));
     let _e54 = uv;
     let _e55 = zoomLevel;
     uv = (_e54 * _e55);
-    let _e60 = u.mid;
+    let _e60 = _cn_u.mid;
     a_1 = (1.0471976f + (_e60 * 0.2f));
     let _e65 = a_1;
     let _e67 = a_1;
@@ -178,10 +178,10 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
     let _e81 = uv;
     let _e82 = V;
     uv = vec2<f32>(dot(_e78, _e79), dot(_e81, _e82));
-    let _e85 = u.time_ms;
-    let _e90 = u.beat_phase;
+    let _e85 = _cn_u.time_ms;
+    let _e90 = _cn_u.beat_phase;
     t_2 = (((_e85 / 1000f) * 0.3f) + (_e90 * 0.1f));
-    let _e96 = u.treble;
+    let _e96 = _cn_u.treble;
     radius = (0.7885f + (_e96 * 0.05f));
     let _e101 = radius;
     let _e102 = t_2;
@@ -194,15 +194,15 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
     let _e114 = f;
     if (_e114 >= 500f) {
         {
-            let _e124 = u.rms;
+            let _e124 = _cn_u.rms;
             col = (vec3(0.02f) + (vec3<f32>(0.05f, 0f, 0.1f) * _e124));
         }
     } else {
         {
             let _e127 = f;
             normalized = (_e127 / 50f);
-            let _e131 = u.beat_phase;
-            let _e134 = u.bass;
+            let _e131 = _cn_u.beat_phase;
+            let _e134 = _cn_u.bass;
             hueShift = ((_e131 * 0.3f) + (_e134 * 0.1f));
             let _e139 = normalized;
             let _e140 = hueShift;
@@ -212,17 +212,17 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
             glow = (1f - (_e144 / 500f));
             let _e150 = col;
             let _e152 = glow;
-            let _e153 = u.peak;
+            let _e153 = _cn_u.peak;
             col = (_e150 * (1f + ((_e152 * _e153) * 2f)));
         }
     }
-    let _e160 = u.rms;
+    let _e160 = _cn_u.rms;
     energy = (0.8f + (_e160 * 0.4f));
     let _e165 = col;
     let _e166 = energy;
     col = (_e165 * _e166);
     let _e168 = fragCoord_1;
-    let _e170 = u.resolution;
+    let _e170 = _cn_u.resolution;
     q = (_e168.xy / vec3<f32>(_e170.x, _e170.y, 1f).xy);
     let _e178 = col;
     let _e182 = q;
@@ -236,12 +236,17 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
 }
 
 fn main_1() {
+    var _fc: vec2<f32>;
     var local: vec4<f32>;
 
-    let _e27 = gl_FragCoord_1;
-    mainImage((&local), _e27.xy);
-    let _e31 = local;
-    _fragColor = _e31;
+    let _e26 = gl_FragCoord_1;
+    let _e28 = _cn_u.resolution;
+    let _e30 = gl_FragCoord_1;
+    _fc = vec2<f32>(_e26.x, (_e28.y - _e30.y));
+    let _e36 = _fc;
+    mainImage((&local), _e36);
+    let _e39 = local;
+    _fragColor = _e39;
     return;
 }
 

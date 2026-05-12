@@ -1,8 +1,9 @@
 import { defineHandler } from "nitro";
 import { getRouterParams, createError } from "nitro/h3";
 import { getDb, type ReleaseRow, type VersionRow } from "../../../../lib/db.ts";
+import { resolveHandleFromDid } from "../../../../lib/did.ts";
 
-export default defineHandler((event) => {
+export default defineHandler(async (event) => {
 	const db = getDb();
 	const { did, slug } = getRouterParams(event);
 
@@ -36,10 +37,14 @@ export default defineHandler((event) => {
 		tags = tagRows.map((r) => r.tag);
 	}
 
+	// Resolve DID to handle (best-effort, falls back to null)
+	const handle = await resolveHandleFromDid(did);
+
 	return {
 		release,
 		versions,
 		stars: starCount.count,
 		tags,
+		handle,
 	};
 });

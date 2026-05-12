@@ -2,6 +2,7 @@ import { parseArgs } from "util";
 import { createServer } from "http";
 import { saveSession, getOAuthClient, type StoredSession } from "../lib/auth.ts";
 import { PlcDidDocumentResolver } from "@atcute/identity-resolver";
+import type { ActorIdentifier } from "@atcute/lexicons";
 
 /**
  * `catnip login <handle>` — Log in via direct AT Protocol OAuth.
@@ -47,7 +48,7 @@ export async function run(args: string[]): Promise<void> {
 
 	// Start the authorization flow
 	const { url } = await oauth.authorize({
-		target: { type: "account", identifier: handle },
+		target: { type: "account", identifier: handle as ActorIdentifier },
 	});
 
 	console.log(`Opening browser to log in as ${handle}...`);
@@ -83,6 +84,7 @@ export async function run(args: string[]): Promise<void> {
 			did: oauthSession.did,
 			handle,
 			service: serviceUrl,
+			redirectUri,
 		};
 
 		saveSession(session);

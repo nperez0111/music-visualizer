@@ -62,6 +62,9 @@ export type ControlsRPC = {
 					packs: PackInfo[];
 					activePackId: string | null;
 					auto: AutoSettings;
+					renderScale: number;
+					/** Base URL for the pack registry API (e.g. "https://catnip.nickthesick.com"). */
+					registryUrl: string;
 				};
 			};
 			listPacks: { params: {}; response: { packs: PackInfo[]; activePackId: string | null } };
@@ -86,6 +89,7 @@ export type ControlsRPC = {
 				params: { id: string };
 				response: { ok: boolean; error?: string };
 			};
+
 		};
 		messages: {
 			wgpuViewReady: { viewId: number };
@@ -104,6 +108,10 @@ export type ControlsRPC = {
 			revealPack: { id: string };
 			/** Toggle favorite/pinned state for a pack. */
 			setPackFavorite: { id: string; favorited: boolean };
+			/** Set the render resolution scale (0.1–1.0). Lower = faster but blurrier. */
+			setRenderScale: { scale: number };
+			/** Forward webview console messages to bun stdout for debugging. */
+			debugLog: { level: string; args: string };
 		};
 	};
 	webview: {

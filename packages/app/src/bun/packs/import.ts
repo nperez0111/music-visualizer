@@ -10,7 +10,7 @@ export type ImportResult =
 	| { ok: true; id: string; installPath: string }
 	| { ok: false; error: string };
 
-const UNSAFE_PATH = /(^|[\\\/])\.\.([\\\/]|$)|\\|\0/;
+const UNSAFE_PATH = /(^|[\\/])\.\.([\\/]|$)|\\|\0/;
 
 function isUnsafePath(rel: string): boolean {
 	if (!rel) return true;
@@ -72,7 +72,7 @@ export function importVizFile(sourceFile: string, userPacksDir: string): ImportR
 	}
 	let totalUncompressed = 0;
 	for (const k of fileKeys) {
-		const sz = entries[k]!.byteLength;
+		const sz = entries[k].byteLength;
 		if (sz > PACK_LIMITS.MAX_ENTRY_BYTES) {
 			return { ok: false, error: `entry "${k}" too large (${sz} bytes)` };
 		}
@@ -88,7 +88,7 @@ export function importVizFile(sourceFile: string, userPacksDir: string): ImportR
 	// Find manifest.json: at root or one level deep (some zip tools nest a
 	// single-folder wrapper).
 	const manifestKey = allKeys.find(
-		(k) => k === "manifest.json" || /^[^\/]+\/manifest\.json$/.test(k),
+		(k) => k === "manifest.json" || /^[^/]+\/manifest\.json$/.test(k),
 	);
 	if (!manifestKey) return { ok: false, error: "manifest.json not found in archive" };
 
@@ -98,7 +98,7 @@ export function importVizFile(sourceFile: string, userPacksDir: string): ImportR
 
 	let manifestRaw: unknown;
 	try {
-		manifestRaw = JSON.parse(new TextDecoder().decode(entries[manifestKey]!));
+		manifestRaw = JSON.parse(new TextDecoder().decode(entries[manifestKey]));
 	} catch (err) {
 		return { ok: false, error: `manifest.json is not valid JSON: ${err}` };
 	}
@@ -147,7 +147,7 @@ export function importVizFile(sourceFile: string, userPacksDir: string): ImportR
 	if (manifest.shader.endsWith(".glsl")) {
 		const glslPath = join(installPath, manifest.shader);
 		if (existsSync(glslPath)) {
-			const glslSrc = readFileSync(glslPath, "utf8").toString();
+			const glslSrc = readFileSync(glslPath, "utf8");
 			const tr = transpileGlslToWgsl(glslSrc, {
 				parameters: manifest.parameters,
 			});
@@ -163,11 +163,11 @@ export function importVizFile(sourceFile: string, userPacksDir: string): ImportR
 	}
 	if (manifest.passes) {
 		for (let i = 0; i < manifest.passes.length; i++) {
-			const pass = manifest.passes[i]!;
+			const pass = manifest.passes[i];
 			if (pass.shader.endsWith(".glsl")) {
 				const glslPath = join(installPath, pass.shader);
 				if (existsSync(glslPath)) {
-					const glslSrc = readFileSync(glslPath, "utf8").toString();
+					const glslSrc = readFileSync(glslPath, "utf8");
 					const tr = transpileGlslToWgsl(glslSrc, {
 						parameters: manifest.parameters,
 						interPass: true,

@@ -4,6 +4,7 @@
 		"module": "ESNext",
 		"moduleResolution": "bundler",
 		"allowImportingTsExtensions": true,
+		"composite": true,
 		"jsx": "react-jsx",
 		"jsxImportSource": "nano-jsx",
 		"strict": true,
@@ -11,5 +12,9 @@
 		"skipLibCheck": true,
 		"isolatedModules": true
 	},
-	"include": ["routes", "plugins", "lib", "*.ts"]
+	"include": ["routes", "plugins", "lib", "*.ts"],
+	"references": [
+		{ "path": "../shared" },
+		{ "path": "../lexicons" }
+	]
 }

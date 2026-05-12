@@ -1,4 +1,4 @@
-import Electrobun, { Electroview, type WgpuTagElement } from "electrobun/view";
+import Electrobun, { Electroview } from "electrobun/view";
 import type {
 	AudioSource,
 	AutoSettings,
@@ -67,9 +67,28 @@ const rpc = Electroview.defineRPC<ControlsRPC>({
 
 const electrobun = new Electrobun.Electroview({ rpc });
 
+// ---------- Debug log forwarding ----------
+// Forward webview console to bun stdout via RPC so logs show in the terminal.
+{
+	const origLog = console.log;
+	const origWarn = console.warn;
+	const origError = console.error;
+	const forward = (level: string, args: unknown[]) => {
+		try {
+			electrobun.rpc?.send?.debugLog({ level, args: args.map(a => {
+				try { return typeof a === "string" ? a : JSON.stringify(a); }
+				catch { return String(a); }
+			}).join(" ") });
+		} catch {}
+	};
+	console.log = (...args: unknown[]) => { origLog(...args); forward("log", args); };
+	console.warn = (...args: unknown[]) => { origWarn(...args); forward("warn", args); };
+	console.error = (...args: unknown[]) => { origError(...args); forward("error", args); };
+}
+
 // ---------- WGPU view initialization ----------
 
-const wgpuTag = document.querySelector("electrobun-wgpu") as WgpuTagElement | null;
+const wgpuTag = document.querySelector("electrobun-wgpu");
 if (wgpuTag) {
 	wgpuTag.on("ready", (event: CustomEvent) => {
 		const viewId = (event.detail as { id: number }).id;
@@ -84,7 +103,7 @@ const meterBar = document.getElementById("meterBar") as HTMLElement;
 const audioStatusEl = document.getElementById("audioStatus") as HTMLElement;
 const dotEl = document.querySelector(".dot") as HTMLElement;
 const packList = document.getElementById("packList") as HTMLElement;
-const packSearchRow = document.getElementById("packSearchRow") as HTMLElement | null;
+const packSearchRow = document.getElementById("packSearchRow");
 const packSearch = document.getElementById("packSearch") as HTMLInputElement | null;
 const importBtn = document.getElementById("importBtn") as HTMLButtonElement | null;
 const nextBtn = document.getElementById("nextBtn") as HTMLButtonElement | null;
@@ -94,8 +113,9 @@ const shuffleChk = document.getElementById("shuffleChk") as HTMLInputElement | n
 const paramsPanel = document.getElementById("paramsPanel") as HTMLElement;
 const audioSourceSelect = document.getElementById("audioSourceSelect") as HTMLSelectElement | null;
 const permFixBtn = document.getElementById("permFixBtn") as HTMLButtonElement | null;
-const errorBanner = document.getElementById("errorBanner") as HTMLElement | null;
-const toastEl = document.getElementById("toast") as HTMLElement | null;
+const renderScaleSelect = document.getElementById("renderScaleSelect") as HTMLSelectElement | null;
+const errorBanner = document.getElementById("errorBanner");
+const toastEl = document.getElementById("toast");
 const contextMenu = document.getElementById("contextMenu") as HTMLElement;
 const confirmOverlay = document.getElementById("confirmOverlay") as HTMLElement;
 const confirmMsg = document.getElementById("confirmMsg") as HTMLElement;
@@ -182,6 +202,13 @@ if (permFixBtn) {
 	});
 }
 
+if (renderScaleSelect) {
+	renderScaleSelect.addEventListener("change", () => {
+		const scale = Number(renderScaleSelect.value) || 1;
+		electrobun.rpc?.send?.setRenderScale({ scale });
+	});
+}
+
 if (nextBtn) {
 	nextBtn.addEventListener("click", () => {
 		electrobun.rpc?.send?.nextPack({});
@@ -201,9 +228,9 @@ shuffleChk?.addEventListener("change", pushAutoSettings);
 autoSec?.addEventListener("change", pushAutoSettings);
 
 function applyAutoSettings(s: AutoSettings) {
-	if (autoChk) autoChk.checked = !!s.enabled;
+	if (autoChk) autoChk.checked = s.enabled;
 	if (autoSec) autoSec.value = String(Math.max(5, s.seconds));
-	if (shuffleChk) shuffleChk.checked = !!s.shuffle;
+	if (shuffleChk) shuffleChk.checked = s.shuffle;
 }
 
 // ---------- Pack list rendering ----------
@@ -370,7 +397,7 @@ function openContextMenu(pack: PackInfo, e: MouseEvent) {
 	if (favBtn) {
 		const icon = favBtn.querySelector(".context-icon");
 		if (icon) icon.textContent = pack.favorited ? "\u2605" : "\u2606";
-		favBtn.childNodes[favBtn.childNodes.length - 1]!.textContent =
+		favBtn.childNodes[favBtn.childNodes.length - 1].textContent =
 			pack.favorited ? " Unfavorite" : " Favorite";
 	}
 
@@ -397,6 +424,7 @@ function closeContextMenu() {
 document.addEventListener("click", () => closeContextMenu());
 document.addEventListener("keydown", (e) => {
 	if (e.key === "Escape") {
+		if (!browseOverlay.hidden) return; // browse overlay handles its own Escape
 		closeContextMenu();
 		closeConfirmDialog();
 	}
@@ -408,6 +436,7 @@ contextMenu.addEventListener("click", (e) => {
 	if (!btn || !contextPackId) return;
 	e.stopPropagation();
 	const action = btn.dataset.action;
+	if (!action) return;
 	const packId = contextPackId;
 	closeContextMenu();
 
@@ -421,7 +450,7 @@ contextMenu.addEventListener("click", (e) => {
 			electrobun.rpc?.send?.resetPackParams({ id: packId });
 			break;
 		case "export":
-			electrobun.rpc?.request?.exportPack({ id: packId }).then((r) => {
+			void electrobun.rpc?.request?.exportPack({ id: packId }).then((r) => {
 				if (r?.ok) showToast("Exported to Downloads");
 				else if (r?.error) showToast(`Export failed: ${r.error}`);
 			});
@@ -431,6 +460,8 @@ contextMenu.addEventListener("click", (e) => {
 			break;
 		case "remove":
 			showRemoveConfirm(packId);
+			break;
+		default:
 			break;
 	}
 });
@@ -473,7 +504,7 @@ function rgbToHex(rgb: number[]): string {
 function hexToRgb(hex: string): [number, number, number] {
 	const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
 	if (!m) return [0, 0, 0];
-	return [parseInt(m[1]!, 16) / 255, parseInt(m[2]!, 16) / 255, parseInt(m[3]!, 16) / 255];
+	return [parseInt(m[1], 16) / 255, parseInt(m[2], 16) / 255, parseInt(m[3], 16) / 255];
 }
 
 function sendParam(packId: string, name: string, value: ParamValue) {
@@ -552,7 +583,7 @@ function buildWidget(packId: string, p: PackParameter, value: ParamValue): HTMLE
 			break;
 		}
 		case "color": {
-			const v = Array.isArray(value) && value.length === 3 ? (value as number[]) : p.default;
+			const v = Array.isArray(value) && value.length === 3 ? value : p.default;
 			const input = document.createElement("input");
 			input.type = "color";
 			input.value = rgbToHex(v);
@@ -562,18 +593,18 @@ function buildWidget(packId: string, p: PackParameter, value: ParamValue): HTMLE
 			break;
 		}
 		case "range": {
-			const v = Array.isArray(value) && value.length === 2 ? (value as number[]) : p.default;
-			const current = [v[0]!, v[1]!];
+			const v = Array.isArray(value) && value.length === 2 ? value : p.default;
+			const current = [v[0], v[1]];
 			const cell = document.createElement("span");
 			cell.className = "param-multi";
 			cell.appendChild(
-				sliderInput(current[0]!, p.min, p.max, (p.max - p.min) / 200, (n) => {
+				sliderInput(current[0], p.min, p.max, (p.max - p.min) / 200, (n) => {
 					current[0] = n;
 					sendParam(packId, p.name, [...current]);
 				}),
 			);
 			cell.appendChild(
-				sliderInput(current[1]!, p.min, p.max, (p.max - p.min) / 200, (n) => {
+				sliderInput(current[1], p.min, p.max, (p.max - p.min) / 200, (n) => {
 					current[1] = n;
 					sendParam(packId, p.name, [...current]);
 				}),
@@ -585,13 +616,13 @@ function buildWidget(packId: string, p: PackParameter, value: ParamValue): HTMLE
 		case "vec3":
 		case "vec4": {
 			const n = p.type === "vec2" ? 2 : p.type === "vec3" ? 3 : 4;
-			const v = Array.isArray(value) && value.length === n ? (value as number[]) : (p.default as number[]);
+			const v = Array.isArray(value) && value.length === n ? value : (p.default as number[]);
 			const current = v.slice();
 			const cell = document.createElement("span");
 			cell.className = "param-multi";
 			for (let i = 0; i < n; i++) {
 				cell.appendChild(
-					sliderInput(current[i]!, -1, 1, 0.01, (val) => {
+					sliderInput(current[i], -1, 1, 0.01, (val) => {
 						current[i] = val;
 						sendParam(packId, p.name, [...current]);
 					}),
@@ -745,6 +776,694 @@ window.addEventListener("drop", async (e) => {
 	}
 });
 
+// ---------- Browse overlay ----------
+
+const browseOverlay = document.getElementById("browseOverlay") as HTMLElement;
+const browseCloseBtn = document.getElementById("browseCloseBtn") as HTMLButtonElement;
+const browseSearch = document.getElementById("browseSearch") as HTMLInputElement;
+const browseSortSelect = document.getElementById("browseSort") as HTMLSelectElement;
+const browseTags = document.getElementById("browseTags") as HTMLElement;
+const browseGrid = document.getElementById("browseGrid") as HTMLElement;
+const browseDetail = document.getElementById("browseDetail") as HTMLElement;
+const browseAuthor = document.getElementById("browseAuthor") as HTMLElement;
+const browseEmpty = document.getElementById("browseEmpty") as HTMLElement;
+const browseLoading = document.getElementById("browseLoading") as HTMLElement;
+const browsePagination = document.getElementById("browsePagination") as HTMLElement;
+const browsePrev = document.getElementById("browsePrev") as HTMLButtonElement;
+const browseNext = document.getElementById("browseNext") as HTMLButtonElement;
+const browsePageInfo = document.getElementById("browsePageInfo") as HTMLElement;
+const browseBtn = document.getElementById("browseBtn") as HTMLButtonElement | null;
+const emptyBrowseBtn = document.getElementById("emptyBrowseBtn") as HTMLButtonElement | null;
+
+// Registry browse types -- kept in sync with the server API response shapes.
+interface RegistryPack {
+	did: string;
+	rkey: string;
+	name: string;
+	slug: string;
+	description: string | null;
+	created_at: string;
+	star_count: number;
+	install_count: number;
+	latest_version: string | null;
+	preview_path: string | null;
+}
+
+interface RegistryPackDetail {
+	release: {
+		did: string;
+		rkey: string;
+		name: string;
+		slug: string;
+		description: string | null;
+		created_at: string;
+	};
+	versions: Array<{
+		version: string;
+		changelog: string | null;
+		preview_path: string | null;
+		created_at: string;
+	}>;
+	stars: number;
+	tags: string[];
+	handle: string | null;
+}
+
+interface RegistryUser {
+	did: string;
+	handle: string | null;
+	packCount: number;
+	totalStars: number;
+	packs: RegistryPack[];
+}
+
+/** Base URL for the registry reverse proxy running on the local Electrobun server. */
+let registryUrl = "";
+
+/** Fetch JSON from the registry API via the local reverse proxy. Returns null on failure. */
+async function registryJson<T>(path: string): Promise<T | null> {
+	try {
+		const resp = await fetch(`${registryUrl}${path}`);
+		if (!resp.ok) {
+			console.warn(`[browse] fetch ${path} -> ${resp.status}`);
+			return null;
+		}
+		return (await resp.json()) as T;
+	} catch (err) {
+		console.warn(`[browse] fetch ${path} error:`, err);
+		return null;
+	}
+}
+
+interface BrowseState {
+	view: "grid" | "detail" | "author";
+	search: string;
+	sort: "newest" | "stars" | "installs";
+	tag: string;
+	offset: number;
+	limit: number;
+	packs: RegistryPack[];
+	hasMore: boolean;
+	tags: Array<{ tag: string; count: number }>;
+	tagsLoaded: boolean;
+	detailDid: string;
+	detailSlug: string;
+	authorDid: string;
+	loading: boolean;
+	installingSet: Set<string>; // "did/slug" keys currently being installed
+}
+
+const browseState: BrowseState = {
+	view: "grid",
+	search: "",
+	sort: "newest",
+	tag: "",
+	offset: 0,
+	limit: 24,
+	packs: [],
+	hasMore: false,
+	tags: [],
+	tagsLoaded: false,
+	detailDid: "",
+	detailSlug: "",
+	authorDid: "",
+	loading: false,
+	installingSet: new Set(),
+};
+
+/** Check if a registry pack (by name) is already installed locally */
+function isPackInstalled(name: string): boolean {
+	return allPacks.some((p) => p.name === name);
+}
+
+let browseSearchTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Build the preview image URL for a registry pack. */
+function previewUrl(did: string, slug: string): string {
+	return `${registryUrl}/api/packs/${did}/${encodeURIComponent(slug)}/preview.webp`;
+}
+
+async function loadBrowseTags() {
+	if (browseState.tagsLoaded) return;
+	const data = await registryJson<{ tags: Array<{ tag: string; count: number }> }>("/api/tags");
+	if (data) {
+		browseState.tags = data.tags;
+		browseState.tagsLoaded = true;
+		renderBrowseTags();
+	}
+}
+
+async function loadBrowsePacks() {
+	browseState.loading = true;
+	renderBrowseLoadingState();
+
+	const params = new URLSearchParams();
+	if (browseState.search) params.set("search", browseState.search);
+	if (browseState.tag) params.set("tag", browseState.tag);
+	params.set("sort", browseState.sort);
+	params.set("limit", String(browseState.limit));
+	params.set("offset", String(browseState.offset));
+
+	const data = await registryJson<{ packs: RegistryPack[] }>(`/api/packs?${params}`);
+	browseState.loading = false;
+
+	if (data) {
+		browseState.packs = data.packs;
+		browseState.hasMore = data.packs.length >= browseState.limit;
+	} else {
+		browseState.packs = [];
+		browseState.hasMore = false;
+	}
+
+	renderBrowseGrid();
+	renderBrowsePagination();
+}
+
+async function loadPackDetail(did: string, slug: string) {
+	browseState.view = "detail";
+	browseState.detailDid = did;
+	browseState.detailSlug = slug;
+	browseState.loading = true;
+	renderBrowseViewState();
+
+	const data = await registryJson<RegistryPackDetail>(
+		`/api/packs/${did}/${encodeURIComponent(slug)}`,
+	);
+	browseState.loading = false;
+
+	if (!data) {
+		browseDetail.innerHTML = '<div class="browse-empty">Pack not found</div>';
+		browseDetail.hidden = false;
+		browseLoading.hidden = true;
+		return;
+	}
+
+	renderBrowseDetail(data);
+}
+
+async function loadAuthorView(did: string) {
+	browseState.view = "author";
+	browseState.authorDid = did;
+	browseState.loading = true;
+	renderBrowseViewState();
+
+	const data = await registryJson<RegistryUser>(`/api/users/${did}`);
+	browseState.loading = false;
+
+	if (!data) {
+		browseAuthor.innerHTML = '<div class="browse-empty">Author not found</div>';
+		browseAuthor.hidden = false;
+		browseLoading.hidden = true;
+		return;
+	}
+
+	renderBrowseAuthor(data);
+}
+
+function renderBrowseLoadingState() {
+	browseLoading.textContent = "Loading...";
+	browseLoading.hidden = false;
+	browseGrid.hidden = true;
+	browseDetail.hidden = true;
+	browseAuthor.hidden = true;
+	browseEmpty.hidden = true;
+}
+
+function renderBrowseViewState() {
+	browseGrid.hidden = browseState.view !== "grid";
+	browseDetail.hidden = browseState.view !== "detail";
+	browseAuthor.hidden = browseState.view !== "author";
+	browsePagination.hidden = browseState.view !== "grid";
+	browseLoading.hidden = !browseState.loading;
+	browseEmpty.hidden = true;
+	// Scroll content to top when switching views
+	const content = document.getElementById("browseContent");
+	if (content) content.scrollTop = 0;
+}
+
+function renderBrowseTags() {
+	browseTags.innerHTML = "";
+	for (const t of browseState.tags) {
+		const btn = document.createElement("button");
+		btn.className = "browse-tag" + (browseState.tag === t.tag ? " active" : "");
+		btn.textContent = t.tag;
+		btn.title = `${t.count} pack${t.count !== 1 ? "s" : ""}`;
+		btn.addEventListener("click", () => {
+			browseState.tag = browseState.tag === t.tag ? "" : t.tag;
+			browseState.offset = 0;
+			browseState.view = "grid";
+			renderBrowseTags();
+			void loadBrowsePacks();
+		});
+		browseTags.appendChild(btn);
+	}
+}
+
+function buildPackCard(p: RegistryPack): HTMLElement {
+	const card = document.createElement("div");
+	card.className = "browse-card";
+	card.addEventListener("click", () => loadPackDetail(p.did, p.slug));
+
+	// Preview image
+	if (p.preview_path) {
+		const img = document.createElement("img");
+		img.className = "browse-card-preview";
+		img.alt = p.name;
+		img.src = previewUrl(p.did, p.slug);
+		card.appendChild(img);
+	} else {
+		const ph = document.createElement("div");
+		ph.className = "browse-card-preview-placeholder";
+		ph.textContent = "\u2728";
+		card.appendChild(ph);
+	}
+
+	const body = document.createElement("div");
+	body.className = "browse-card-body";
+
+	const name = document.createElement("div");
+	name.className = "browse-card-name";
+	name.textContent = p.name;
+	body.appendChild(name);
+
+	if (p.description) {
+		const desc = document.createElement("div");
+		desc.className = "browse-card-desc";
+		desc.textContent = p.description;
+		body.appendChild(desc);
+	}
+
+	const meta = document.createElement("div");
+	meta.className = "browse-card-meta";
+
+	if (p.star_count > 0) {
+		const stars = document.createElement("span");
+		stars.className = "browse-card-stat";
+		stars.textContent = `\u2605 ${p.star_count}`;
+		meta.appendChild(stars);
+	}
+
+	if (p.install_count > 0) {
+		const installs = document.createElement("span");
+		installs.className = "browse-card-stat";
+		installs.textContent = `\u2913 ${p.install_count}`;
+		meta.appendChild(installs);
+	}
+
+	if (p.latest_version) {
+		const ver = document.createElement("span");
+		ver.className = "browse-card-stat";
+		ver.textContent = `v${p.latest_version}`;
+		meta.appendChild(ver);
+	}
+
+	if (isPackInstalled(p.name)) {
+		const badge = document.createElement("span");
+		badge.className = "browse-card-installed";
+		badge.textContent = "installed";
+		meta.appendChild(badge);
+	}
+
+	body.appendChild(meta);
+	card.appendChild(body);
+	return card;
+}
+
+function renderBrowseGrid() {
+	browseGrid.innerHTML = "";
+	browseLoading.hidden = true;
+
+	if (browseState.packs.length === 0) {
+		browseGrid.hidden = true;
+		browseEmpty.hidden = false;
+		browseEmpty.textContent = browseState.search || browseState.tag
+			? "No packs match your search"
+			: "No packs available";
+		return;
+	}
+
+	browseEmpty.hidden = true;
+	browseGrid.hidden = false;
+	for (const p of browseState.packs) {
+		browseGrid.appendChild(buildPackCard(p));
+	}
+}
+
+function renderBrowsePagination() {
+	const page = Math.floor(browseState.offset / browseState.limit) + 1;
+	browsePagination.hidden = browseState.view !== "grid" || (page === 1 && !browseState.hasMore);
+	browsePrev.disabled = browseState.offset === 0;
+	browseNext.disabled = !browseState.hasMore;
+	browsePageInfo.textContent = `Page ${page}`;
+}
+
+function formatDate(iso: string): string {
+	try {
+		const d = new Date(iso);
+		return d.toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" });
+	} catch {
+		return iso;
+	}
+}
+
+function renderBrowseDetail(data: RegistryPackDetail) {
+	browseDetail.innerHTML = "";
+	browseDetail.hidden = false;
+	browseLoading.hidden = true;
+	browseGrid.hidden = true;
+	browseAuthor.hidden = true;
+	browseEmpty.hidden = true;
+	browsePagination.hidden = true;
+
+	// Back button
+	const back = document.createElement("button");
+	back.className = "browse-back-btn";
+	back.innerHTML = "&larr; Back";
+	back.addEventListener("click", () => {
+		browseState.view = "grid";
+		renderBrowseViewState();
+		renderBrowseGrid();
+		renderBrowsePagination();
+	});
+	browseDetail.appendChild(back);
+
+	// Header: preview + info
+	const header = document.createElement("div");
+	header.className = "browse-detail-header";
+
+	const latestVersion = data.versions[0];
+	if (latestVersion?.preview_path) {
+		const img = document.createElement("img");
+		img.className = "browse-detail-preview";
+		img.alt = data.release.name;
+		img.src = previewUrl(data.release.did, data.release.slug);
+		header.appendChild(img);
+	} else {
+		const ph = document.createElement("div");
+		ph.className = "browse-detail-preview-placeholder";
+		ph.textContent = "\u2728";
+		header.appendChild(ph);
+	}
+
+	const info = document.createElement("div");
+	info.className = "browse-detail-info";
+
+	const name = document.createElement("div");
+	name.className = "browse-detail-name";
+	name.textContent = data.release.name;
+	info.appendChild(name);
+
+	// Author link
+	const author = document.createElement("div");
+	author.className = "browse-detail-author";
+	const authorLink = document.createElement("a");
+	authorLink.className = "browse-detail-author-link";
+	authorLink.textContent = data.handle ?? data.release.did;
+	authorLink.addEventListener("click", (e) => {
+		e.preventDefault();
+		void loadAuthorView(data.release.did);
+	});
+	author.appendChild(authorLink);
+	info.appendChild(author);
+
+	// Stats
+	const stats = document.createElement("div");
+	stats.className = "browse-detail-stats";
+	stats.textContent = `\u2605 ${data.stars} stars`;
+	if (latestVersion) {
+		stats.textContent += ` \u00B7 v${latestVersion.version}`;
+	}
+	stats.textContent += ` \u00B7 ${formatDate(data.release.created_at)}`;
+	info.appendChild(stats);
+
+	// Description
+	if (data.release.description) {
+		const desc = document.createElement("div");
+		desc.className = "browse-detail-desc";
+		desc.textContent = data.release.description;
+		info.appendChild(desc);
+	}
+
+	// Tags
+	if (data.tags.length > 0) {
+		const tagsDiv = document.createElement("div");
+		tagsDiv.className = "browse-detail-tags";
+		for (const t of data.tags) {
+			const tag = document.createElement("span");
+			tag.className = "browse-tag";
+			tag.textContent = t;
+			tag.addEventListener("click", () => {
+				browseState.tag = t;
+				browseState.offset = 0;
+				browseState.view = "grid";
+				renderBrowseTags();
+				void loadBrowsePacks();
+			});
+			tagsDiv.appendChild(tag);
+		}
+		info.appendChild(tagsDiv);
+	}
+
+	// Install button
+	const actions = document.createElement("div");
+	actions.className = "browse-detail-actions";
+	const installBtn = document.createElement("button");
+	installBtn.className = "browse-install-btn";
+	const installed = isPackInstalled(data.release.name);
+	const installKey = `${data.release.did}/${data.release.slug}`;
+	const isInstalling = browseState.installingSet.has(installKey);
+
+	installBtn.textContent = isInstalling ? "Installing..." : installed ? "Reinstall" : "Install";
+	installBtn.disabled = isInstalling;
+	installBtn.addEventListener("click", () => installRegistryPack(data.release.did, data.release.slug, data.release.name, installBtn));
+	actions.appendChild(installBtn);
+	info.appendChild(actions);
+
+	header.appendChild(info);
+	browseDetail.appendChild(header);
+
+	// Version history
+	if (data.versions.length > 0) {
+		const versionsSection = document.createElement("div");
+		versionsSection.className = "browse-versions";
+		const versionsTitle = document.createElement("h3");
+		versionsTitle.className = "browse-versions-title";
+		versionsTitle.textContent = "Version History";
+		versionsSection.appendChild(versionsTitle);
+
+		for (const v of data.versions) {
+			const item = document.createElement("div");
+			item.className = "browse-version-item";
+
+			const vHeader = document.createElement("div");
+			vHeader.className = "browse-version-header";
+
+			const vNum = document.createElement("span");
+			vNum.className = "browse-version-number";
+			vNum.textContent = v.version;
+			vHeader.appendChild(vNum);
+
+			const vDate = document.createElement("span");
+			vDate.className = "browse-version-date";
+			vDate.textContent = formatDate(v.created_at);
+			vHeader.appendChild(vDate);
+
+			item.appendChild(vHeader);
+
+			if (v.changelog) {
+				const changelog = document.createElement("div");
+				changelog.className = "browse-version-changelog";
+				changelog.textContent = v.changelog;
+				item.appendChild(changelog);
+			}
+
+			versionsSection.appendChild(item);
+		}
+
+		browseDetail.appendChild(versionsSection);
+	}
+
+}
+
+function renderBrowseAuthor(data: RegistryUser) {
+	browseAuthor.innerHTML = "";
+	browseAuthor.hidden = false;
+	browseLoading.hidden = true;
+	browseGrid.hidden = true;
+	browseDetail.hidden = true;
+	browseEmpty.hidden = true;
+	browsePagination.hidden = true;
+
+	// Back button
+	const back = document.createElement("button");
+	back.className = "browse-back-btn";
+	back.innerHTML = "&larr; Back";
+	back.addEventListener("click", () => {
+		browseState.view = "grid";
+		renderBrowseViewState();
+		renderBrowseGrid();
+		renderBrowsePagination();
+	});
+	browseAuthor.appendChild(back);
+
+	// Author header
+	const header = document.createElement("div");
+	header.className = "browse-author-header";
+
+	const nameBlock = document.createElement("div");
+	const authorName = document.createElement("div");
+	authorName.className = "browse-author-name";
+	authorName.textContent = data.handle ?? data.did;
+	nameBlock.appendChild(authorName);
+
+	const authorStats = document.createElement("div");
+	authorStats.className = "browse-author-stats";
+	authorStats.textContent = `${data.packCount} pack${data.packCount !== 1 ? "s" : ""} \u00B7 ${data.totalStars} total stars`;
+	nameBlock.appendChild(authorStats);
+	header.appendChild(nameBlock);
+
+	// Install all button
+	if (data.packs.length > 1) {
+		const installAllBtn = document.createElement("button");
+		installAllBtn.className = "browse-install-btn browse-author-install-all";
+		installAllBtn.textContent = "Install All";
+		installAllBtn.addEventListener("click", async () => {
+			installAllBtn.disabled = true;
+			installAllBtn.textContent = "Installing...";
+			try {
+				const r = await electrobun.rpc?.request?.installAllFromUser({ did: data.did });
+				if (r?.ok) {
+					showToast(`Installed ${r.installed} pack${r.installed !== 1 ? "s" : ""}`);
+				} else {
+					showToast("Install failed");
+				}
+			} catch {
+				showToast("Install failed");
+			}
+			installAllBtn.disabled = false;
+			installAllBtn.textContent = "Install All";
+		});
+		header.appendChild(installAllBtn);
+	}
+
+	browseAuthor.appendChild(header);
+
+	// Author's packs grid
+	const packsGrid = document.createElement("div");
+	packsGrid.className = "browse-author-packs";
+	for (const p of data.packs) {
+		packsGrid.appendChild(buildPackCard(p));
+	}
+	browseAuthor.appendChild(packsGrid);
+}
+
+async function installRegistryPack(did: string, slug: string, name: string, btn: HTMLButtonElement) {
+	const key = `${did}/${slug}`;
+	if (browseState.installingSet.has(key)) return;
+	browseState.installingSet.add(key);
+	btn.disabled = true;
+	btn.textContent = "Installing...";
+
+	try {
+		const r = await electrobun.rpc?.request?.installFromRegistry({ did, slug });
+		if (r?.ok) {
+			showToast(`Installed ${name}`);
+			btn.textContent = "Reinstall";
+		} else {
+			showToast(`Failed: ${r?.error ?? "unknown error"}`);
+			btn.textContent = "Install";
+		}
+	} catch {
+		showToast("Install failed");
+		btn.textContent = "Install";
+	}
+
+	browseState.installingSet.delete(key);
+	btn.disabled = false;
+
+	// Re-render grid cards to update "installed" badges
+	if (browseState.view === "grid") renderBrowseGrid();
+}
+
+function openBrowseOverlay() {
+	browseOverlay.hidden = false;
+	wgpuTag?.syncDimensions(true);
+
+	// Reset to grid view
+	browseState.view = "grid";
+	browseState.offset = 0;
+	browseSearch.value = browseState.search;
+	browseSortSelect.value = browseState.sort;
+	renderBrowseViewState();
+
+	// Load data
+	void loadBrowseTags();
+	void loadBrowsePacks();
+}
+
+function closeBrowseOverlay() {
+	browseOverlay.hidden = true;
+	wgpuTag?.syncDimensions(true);
+}
+
+// Browse button handlers
+browseBtn?.addEventListener("click", () => openBrowseOverlay());
+emptyBrowseBtn?.addEventListener("click", () => openBrowseOverlay());
+
+// Close button
+browseCloseBtn.addEventListener("click", () => closeBrowseOverlay());
+
+// Close on overlay background click
+browseOverlay.addEventListener("click", (e) => {
+	if (e.target === browseOverlay) closeBrowseOverlay();
+});
+
+// Escape key (only when browse overlay is open)
+document.addEventListener("keydown", (e) => {
+	if (e.key === "Escape" && !browseOverlay.hidden) {
+		closeBrowseOverlay();
+		e.stopPropagation();
+	}
+});
+
+// Search with debounce
+browseSearch.addEventListener("input", () => {
+	if (browseSearchTimer) clearTimeout(browseSearchTimer);
+	browseSearchTimer = setTimeout(() => {
+		browseState.search = browseSearch.value.trim();
+		browseState.offset = 0;
+		browseState.view = "grid";
+		renderBrowseViewState();
+		void loadBrowsePacks();
+	}, 300);
+});
+
+// Sort change
+browseSortSelect.addEventListener("change", () => {
+	browseState.sort = browseSortSelect.value as "newest" | "stars" | "installs";
+	browseState.offset = 0;
+	browseState.view = "grid";
+	renderBrowseViewState();
+	void loadBrowsePacks();
+});
+
+// Pagination
+browsePrev.addEventListener("click", () => {
+	browseState.offset = Math.max(0, browseState.offset - browseState.limit);
+	browseState.view = "grid";
+	void loadBrowsePacks();
+	// Scroll content to top
+	const content = document.getElementById("browseContent");
+	if (content) content.scrollTop = 0;
+});
+browseNext.addEventListener("click", () => {
+	browseState.offset += browseState.limit;
+	browseState.view = "grid";
+	void loadBrowsePacks();
+	const content = document.getElementById("browseContent");
+	if (content) content.scrollTop = 0;
+});
+
 // ---------- Initial state ----------
 
 (async () => {
@@ -758,8 +1477,18 @@ window.addEventListener("drop", async (e) => {
 			currentAudioSource = state.audioSource;
 			if (audioSourceSelect) audioSourceSelect.value = state.audioSource;
 		}
+		if (state?.registryUrl) registryUrl = state.registryUrl;
 		if (state?.packs) populatePacks(state.packs, state.activePackId ?? null);
 		if (state?.auto) applyAutoSettings(state.auto);
+		if (state?.renderScale != null && renderScaleSelect) {
+			// Find the closest matching option
+			const scale = state.renderScale;
+			const options = Array.from(renderScaleSelect.options);
+			const closest = options.reduce((best, opt) =>
+				Math.abs(Number(opt.value) - scale) < Math.abs(Number(best.value) - scale) ? opt : best,
+			);
+			renderScaleSelect.value = closest.value;
+		}
 	} catch (err) {
 		console.warn("getInitialState failed; defaulting to expanded", err);
 	}
@@ -773,7 +1502,8 @@ window.addEventListener("drop", async (e) => {
 let displayed = 0;
 function tick() {
 	displayed = displayed * 0.7 + lastLevel * 0.3;
-	if (meterBar) meterBar.style.width = `${Math.min(100, displayed * 200)}%`;
+	if (meterBar)
+		meterBar.style.transform = `scaleX(${Math.min(1, displayed * 2)})`;
 	requestAnimationFrame(tick);
 }
 requestAnimationFrame(tick);

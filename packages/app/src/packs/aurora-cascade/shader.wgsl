@@ -33,9 +33,9 @@ struct FragmentOutput {
 }
 
 @group(0) @binding(0) 
-var<uniform> u: Uniforms;
+var<uniform> _cn_u: Uniforms;
 @group(1) @binding(0) 
-var<uniform> p: Params;
+var<uniform> _cn_p: Params;
 var<private> _fragColor: vec4<f32>;
 var<private> gl_FragCoord_1: vec4<f32>;
 
@@ -228,25 +228,25 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
 
     fragCoord_1 = fragCoord;
     let _e33 = fragCoord_1;
-    let _e35 = u.resolution;
+    let _e35 = _cn_u.resolution;
     uv = (_e33.xy / vec3<f32>(_e35.x, _e35.y, 1f).xy);
-    let _e43 = u.resolution;
-    let _e49 = u.resolution;
+    let _e43 = _cn_u.resolution;
+    let _e49 = _cn_u.resolution;
     aspect = (vec3<f32>(_e43.x, _e43.y, 1f).x / vec3<f32>(_e49.x, _e49.y, 1f).y);
-    let _e57 = u.time_ms;
-    let _e60 = p.speed;
+    let _e57 = _cn_u.time_ms;
+    let _e60 = _cn_p.speed;
     t_2 = ((_e57 / 1000f) * _e60.x);
-    let _e64 = p.layers;
+    let _e64 = _cn_p.layers;
     numLayers = i32(_e64.x);
-    let _e69 = u.bass;
+    let _e69 = _cn_u.bass;
     bassAmp = (1f + (_e69 * 2.5f));
-    let _e75 = u.treble;
+    let _e75 = _cn_u.treble;
     trebleFreq = (1f + (_e75 * 3f));
-    let _e81 = u.mid;
+    let _e81 = _cn_u.mid;
     midGlow = (1f + (_e81 * 0.5f));
-    let _e87 = u.rms;
+    let _e87 = _cn_u.rms;
     energy = (0.7f + (_e87 * 0.6f));
-    let _e93 = u.beat_phase;
+    let _e93 = _cn_u.beat_phase;
     beatPulse = pow((1f - _e93), 4f);
     let _e106 = uv;
     bg = mix(vec3<f32>(0f, 0f, 0.02f), vec3<f32>(0.01f, 0.01f, 0.06f), vec3(_e106.y));
@@ -257,7 +257,7 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
     let _e123 = bg;
     let _e124 = stars;
     bg = (_e123 + vec3((_e124 * 0.3f)));
-    let _e132 = p.tint;
+    let _e132 = _cn_p.tint;
     baseTint = _e132.xyz;
     loop {
         let _e137 = i_2;
@@ -304,7 +304,7 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
             let _e214 = curtainY;
             dist_2 = (_e212.y - _e214);
             let _e218 = noiseVal;
-            let _e222 = u.bass;
+            let _e222 = _cn_u.bass;
             width_2 = ((0.08f + (_e218 * 0.06f)) + (_e222 * 0.03f));
             let _e227 = dist_2;
             let _e228 = width_2;
@@ -410,12 +410,17 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
 }
 
 fn main_1() {
+    var _fc: vec2<f32>;
     var local: vec4<f32>;
 
-    let _e33 = gl_FragCoord_1;
-    mainImage((&local), _e33.xy);
-    let _e37 = local;
-    _fragColor = _e37;
+    let _e32 = gl_FragCoord_1;
+    let _e34 = _cn_u.resolution;
+    let _e36 = gl_FragCoord_1;
+    _fc = vec2<f32>(_e32.x, (_e34.y - _e36.y));
+    let _e42 = _fc;
+    mainImage((&local), _e42);
+    let _e45 = local;
+    _fragColor = _e45;
     return;
 }
 

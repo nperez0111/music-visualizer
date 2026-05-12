@@ -27,7 +27,7 @@ struct FragmentOutput {
 }
 
 @group(0) @binding(0) 
-var<uniform> u: Uniforms;
+var<uniform> _cn_u: Uniforms;
 var<private> _fragColor: vec4<f32>;
 var<private> gl_FragCoord_1: vec4<f32>;
 
@@ -124,7 +124,7 @@ fn mandelbulb(position: vec3<f32>) -> f32 {
     position_1 = position;
     let _e26 = position_1;
     z_2 = _e26;
-    let _e33 = u.bass;
+    let _e33 = _cn_u.bass;
     power = (8f + (_e33 * 3f));
     loop {
         let _e40 = i_1;
@@ -188,7 +188,7 @@ fn DistanceEstimator(p_3: vec3<f32>) -> f32 {
     p_4 = p_3;
     let _e26 = p_4;
     let _e28 = p_4;
-    let _e34 = u.mid;
+    let _e34 = _cn_u.mid;
     let _e38 = Rotate((-0.9424779f + (_e34 * 0.1f)));
     let _e39 = (_e28.yz * _e38);
     p_4.y = _e39.x;
@@ -268,7 +268,7 @@ fn RayMarcher(ro: vec3<f32>, rd: vec3<f32>) -> vec4<f32> {
             steps = (_e52 + 1f);
         }
     }
-    let _e80 = u.beat_phase;
+    let _e80 = _cn_u.beat_phase;
     hueShift = (_e80 * 0.3f);
     let _e84 = hit;
     if _e84 {
@@ -312,7 +312,7 @@ fn RayMarcher(ro: vec3<f32>, rd: vec3<f32>) -> vec4<f32> {
             col.z = _e154.z;
             let _e161 = col;
             let _e163 = col;
-            let _e169 = u.time_ms;
+            let _e169 = _cn_u.time_ms;
             let _e179 = (_e163.xyz / vec3(mix(3000f, 50000f, (0.5f + (0.5f * sin(((_e169 / 1000f) * 3f)))))));
             col.x = _e179.x;
             col.y = _e179.y;
@@ -334,7 +334,7 @@ fn RayMarcher(ro: vec3<f32>, rd: vec3<f32>) -> vec4<f32> {
     col.x = _e211.x;
     col.y = _e211.y;
     col.z = _e211.z;
-    let _e219 = u.peak;
+    let _e219 = _cn_u.peak;
     energy = (3f + (_e219 * 5f));
     let _e224 = col;
     let _e226 = col;
@@ -357,13 +357,13 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
 
     fragCoord_1 = fragCoord;
     let _e27 = fragCoord_1;
-    let _e29 = u.resolution;
-    let _e37 = u.resolution;
+    let _e29 = _cn_u.resolution;
+    let _e37 = _cn_u.resolution;
     uv_2 = ((_e27 - (0.5f * vec3<f32>(_e29.x, _e29.y, 1f).xy)) / vec2(vec3<f32>(_e37.x, _e37.y, 1f).y));
     let _e46 = uv_2;
     uv_2 = (_e46 * 1.5f);
-    let _e57 = u.time_ms;
-    let _e66 = u.treble;
+    let _e57 = _cn_u.time_ms;
+    let _e66 = _cn_u.treble;
     orbitSpeed = (((((_e57 / 1000f) * 2f) * 3.1415927f) / 10f) + (_e66 * 0.2f));
     let _e71 = ro_2;
     let _e73 = ro_2;
@@ -387,12 +387,17 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
 }
 
 fn main_1() {
+    var _fc: vec2<f32>;
     var local: vec4<f32>;
 
-    let _e27 = gl_FragCoord_1;
-    mainImage((&local), _e27.xy);
-    let _e31 = local;
-    _fragColor = _e31;
+    let _e26 = gl_FragCoord_1;
+    let _e28 = _cn_u.resolution;
+    let _e30 = gl_FragCoord_1;
+    _fc = vec2<f32>(_e26.x, (_e28.y - _e30.y));
+    let _e36 = _fc;
+    mainImage((&local), _e36);
+    let _e39 = local;
+    _fragColor = _e39;
     return;
 }
 

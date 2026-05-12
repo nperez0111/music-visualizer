@@ -5,7 +5,6 @@
 
 import {
 	OAuthClient,
-	type OAuthSession,
 	type ClientAssertionPrivateJwk,
 } from "@atcute/oauth-node-client";
 import {
@@ -44,7 +43,7 @@ function parseKeyset(): ClientAssertionPrivateJwk[] | undefined {
 		return [jwk];
 	} catch (err) {
 		if (err instanceof SyntaxError) {
-			throw new Error("PRIVATE_KEY_JWK is set but contains invalid JSON");
+			throw new Error("PRIVATE_KEY_JWK is set but contains invalid JSON", { cause: err });
 		}
 		throw err;
 	}

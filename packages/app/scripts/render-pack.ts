@@ -70,7 +70,7 @@ if (args.length < 1) {
 	console.error("usage: bun scripts/render-pack.ts <slug> [out.png]");
 	process.exit(2);
 }
-const target = args[0]!;
+const target = args[0];
 const outPath = resolve(args[1] ?? `/tmp/${target}.png`);
 
 const { loadPacksFromDir } = await import(resolve(REPO_ROOT, "src/bun/packs/loader.ts"));

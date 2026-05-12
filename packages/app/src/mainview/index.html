@@ -8,7 +8,7 @@
 	</head>
 	<body>
 		<div class="app">
-			<electrobun-wgpu class="visualizer" masks=".sidebar,#sidebarTab,#contextMenu,#confirmOverlay"></electrobun-wgpu>
+			<electrobun-wgpu class="visualizer" masks=".sidebar,#sidebarTab,#contextMenu,#confirmOverlay,#browseOverlay"></electrobun-wgpu>
 			<button id="sidebarTab" title="Show controls">&#x2699;</button>
 			<aside class="sidebar" id="sidebar">
 				<header>
@@ -28,6 +28,7 @@
 							<span class="label">packs</span>
 							<div class="pack-actions">
 								<button class="btn" id="nextBtn" title="Next pack">&#x23ED;</button>
+								<button class="btn" id="browseBtn" title="Browse registry">&#x1F50D;</button>
 								<button class="btn" id="importBtn" title="Import .viz pack">+</button>
 							</div>
 						</div>
@@ -59,10 +60,19 @@
 						<span class="value muted" id="audioStatus">capture not implemented yet</span>
 						<button class="btn" id="permFixBtn" title="Open Screen Recording settings" hidden>fix</button>
 					</div>
+					<div class="row">
+						<span class="label">quality</span>
+						<select id="renderScaleSelect" class="select select-sm" title="Render resolution scale">
+							<option value="1">full</option>
+							<option value="0.75">high</option>
+							<option value="0.5">medium</option>
+							<option value="0.35">low</option>
+						</select>
+					</div>
 					<div id="emptyState" class="empty-state" hidden>
 						<p class="empty-heading">No visualizer packs installed</p>
-						<p class="empty-body">Browse and install packs at</p>
-						<a class="empty-link" href="https://catnip.nickthesick.com" target="_blank">catnip.nickthesick.com</a>
+						<p class="empty-body">Discover community packs</p>
+						<button class="empty-browse-btn" id="emptyBrowseBtn">Browse Packs</button>
 						<p class="empty-hint">or drag-and-drop a .viz file here</p>
 					</div>
 					<section id="paramsPanel" class="params-panel" hidden></section>
@@ -70,6 +80,44 @@
 					<div id="toast" class="toast" hidden></div>
 				</div>
 			</aside>
+
+			<!-- Browse overlay (full-screen pack discovery) -->
+			<div id="browseOverlay" class="browse-overlay" hidden>
+				<div class="browse-panel">
+					<!-- Header bar -->
+					<header class="browse-header">
+						<h2 class="browse-title">Browse Packs</h2>
+						<div class="browse-header-actions">
+							<input type="text" id="browseSearch" class="browse-search" placeholder="Search packs..." autocomplete="off" spellcheck="false" />
+							<select id="browseSort" class="select select-sm browse-sort">
+								<option value="newest">Newest</option>
+								<option value="stars">Most Starred</option>
+								<option value="installs">Most Installed</option>
+							</select>
+							<button class="btn browse-close-btn" id="browseCloseBtn" title="Close">&times;</button>
+						</div>
+					</header>
+
+					<!-- Tag filter bar -->
+					<div class="browse-tags" id="browseTags"></div>
+
+					<!-- Content area: grid / detail / author views are rendered here -->
+					<div class="browse-content" id="browseContent">
+						<div class="browse-loading" id="browseLoading">Loading...</div>
+						<div class="browse-grid" id="browseGrid"></div>
+						<div class="browse-detail" id="browseDetail" hidden></div>
+						<div class="browse-author" id="browseAuthor" hidden></div>
+						<div class="browse-empty" id="browseEmpty" hidden>No packs found</div>
+					</div>
+
+					<!-- Pagination -->
+					<div class="browse-pagination" id="browsePagination" hidden>
+						<button class="btn browse-page-btn" id="browsePrev" disabled>Prev</button>
+						<span class="browse-page-info" id="browsePageInfo">Page 1</span>
+						<button class="btn browse-page-btn" id="browseNext">Next</button>
+					</div>
+				</div>
+			</div>
 
 			<!-- Context menu (positioned absolutely via JS) -->
 			<div id="contextMenu" class="context-menu" hidden>

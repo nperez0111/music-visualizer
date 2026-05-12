@@ -25,7 +25,8 @@ All commands run from the repo root unless noted.
 | `bun test` | Run all tests across the monorepo |
 | `bun run test:app` | Run desktop app tests only |
 | `bun run dev:server` | Dev mode — registry server |
-| `bunx tsc --noEmit` | Type-check (pre-existing errors in GPU FFI + AssemblyScript files are expected; filter for your changed files) |
+| `bun run typecheck` | Type-check with native `tsgo --build` (pre-existing errors in GPU FFI + AssemblyScript files are expected; filter for your changed files) |
+| `bun run lint` | Lint with oxlint (type-aware, config in `.oxlintrc.json`). Fix all warnings before committing. |
 
 ## Where to find things
 

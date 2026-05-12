@@ -1,0 +1,33 @@
+{
+	"$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+	"options": {
+		"typeAware": true
+	},
+	"plugins": ["typescript", "import"],
+	"categories": {
+		"correctness": "error",
+		"suspicious": "warn"
+	},
+	"rules": {
+		"typescript/no-floating-promises": ["error", { "ignoreVoid": true, "ignoreIIFE": true }],
+		"typescript/no-misused-promises": ["error", { "checksVoidReturn": { "arguments": false } }],
+		"typescript/await-thenable": "error",
+		"typescript/no-unnecessary-type-assertion": "warn",
+		"typescript/switch-exhaustiveness-check": "warn",
+		"typescript/no-unsafe-type-assertion": "off",
+		"no-control-regex": "off",
+		"no-underscore-dangle": "off",
+		"no-unmodified-loop-condition": "off",
+		"typescript/restrict-template-expressions": "off",
+		"import/no-empty-named-blocks": "off",
+		"import/no-named-as-default-member": "off"
+	},
+	"ignorePatterns": [
+		"node_modules",
+		"packages/app/build",
+		"packages/app/artifacts",
+		"packages/app/src/packs/*/pack.ts",
+		"packages/lexicons/src/generated",
+		".output"
+	]
+}

@@ -18,8 +18,8 @@ import {
 
 let db: Database;
 
-function migrate(db: Database): void {
-	db.exec(`
+function migrate(database: Database): void {
+	database.exec(`
 		CREATE TABLE IF NOT EXISTS releases (
 			did         TEXT NOT NULL,
 			rkey        TEXT NOT NULL,

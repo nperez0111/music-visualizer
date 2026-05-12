@@ -518,10 +518,10 @@ function renderPackPass(encoder: number, pp: PackPipeline, finalTargetView: numb
 	const totalPasses = 1 + pp.extraPasses.length;
 	for (let i = 0; i < totalPasses; i++) {
 		const isLast = i === totalPasses - 1;
-		const targetView = isLast ? finalTargetView : pp.intermediateView[i]!;
-		const pipelineHandle = i === 0 ? pp.pipeline : pp.extraPasses[i - 1]!.pipeline;
-		const uniformBg = i === 0 ? pp.bindGroup : pp.extraPasses[i - 1]!.uniformBindGroup;
-		const paramBg = i === 0 ? pp.paramBindGroup : pp.extraPasses[i - 1]!.paramBindGroup;
+		const targetView = isLast ? finalTargetView : pp.intermediateView[i];
+		const pipelineHandle = i === 0 ? pp.pipeline : pp.extraPasses[i - 1].pipeline;
+		const uniformBg = i === 0 ? pp.bindGroup : pp.extraPasses[i - 1].uniformBindGroup;
+		const paramBg = i === 0 ? pp.paramBindGroup : pp.extraPasses[i - 1].paramBindGroup;
 
 		const colorAttachment = makeRenderPassColorAttachment(targetView, [0, 0, 0, 1]);
 		const renderPassDesc = makeRenderPassDescriptor(colorAttachment.ptr);
@@ -539,7 +539,7 @@ function renderPackPass(encoder: number, pp: PackPipeline, finalTargetView: numb
 			native.symbols.wgpuRenderPassEncoderSetBindGroup(
 				asPtr(pass),
 				3,
-				asPtr(pp.extraPasses[i - 1]!.inputBindGroup),
+				asPtr(pp.extraPasses[i - 1].inputBindGroup),
 				0,
 				asPtr(0),
 			);

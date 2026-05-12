@@ -39,7 +39,7 @@ export function packParameterValues(
 	out: Float32Array,
 ): void {
 	for (let i = 0; i < parameters.length; i++) {
-		const p = parameters[i]!;
+		const p = parameters[i];
 		const slot = i * PARAM_FLOATS_PER_SLOT;
 		const v = values[p.name];
 		switch (p.type) {
@@ -118,7 +118,7 @@ export function coerceParameterValue(p: PackParameter, raw: unknown): ParamValue
 			return typeof raw === "string" && p.options.includes(raw) ? raw : null;
 		case "color":
 			return Array.isArray(raw) && raw.length === 3 && raw.every((n) => typeof n === "number")
-				? (raw.map((n) => Math.min(1, Math.max(0, n))) as number[])
+				? raw.map((n) => Math.min(1, Math.max(0, n)))
 				: null;
 		case "range": {
 			if (!Array.isArray(raw) || raw.length !== 2) return null;
@@ -132,8 +132,10 @@ export function coerceParameterValue(p: PackParameter, raw: unknown): ParamValue
 		case "vec4": {
 			const n = p.type === "vec2" ? 2 : p.type === "vec3" ? 3 : 4;
 			return Array.isArray(raw) && raw.length === n && raw.every((x) => typeof x === "number")
-				? (raw as number[])
+				? raw
 				: null;
 		}
+		default:
+			return null;
 	}
 }

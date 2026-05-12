@@ -3,10 +3,17 @@
 		"target": "ESNext",
 		"module": "ESNext",
 		"moduleResolution": "bundler",
+		"allowImportingTsExtensions": true,
+		"composite": true,
 		"strict": true,
 		"noEmit": true,
 		"skipLibCheck": true,
+		"types": ["bun"],
 		"isolatedModules": true
 	},
-	"include": ["src"]
+	"include": ["src"],
+	"references": [
+		{ "path": "../shared" },
+		{ "path": "../lexicons" }
+	]
 }

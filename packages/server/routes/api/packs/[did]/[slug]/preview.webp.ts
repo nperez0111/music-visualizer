@@ -1,7 +1,8 @@
 import { defineHandler } from "nitro";
-import { useStorage } from "nitro/storage";
-import { getRouterParams, createError, setHeader } from "nitro/h3";
+import { getRouterParams, createError, setResponseHeader } from "nitro/h3";
 import { getDb, type VersionRow } from "../../../../../lib/db.ts";
+import { readFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 export default defineHandler(async (event) => {
 	const db = getDb();
@@ -20,13 +21,29 @@ export default defineHandler(async (event) => {
 		throw createError({ statusCode: 404, statusMessage: "Preview not available" });
 	}
 
-	// Read preview from unstorage (preview_path is now a storage key)
-	const data = await useStorage("previews").getItemRaw(version.preview_path);
-	if (!data) {
+	// Read directly from filesystem instead of going through unstorage.
+	// unstorage's getItemRaw() returns different types depending on the runtime
+	// (Buffer, ArrayBuffer, NodeResponse, etc.), and Nitro's Bun dev worker proxy
+	// cannot reliably serialize these binary Response objects under concurrent load.
+	// Reading the file directly and returning a plain Buffer avoids this entirely.
+	const dataDir = process.env.DATA_DIR || ".data";
+	// unstorage fs driver maps ":" in keys to "/" on disk
+	const previewsRoot = resolve(join(dataDir, "previews"));
+	const filePath = resolve(join(previewsRoot, version.preview_path.replaceAll(":", "/")));
+
+	// Guard against path traversal from malformed preview_path values
+	if (!filePath.startsWith(previewsRoot + "/") && filePath !== previewsRoot) {
+		throw createError({ statusCode: 400, statusMessage: "Invalid preview path" });
+	}
+
+	let buf: Buffer;
+	try {
+		buf = readFileSync(filePath);
+	} catch {
 		throw createError({ statusCode: 404, statusMessage: "Preview not available" });
 	}
 
-	setHeader(event, "Content-Type", "image/webp");
-	setHeader(event, "Cache-Control", "public, max-age=86400");
-	return data;
+	setResponseHeader(event, "Content-Type", "image/webp");
+	setResponseHeader(event, "Cache-Control", "public, max-age=86400");
+	return buf;
 });

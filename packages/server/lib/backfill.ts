@@ -7,6 +7,7 @@ import {
 } from "./db.ts";
 import { resolvePdsEndpoint } from "./did.ts";
 import { Client, ok, simpleFetchHandler } from "@atcute/client";
+import type {} from "@atcute/atproto";
 
 const AT_URI_RE = /^at:\/\/(did:[^/]+)\/([^/]+)\/([^/]+)$/;
 

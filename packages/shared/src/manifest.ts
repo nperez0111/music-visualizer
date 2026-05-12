@@ -3,10 +3,7 @@
 
 import * as v from "valibot";
 import type {
-	PackAudioFeatureName,
 	PackManifest,
-	PackManifestImage,
-	PackParameter,
 	PackPreset,
 	ParamValue,
 	ParamValueMap,
@@ -240,8 +237,9 @@ export function validateManifest(raw: unknown): { ok: true; m: PackManifest } | 
 		// Format path like "parameters[0].name" for backward-compatible errors
 		const path = issue.path
 			?.map((seg: { key?: string | number }, i: number) => {
-				const key = "key" in seg ? seg.key : String(seg);
-				if (typeof key === "number" || /^\d+$/.test(String(key))) {
+				const key = seg.key;
+				if (key === undefined) return "";
+				if (typeof key === "number" || /^\d+$/.test(key)) {
 					return `[${key}]`;
 				}
 				return i === 0 ? key : `.${key}`;

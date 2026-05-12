@@ -34,6 +34,7 @@ if (!existsSync(USER_PACKS_DIR)) mkdirSync(USER_PACKS_DIR, { recursive: true });
 
 // ---------- Constants ----------
 
+const REGISTRY_URL = process.env.CATNIP_REGISTRY_URL ?? "https://catnip.nickthesick.com";
 const SPECTRUM_BINS = 32;
 // Sized to fit a Mandelbrot perturbation reference orbit at 1024 iterations
 // (8192 bytes packed two-points-per-vec4) plus a small WASM header, on top
@@ -71,6 +72,7 @@ const autoSettings: AutoSettings = {
 console.log(`[packs] active: ${initialActive?.name ?? "(none)"}`);
 
 const savedAudioSource = getPref<AudioSource>("audio.source", "system");
+const savedRenderScale = getPref<number>("render.scale", 1.0);
 
 const audioBuffer = new RingBuffer(RING_SIZE);
 const audioAnalyzer = new AudioAnalyzer(audioBuffer, 48000, FFT_SIZE);
@@ -97,6 +99,8 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 				packs: registry.allPackInfos(),
 				activePackId: transitions.getActiveId(),
 				auto: transitions.getAutoSettings(),
+				renderScale: currentRenderScale,
+				registryUrl: registryProxyUrl,
 			}),
 			listPacks: () => ({
 				packs: registry.allPackInfos(),
@@ -127,7 +131,7 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 				// Drag-drop entry point. WKWebView doesn't expose dropped file paths,
 				// so the webview reads bytes and sends them over RPC; we stage to a
 				// temp .viz and reuse the existing extractor.
-				const safeBase = String(fileName || "drop.viz").replace(/[^a-z0-9._-]/gi, "_");
+				const safeBase = (fileName || "drop.viz").replace(/[^a-z0-9._-]/gi, "_");
 				const stagePath = join(tmpdir(), `viz-drop-${process.pid}-${Date.now()}-${safeBase}`);
 				try {
 					const bytes = Buffer.from(bytesB64, "base64");
@@ -174,8 +178,7 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 			let installed = 0;
 			try {
 				// Fetch the user's pack list from the registry
-				const registryUrl = process.env.CATNIP_REGISTRY_URL ?? "https://catnip.nickthesick.com";
-				const resp = await fetch(`${registryUrl}/api/users/${encodeURIComponent(did)}/packs`);
+				const resp = await fetch(`${REGISTRY_URL}/api/users/${encodeURIComponent(did)}/packs`);
 				if (!resp.ok) {
 					return { ok: false, installed: 0, errors: [`Failed to fetch user packs: ${resp.status}`] };
 				}
@@ -230,7 +233,7 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 				const files = readdirSync(pack.path, { recursive: true, withFileTypes: true });
 				for (const f of files) {
 					if (!f.isFile()) continue;
-					const full = join(f.parentPath ?? f.path, f.name);
+					const full = join(f.parentPath, f.name);
 					const rel = relative(pack.path, full);
 					entries[rel] = readFileSync(full);
 				}
@@ -238,18 +241,18 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 				const downloadsDir = join(homedir(), "Downloads");
 				const savePath = join(downloadsDir, `${safeName}.viz`);
 				writeFileSync(savePath, zipped);
-				// Reveal the exported file in Finder
-				Bun.spawn(["open", "-R", savePath]);
-				return { ok: true };
-			} catch (err) {
-				return { ok: false, error: String(err) };
-			}
-		},
-		},
-		messages: {
+			// Reveal the exported file in Finder
+			Bun.spawn(["open", "-R", savePath]);
+			return { ok: true };
+		} catch (err) {
+			return { ok: false, error: String(err) };
+		}
+	},
+	},
+	messages: {
 			wgpuViewReady: ({ viewId }) => {
 				console.log(`[wgpu] view ready: id=${viewId}`);
-				initEngine(viewId);
+				void initEngine(viewId);
 			},
 			setCollapsed: ({ collapsed }) => windowMgr.setSidebarCollapsed(collapsed, false),
 			setActivePack: ({ id }) => {
@@ -326,6 +329,15 @@ const rpc = BrowserView.defineRPC<ControlsRPC>({
 			setPackFavorite: ({ id, favorited }) => {
 				registry.setFavorite(id, favorited);
 				broadcastPacksChanged();
+			},
+			setRenderScale: ({ scale }) => {
+				const clamped = Math.max(0.1, Math.min(1.0, scale));
+				currentRenderScale = clamped;
+				setPref("render.scale", clamped);
+				activeRenderer?.setRenderScale(clamped);
+			},
+			debugLog: ({ level, args }) => {
+				console.log(`[webview:${level}]`, args);
 			},
 		},
 	},
@@ -411,10 +423,57 @@ const transitions = new TransitionController(initialActive, autoSettings, {
 
 registry.onChange(broadcastPacksChanged);
 
+// ---------- Registry reverse proxy ----------
+// The webview loads from views:// scheme; WKWebView blocks cross-origin fetch.
+// We spin up a tiny local HTTP server that reverse-proxies to the registry,
+// so the webview can use plain fetch() and <img src> without CORS issues.
+
+let registryProxyUrl = "";
+
+try {
+	const corsHeaders = {
+		"Access-Control-Allow-Origin": "*",
+		"Access-Control-Allow-Methods": "GET, OPTIONS",
+		"Access-Control-Allow-Headers": "Content-Type",
+	} as const;
+
+	const proxyServer = Bun.serve({
+		port: 0, // OS-assigned ephemeral port
+		async fetch(req) {
+			// Handle CORS preflight
+			if (req.method === "OPTIONS") {
+				return new Response(null, { status: 204, headers: corsHeaders });
+			}
+			const url = new URL(req.url);
+			const upstream = `${REGISTRY_URL}${url.pathname}${url.search}`;
+			try {
+				const resp = await fetch(upstream);
+				// Buffer the body to avoid streaming issues between fetch and serve
+				const body = await resp.arrayBuffer();
+				const headers = new Headers(resp.headers);
+				for (const [k, v] of Object.entries(corsHeaders)) headers.set(k, v);
+				return new Response(body, {
+					status: resp.status,
+					statusText: resp.statusText,
+					headers,
+				});
+			} catch (err) {
+				return new Response(String(err), { status: 502, headers: corsHeaders });
+			}
+		},
+	});
+	registryProxyUrl = `http://localhost:${proxyServer.port}`;
+	console.log(`[registry] proxy at ${registryProxyUrl}`);
+} catch (err) {
+	console.error("[registry] failed to start proxy:", err);
+}
+
 // ---------- Deferred engine init (waits for <electrobun-wgpu> ready) ----------
 
 let pipelineCache: PipelineCache | null = null;
 let stopRenderLoop = false;
+let activeRenderer: import("./gpu/renderer").Renderer | null = null;
+let currentRenderScale = savedRenderScale;
 
 async function initEngine(wgpuViewId: number): Promise<void> {
 	const wgpuView = WGPUView.getById(wgpuViewId);
@@ -427,6 +486,8 @@ async function initEngine(wgpuViewId: number): Promise<void> {
 	const isSelfTest = process.env["VIZ_PACKS_SELFTEST"] === "1";
 
 	const renderer = await createRenderer(wgpuView);
+	activeRenderer = renderer;
+	renderer.setRenderScale(currentRenderScale);
 
 	const transitionRig = createTransitionRig(renderer);
 	{
@@ -509,18 +570,35 @@ async function initEngine(wgpuViewId: number): Promise<void> {
 		} catch {}
 	}
 
-	// Self-pacing render loop: aim for ~60fps but subtract real frame cost.
+	// Frame-paced render loop: targets ~60fps using setImmediate for tight
+	// scheduling. PresentMode_Mailbox makes surfacePresent non-blocking —
+	// the GPU picks the latest submitted frame at its own vsync. We pace
+	// on the CPU side to avoid busy-spinning at hundreds of fps.
 	const TARGET_FRAME_MS = 16;
+	let nextFrameTime = performance.now();
 	function tickRenderLoop(): void {
-		const start = performance.now();
+		if (stopRenderLoop) return;
+		const now = performance.now();
+		if (now < nextFrameTime) {
+			// Not time yet — yield briefly and retry. setTimeout(,1) gives
+			// ~1ms granularity which is fine for the last-mile wait.
+			setTimeout(tickRenderLoop, 1);
+			return;
+		}
+		// Advance the target by one frame period. If we overshot (e.g. a
+		// long frame), snap forward so we don't try to "catch up" with a
+		// burst of frames.
+		nextFrameTime += TARGET_FRAME_MS;
+		if (nextFrameTime < now) nextFrameTime = now + TARGET_FRAME_MS;
 		try {
 			renderDriver();
 		} catch (err) {
 			reportRenderError(err);
 		}
 		if (stopRenderLoop) return;
-		const wait = Math.max(0, TARGET_FRAME_MS - (performance.now() - start));
-		setTimeout(tickRenderLoop, wait);
+		// Use setImmediate for the next iteration — it fires on the next
+		// event-loop turn with no minimum delay (unlike setTimeout's ~1ms).
+		setImmediate(tickRenderLoop);
 	}
 	tickRenderLoop();
 }
@@ -584,7 +662,7 @@ async function downloadFromPds(did: string, slug: string): Promise<Uint8Array> {
 		throw new Error(`No versions found for ${slug} by ${did}`);
 	}
 
-	const latest = matching[0]!.value as PackRecord;
+	const latest = matching[0].value as PackRecord;
 	const vizCid = latest.viz.ref.$link;
 
 	const bytes = await ok(
@@ -598,8 +676,7 @@ async function downloadFromPds(did: string, slug: string): Promise<Uint8Array> {
 }
 
 async function downloadViz(did: string, slug: string): Promise<Uint8Array> {
-	const registryUrl = process.env.CATNIP_REGISTRY_URL ?? "https://catnip.nickthesick.com";
-	const downloadUrl = `${registryUrl}/api/packs/${encodeURIComponent(did)}/${encodeURIComponent(slug)}/download`;
+	const downloadUrl = `${REGISTRY_URL}/api/packs/${encodeURIComponent(did)}/${encodeURIComponent(slug)}/download`;
 
 	try {
 		const resp = await fetch(downloadUrl);
@@ -630,8 +707,7 @@ Electrobun.events.on("open-url", (e: { data: { url: string } }) => {
 		const [, did] = installAllMatch;
 		console.log(`[deeplink] install-all request: did=${did}`);
 
-		const registryUrl = process.env.CATNIP_REGISTRY_URL ?? "https://catnip.nickthesick.com";
-		fetch(`${registryUrl}/api/users/${encodeURIComponent(did!)}/packs`)
+		fetch(`${REGISTRY_URL}/api/users/${encodeURIComponent(did)}/packs`)
 			.then(async (resp) => {
 				if (!resp.ok) {
 					console.error(`[deeplink] install-all: failed to fetch packs (${resp.status})`);
@@ -687,7 +763,7 @@ Electrobun.events.on("open-url", (e: { data: { url: string } }) => {
 	console.log(`[deeplink] install request: did=${did} slug=${slug}`);
 
 	// Trigger the install flow (registry first, PDS fallback)
-	downloadViz(did!, slug!)
+	downloadViz(did, slug)
 		.then(async (bytes) => {
 			const stagePath = join(tmpdir(), `viz-deeplink-${process.pid}-${Date.now()}-${slug}.viz`);
 			writeFileSync(stagePath, bytes);

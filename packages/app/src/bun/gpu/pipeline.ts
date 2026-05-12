@@ -263,8 +263,8 @@ export function createPackPipeline(opts: {
 		// In our 0-indexed array of extras: extras[k] reads intermediate[k]
 		// (pass 0 wrote to intermediate[0], extras[0] is "pass 1"). Correct.
 		for (let k = 0; k < extraPassShaders.length; k++) {
-			const shaderText = extraPassShaders[k]!.shaderText;
-			const pl = buildPipeline(shaderText);
+			const extraShaderText = extraPassShaders[k].shaderText;
+			const pl = buildPipeline(extraShaderText);
 			const uniformBg = buildUniformBindGroup(pl.pipeline);
 			const paramBg = buildParamBindGroup(pl.pipeline);
 
@@ -276,7 +276,7 @@ export function createPackPipeline(opts: {
 				throw new Error(`extra pass ${k} shader has no @group(3) binding`);
 			const inputEntries = makeBindGroupEntries([
 				makeBindGroupEntrySampler(0, interSampler),
-				makeBindGroupEntryTexture(1, intermediateView[k]!),
+				makeBindGroupEntryTexture(1, intermediateView[k]),
 			]);
 			const inputDesc = makeBindGroupDescriptor(inputLayout, inputEntries.ptr, 2);
 			keepalive.push(inputEntries.buffer, inputDesc.buffer);
@@ -427,11 +427,11 @@ export function rebuildPackChain(
 
 	// Rebuild input bind groups (each extras[k] reads intermediate[k]).
 	for (let k = 0; k < pp.extraPasses.length; k++) {
-		const ep = pp.extraPasses[k]!;
+		const ep = pp.extraPasses[k];
 		const oldBg = ep.inputBindGroup;
 		const entries = makeBindGroupEntries([
 			makeBindGroupEntrySampler(0, pp.interSampler),
-			makeBindGroupEntryTexture(1, pp.intermediateView[k]!),
+			makeBindGroupEntryTexture(1, pp.intermediateView[k]),
 		]);
 		const desc = makeBindGroupDescriptor(ep.inputBindLayout, entries.ptr, 2);
 		_keepalive.push(entries.buffer, desc.buffer);

@@ -185,7 +185,7 @@ function runFrame(): void {
 			}
 		}
 
-		const timeMs = sabTime[0]!;
+		const timeMs = sabTime[0];
 		const outOffset = vizFrameFn(handle, timeMs, featuresPtr, paramsPtr);
 
 		const memBuf = memoryRef.buffer;

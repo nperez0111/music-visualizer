@@ -25,6 +25,7 @@ describe("auth", () => {
 			did: "did:plc:test123",
 			handle: "test.bsky.social",
 			service: "https://bsky.social",
+			redirectUri: "http://127.0.0.1:54321/callback",
 		};
 
 		writeFileSync(sessionPath, JSON.stringify(session, null, "\t") + "\n");
@@ -33,6 +34,7 @@ describe("auth", () => {
 		expect(loaded.did).toBe(session.did);
 		expect(loaded.handle).toBe(session.handle);
 		expect(loaded.service).toBe(session.service);
+		expect(loaded.redirectUri).toBe(session.redirectUri);
 
 		// Old fields should NOT be present
 		expect(loaded.sid).toBeUndefined();
@@ -46,16 +48,17 @@ describe("auth", () => {
 		expect(existsSync(sessionPath)).toBe(false);
 	});
 
-	test("StoredSession has exactly 3 fields", () => {
+	test("StoredSession has exactly 4 fields", () => {
 		// Validate the expected shape matches our type contract
 		const session = {
 			did: "did:plc:abc123",
 			handle: "alice.bsky.social",
 			service: "https://puffball.us-east.host.bsky.network",
+			redirectUri: "http://127.0.0.1:54321/callback",
 		};
 
 		const keys = Object.keys(session);
-		expect(keys).toEqual(["did", "handle", "service"]);
-		expect(keys.length).toBe(3);
+		expect(keys).toEqual(["did", "handle", "service", "redirectUri"]);
+		expect(keys.length).toBe(4);
 	});
 });

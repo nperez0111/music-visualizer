@@ -105,7 +105,7 @@ function flag(name: string): boolean {
 function option(name: string): string | undefined {
 	const idx = argv.indexOf(name);
 	if (idx === -1 || idx + 1 >= argv.length) return undefined;
-	const val = argv[idx + 1]!;
+	const val = argv[idx + 1];
 	argv.splice(idx, 2);
 	return val;
 }
@@ -115,7 +115,7 @@ function optionAll(name: string): string[] {
 	while (true) {
 		const idx = argv.indexOf(name);
 		if (idx === -1 || idx + 1 >= argv.length) break;
-		results.push(argv[idx + 1]!);
+		results.push(argv[idx + 1]);
 		argv.splice(idx, 2);
 	}
 	return results;
@@ -470,7 +470,7 @@ if (!webpMode && outPath) {
 	}
 	if (captureTimesS) {
 		for (const t of captureTimesS) {
-			const label = t % 1 === 0 ? `${t.toFixed(1)}` : `${t}`;
+			const label = t % 1 === 0 ? t.toFixed(1) : `${t}`;
 			log(`[render-debug] captured: ${base}_t${label}s${ext}`);
 		}
 	}

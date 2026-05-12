@@ -2,7 +2,9 @@ import { readFileSync, existsSync } from "fs";
 import { join, resolve, basename } from "path";
 import { parseArgs } from "util";
 import { zipSync } from "fflate";
+import { ok } from "@atcute/client";
 import type {} from "@atcute/atproto";
+import type { Did } from "@atcute/lexicons";
 import { validateManifest } from "@catnip/shared/manifest";
 import { computePackHash } from "@catnip/shared/hash";
 import { PACK_LIMITS } from "@catnip/shared/limits";
@@ -133,9 +135,9 @@ export async function run(args: string[]): Promise<void> {
 
 	// Upload .viz blob
 	console.log("Uploading .viz blob...");
-	const { data: blobResult } = await client.post("com.atproto.repo.uploadBlob", {
-		input: new Blob([vizBytes], { type: "application/zip" }),
-	});
+	const blobResult = await ok(client.post("com.atproto.repo.uploadBlob", {
+		input: new Blob([vizBytes as BlobPart], { type: "application/zip" }),
+	}));
 
 	// Create or update the release record (rkey = slug)
 	console.log("Creating release record...");
@@ -153,14 +155,14 @@ export async function run(args: string[]): Promise<void> {
 		releaseRecord.tags = manifest.tags.slice(0, 10);
 	}
 
-	await client.post("com.atproto.repo.putRecord", {
+	await ok(client.post("com.atproto.repo.putRecord", {
 		input: {
-			repo: session.did,
+			repo: session.did as Did,
 			collection: "com.nickthesick.catnip.release",
 			rkey: slug,
 			record: releaseRecord,
 		},
-	});
+	}));
 
 	// Create the version record (rkey = slug:version)
 	console.log("Creating version record...");
@@ -181,14 +183,14 @@ export async function run(args: string[]): Promise<void> {
 
 	// Use putRecord with explicit rkey (slug:version) — immutable, will fail
 	// if this version was already published (desired behaviour)
-	const { data: createResult } = await client.post("com.atproto.repo.putRecord", {
+	const createResult = await ok(client.post("com.atproto.repo.putRecord", {
 		input: {
-			repo: session.did,
+			repo: session.did as Did,
 			collection: "com.nickthesick.catnip.pack",
 			rkey: versionRkey,
 			record: versionRecord,
 		},
-	});
+	}));
 
 	console.log(`\nPublished ${manifest.name} v${manifest.version}`);
 	console.log(`  release: ${releaseUri}`);

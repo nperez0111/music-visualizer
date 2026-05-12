@@ -212,8 +212,8 @@ function inspectPng(path: string, expectedW: number, expectedH: number): string 
 		if (bytes[i] !== sig[i]) return "not a PNG (bad magic)";
 	}
 	// IHDR follows the signature: [length:4][type:4=IHDR][width:4][height:4]…
-	const w = (bytes[16]! << 24) | (bytes[17]! << 16) | (bytes[18]! << 8) | bytes[19]!;
-	const h = (bytes[20]! << 24) | (bytes[21]! << 16) | (bytes[22]! << 8) | bytes[23]!;
+	const w = (bytes[16] << 24) | (bytes[17] << 16) | (bytes[18] << 8) | bytes[19];
+	const h = (bytes[20] << 24) | (bytes[21] << 16) | (bytes[22] << 8) | bytes[23];
 	if (w !== expectedW || h !== expectedH) return `dimensions ${w}x${h} != ${expectedW}x${expectedH}`;
 
 	// Cheap non-empty proxy: a trivially-empty (uniform-color) frame compresses
@@ -222,8 +222,8 @@ function inspectPng(path: string, expectedW: number, expectedH: number): string 
 	// "the pack drew at least something" without needing zlib here.
 	const idatStart = findChunk(bytes, "IDAT");
 	if (idatStart < 0) return "no IDAT chunk";
-	const idatLen = (bytes[idatStart - 8]! << 24) | (bytes[idatStart - 7]! << 16)
-		| (bytes[idatStart - 6]! << 8) | bytes[idatStart - 5]!;
+	const idatLen = (bytes[idatStart - 8] << 24) | (bytes[idatStart - 7] << 16)
+		| (bytes[idatStart - 6] << 8) | bytes[idatStart - 5];
 	if (idatLen < MIN_IDAT_BYTES) {
 		return `IDAT only ${idatLen} bytes (< ${MIN_IDAT_BYTES} threshold) — pack likely drew a uniform frame`;
 	}
@@ -235,8 +235,8 @@ function inspectWebP(path: string): string | null {
 	const bytes = readFileSync(path);
 	if (bytes.length < 12) return "WebP too short";
 	// RIFF....WEBP header
-	const riff = String.fromCharCode(bytes[0]!, bytes[1]!, bytes[2]!, bytes[3]!);
-	const webp = String.fromCharCode(bytes[8]!, bytes[9]!, bytes[10]!, bytes[11]!);
+	const riff = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
+	const webp = String.fromCharCode(bytes[8], bytes[9], bytes[10], bytes[11]);
 	if (riff !== "RIFF" || webp !== "WEBP") return `not a WebP (header: ${riff}...${webp})`;
 	// Minimum size — an animated WebP at 320x240 with any content should be > 1KB
 	if (bytes.length < 1000) return `WebP suspiciously small (${bytes.length} bytes)`;
@@ -246,12 +246,12 @@ function inspectWebP(path: string): string | null {
 function findChunk(bytes: Uint8Array, type: string): number {
 	let off = 8; // skip signature
 	while (off + 8 <= bytes.length) {
-		const len = (bytes[off]! << 24) | (bytes[off + 1]! << 16) | (bytes[off + 2]! << 8) | bytes[off + 3]!;
+		const len = (bytes[off] << 24) | (bytes[off + 1] << 16) | (bytes[off + 2] << 8) | bytes[off + 3];
 		const tag =
-			String.fromCharCode(bytes[off + 4]!) +
-			String.fromCharCode(bytes[off + 5]!) +
-			String.fromCharCode(bytes[off + 6]!) +
-			String.fromCharCode(bytes[off + 7]!);
+			String.fromCharCode(bytes[off + 4]) +
+			String.fromCharCode(bytes[off + 5]) +
+			String.fromCharCode(bytes[off + 6]) +
+			String.fromCharCode(bytes[off + 7]);
 		if (tag === type) return off + 8;
 		off += 8 + len + 4;
 	}

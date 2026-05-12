@@ -38,7 +38,7 @@ function flag(name: string): boolean {
 function option(name: string): string | undefined {
 	const idx = argv.indexOf(name);
 	if (idx === -1 || idx + 1 >= argv.length) return undefined;
-	const val = argv[idx + 1]!;
+	const val = argv[idx + 1];
 	argv.splice(idx, 2);
 	return val;
 }

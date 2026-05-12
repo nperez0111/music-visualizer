@@ -5,5 +5,5 @@ export default defineEventHandler((event) => {
 	const jwks = getOAuthClient().jwks;
 	if (!jwks) throw createError({ statusCode: 404, statusMessage: "No JWKS configured" });
 	setResponseHeader(event, "Cache-Control", "public, max-age=86400");
-	return jwks;
+	return jwks as { keys: readonly unknown[] };
 });

@@ -16,12 +16,17 @@
 		"test:gpu": "bun run --cwd packages/app test:gpu",
 		"render-pack": "bun run --cwd packages/app render-pack",
 		"dev:server": "bun run --cwd packages/server dev",
+		"typecheck": "tsgo --build",
+		"lint": "oxlint",
 		"release": "bumpp",
 		"lexgen": "lex-cli generate"
 	},
 	"devDependencies": {
 		"@atcute/lex-cli": "2.8.1",
+		"@typescript/native-preview": "7.0.0-dev.20260511.1",
 		"bumpp": "11.0.1",
+		"oxlint": "1.64.0",
+		"oxlint-tsgolint": "0.22.1",
 		"typescript": "6.0.3"
 	}
 }

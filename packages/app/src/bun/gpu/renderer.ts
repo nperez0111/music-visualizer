@@ -5,7 +5,7 @@ import { join } from "path";
 import {
 	makeRequestCallbackInfo,
 	makeSurfaceConfiguration,
-	PresentMode_Fifo,
+	PresentMode_Mailbox,
 	TextureFormat_BGRA8Unorm,
 } from "./wgpu-helpers";
 
@@ -22,9 +22,25 @@ export type Renderer = {
 	/** Zero in headless mode — readers must guard before calling surface APIs. */
 	surface: number;
 	surfaceFormat: number;
+	/** Full physical/retina size for the surface (always full resolution). */
 	getSize: () => { width: number; height: number };
+	/**
+	 * Scaled render size for intermediate targets (pack shaders). When
+	 * renderScale < 1, this is smaller than getSize() — the composite pass
+	 * bilinear-upscales from this to the full surface.
+	 */
+	getRenderSize: () => { width: number; height: number };
 	/** Reconfigure the surface for a new size; safe to call every frame. No-op in headless mode. */
 	reconfigure: (width: number, height: number) => void;
+	/**
+	 * Set the render scale factor (0..1]. 1.0 = full retina resolution,
+	 * 0.5 = half resolution (quarter pixel count), etc.  Lower values
+	 * dramatically improve performance for heavy fragment shaders at the
+	 * cost of sharpness.  No-op in headless mode.
+	 */
+	setRenderScale: (scale: number) => void;
+	/** Current render scale factor (1.0 = full retina). */
+	getRenderScale: () => number;
 };
 
 /**
@@ -54,8 +70,8 @@ export async function createRenderer(view: SurfaceSource): Promise<Renderer> {
 
 	const surface = WGPUBridge.createSurfaceForView(
 		instance,
-		view.ptr as number,
-	) as number;
+		view.ptr,
+	);
 	if (!surface) throw new Error("createSurfaceForView returned null");
 
 	const adapterDevice = new BigUint64Array(2);
@@ -83,7 +99,7 @@ export async function createRenderer(view: SurfaceSource): Promise<Renderer> {
 
 	function reconfigure(width: number, height: number) {
 		if (width === lastWidth && height === lastHeight) return;
-		const cfg = makeSurfaceConfiguration(device, width, height, surfaceFormat, PresentMode_Fifo);
+		const cfg = makeSurfaceConfiguration(device, width, height, surfaceFormat, PresentMode_Mailbox);
 		WGPUBridge.surfaceConfigure(surface, cfg.ptr);
 		lastWidth = width;
 		lastHeight = height;
@@ -101,11 +117,48 @@ export async function createRenderer(view: SurfaceSource): Promise<Renderer> {
 	}
 	const scaleFactor = _Screen.getPrimaryDisplay().scaleFactor || 1;
 
+	// Render scale: 1.0 = full retina, 0.5 = half res (quarter pixels), etc.
+	// The surface is always configured at full retina resolution so it fills
+	// the window. The render scale only affects intermediate render targets
+	// (where the expensive pack shaders run). The composite pass upscales the
+	// reduced-resolution targets to the full surface via bilinear sampling.
+	let renderScale = 1.0;
+
+	// Cached size objects — reused across frames to avoid per-frame allocation.
+	// Updated lazily when the underlying frame dimensions or scale change.
+	const cachedPhysical = { width: 0, height: 0 };
+	const cachedRender = { width: 0, height: 0 };
+	let sizeGeneration = 0;
+	let renderSizeGen = -1;
+	let renderScaleAtGen = -1;
+
 	function physicalSize(): { width: number; height: number } {
-		return {
-			width: Math.round(view.frame.width * scaleFactor),
-			height: Math.round(view.frame.height * scaleFactor),
-		};
+		const w = Math.round(view.frame.width * scaleFactor);
+		const h = Math.round(view.frame.height * scaleFactor);
+		if (w !== cachedPhysical.width || h !== cachedPhysical.height) {
+			cachedPhysical.width = w;
+			cachedPhysical.height = h;
+			sizeGeneration++;
+		}
+		return cachedPhysical;
+	}
+
+	function setRenderScale(scale: number): void {
+		const clamped = Math.max(0.1, Math.min(1.0, scale));
+		if (clamped === renderScale) return;
+		renderScale = clamped;
+	}
+
+	function renderSize(): { width: number; height: number } {
+		const full = physicalSize();
+		if (renderScale >= 1.0) return full;
+		if (renderSizeGen !== sizeGeneration || renderScaleAtGen !== renderScale) {
+			renderSizeGen = sizeGeneration;
+			renderScaleAtGen = renderScale;
+			cachedRender.width = Math.max(1, Math.round(full.width * renderScale));
+			cachedRender.height = Math.max(1, Math.round(full.height * renderScale));
+		}
+		return cachedRender;
 	}
 
 	const initial = physicalSize();
@@ -119,7 +172,10 @@ export async function createRenderer(view: SurfaceSource): Promise<Renderer> {
 		surface,
 		surfaceFormat,
 		getSize: physicalSize,
+		getRenderSize: renderSize,
 		reconfigure,
+		setRenderScale,
+		getRenderScale: () => renderScale,
 	};
 }
 
@@ -164,7 +220,10 @@ export function createHeadlessRenderer(opts: { width: number; height: number }):
 		surface: 0,
 		surfaceFormat: TextureFormat_BGRA8Unorm,
 		getSize: () => size,
+		getRenderSize: () => size,
 		reconfigure: () => {},
+		setRenderScale: () => {},
+		getRenderScale: () => 1.0,
 	};
 }
 
@@ -207,9 +266,9 @@ function loadRequestShim(): RequestShim | null {
 			});
 			cachedShim = {
 				requestAdapter: (instance, cbInfoPtr) =>
-					lib.symbols.headlessShimRequestAdapter(instance as any, 0 as any, cbInfoPtr as any) as bigint,
+					lib.symbols.headlessShimRequestAdapter(instance as any, 0 as any, cbInfoPtr as any),
 				requestDevice: (adapter, cbInfoPtr) =>
-					lib.symbols.headlessShimRequestDevice(adapter as any, 0 as any, cbInfoPtr as any) as bigint,
+					lib.symbols.headlessShimRequestDevice(adapter as any, 0 as any, cbInfoPtr as any),
 			};
 			return cachedShim;
 		} catch (err) {
@@ -227,7 +286,7 @@ function requestAdapterSync(instance: number): number {
 	let done = false;
 	const cb = new JSCallback(
 		(_status: number, adapterPtr: number) => {
-			result = Number(adapterPtr);
+			result = adapterPtr;
 			done = true;
 		},
 		// (status: u32, adapter: ptr, message_data: ptr, message_length: u64, ud1: ptr, ud2: ptr)
@@ -258,7 +317,7 @@ function requestDeviceSync(instance: number, adapter: number): number {
 	let done = false;
 	const cb = new JSCallback(
 		(_status: number, devicePtr: number) => {
-			result = Number(devicePtr);
+			result = devicePtr;
 			done = true;
 		},
 		{

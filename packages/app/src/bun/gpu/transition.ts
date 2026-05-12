@@ -16,6 +16,7 @@ import {
 	makePrimitiveState,
 	makeRenderPassColorAttachment,
 	makeRenderPassDescriptor,
+	updateRenderPassColorAttachmentView,
 	makeRenderPipelineDescriptor,
 	makeSamplerDescriptor,
 	makeShaderModuleDescriptor,
@@ -139,7 +140,7 @@ fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
 };
 
 export function pickRandomTransitionVariant(): TransitionVariant {
-	return TRANSITION_VARIANTS[Math.floor(Math.random() * TRANSITION_VARIANTS.length)]!;
+	return TRANSITION_VARIANTS[Math.floor(Math.random() * TRANSITION_VARIANTS.length)];
 }
 
 export type TransitionRig = {
@@ -148,7 +149,12 @@ export type TransitionRig = {
 	setSize(width: number, height: number): void;
 	targetAView(): number;
 	targetBView(): number;
-	composite(encoder: number, swapView: number, mix: number, variant: TransitionVariant): void;
+	/**
+	 * Composite the intermediate targets to the swapchain surface.
+	 * `surfaceWidth`/`surfaceHeight` are the actual surface dimensions (may
+	 * differ from the rig's target size when render scale < 1).
+	 */
+	composite(encoder: number, swapView: number, mix: number, variant: TransitionVariant, surfaceWidth: number, surfaceHeight: number): void;
 	targetFormat: number;
 	/** Sampler bound by packs that opt into prev-frame feedback. */
 	prevSampler(): number;
@@ -335,11 +341,19 @@ export function createTransitionRig(renderer: Renderer): TransitionRig {
 	const uboStaging = new ArrayBuffer(UNIFORM_SIZE);
 	const uboView = new DataView(uboStaging);
 
-	function composite(encoder: number, swapView: number, mix: number, variant: TransitionVariant) {
+	// Pre-allocated descriptors for the composite render pass — reused every
+	// frame during a transition. Only the view pointer changes per-call.
+	const compositeColorAttachment = makeRenderPassColorAttachment(0, [0, 0, 0, 1]);
+	const compositeRenderPassDesc = makeRenderPassDescriptor(compositeColorAttachment.ptr);
+
+	function composite(encoder: number, swapView: number, mix: number, variant: TransitionVariant, surfaceWidth: number, surfaceHeight: number) {
 		uboView.setFloat32(0, mix, true);
 		uboView.setFloat32(4, 0, true);
-		uboView.setFloat32(8, width, true);
-		uboView.setFloat32(12, height, true);
+		// Resolution must match the surface we're rendering to (not the
+		// intermediate target size), so that frag_pos.xy / u.resolution
+		// produces correct 0..1 UVs for texture sampling.
+		uboView.setFloat32(8, surfaceWidth, true);
+		uboView.setFloat32(12, surfaceHeight, true);
 		native.symbols.wgpuQueueWriteBuffer(
 			asPtr(renderer.queue),
 			asPtr(compositeUbo),
@@ -350,11 +364,10 @@ export function createTransitionRig(renderer: Renderer): TransitionRig {
 
 		const pipeline = variantPipelines[variant] ?? variantPipelines.crossfade;
 		const bindGroup = variantBindGroups[variant] ?? variantBindGroups.crossfade;
-		const colorAttachment = makeRenderPassColorAttachment(swapView, [0, 0, 0, 1]);
-		const renderPassDesc = makeRenderPassDescriptor(colorAttachment.ptr);
+		updateRenderPassColorAttachmentView(compositeColorAttachment, swapView);
 		const pass = native.symbols.wgpuCommandEncoderBeginRenderPass(
 			asPtr(encoder),
-			asPtr(renderPassDesc.ptr),
+			asPtr(compositeRenderPassDesc.ptr),
 		) as number;
 		native.symbols.wgpuRenderPassEncoderSetPipeline(asPtr(pass), asPtr(pipeline));
 		native.symbols.wgpuRenderPassEncoderSetBindGroup(asPtr(pass), 0, asPtr(bindGroup), 0, asPtr(0));

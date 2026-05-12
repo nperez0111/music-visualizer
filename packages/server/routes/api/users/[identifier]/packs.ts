@@ -12,7 +12,7 @@
  */
 
 import { defineHandler } from "nitro";
-import { getRouterParams, getRequestURL, createError } from "nitro/h3";
+import { getRouterParams, createError } from "nitro/h3";
 import {
 	CompositeHandleResolver,
 	DohJsonHandleResolver,

@@ -27,7 +27,7 @@ struct FragmentOutput {
 }
 
 @group(0) @binding(0) 
-var<uniform> u: Uniforms;
+var<uniform> _cn_u: Uniforms;
 var<private> _fragColor: vec4<f32>;
 var<private> gl_FragCoord_1: vec4<f32>;
 
@@ -46,17 +46,17 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
 
     fragCoord_1 = fragCoord;
     let _e27 = fragCoord_1;
-    let _e28 = u.resolution;
+    let _e28 = _cn_u.resolution;
     uv = (_e27 / vec3<f32>(_e28.x, _e28.y, 1f).xy);
-    let _e36 = u.time_ms;
+    let _e36 = _cn_u.time_ms;
     t = (_e36 / 1000f);
-    let _e41 = u.bass;
+    let _e41 = _cn_u.bass;
     speed = (1f + (_e41 * 2f));
-    let _e47 = u.mid;
+    let _e47 = _cn_u.mid;
     scale = (10f + (_e47 * 5f));
-    let _e53 = u.treble;
+    let _e53 = _cn_u.treble;
     warp = (0.5f + (_e53 * 1.5f));
-    let _e60 = u.beat_phase;
+    let _e60 = _cn_u.beat_phase;
     pulse = (0.8f + (0.2f * sin((_e60 * 6.28318f))));
     let _e69 = v;
     let _e70 = uv;
@@ -106,12 +106,17 @@ fn mainImage(fragColor: ptr<function, vec4<f32>>, fragCoord: vec2<f32>) {
 }
 
 fn main_1() {
+    var _fc: vec2<f32>;
     var local: vec4<f32>;
 
-    let _e27 = gl_FragCoord_1;
-    mainImage((&local), _e27.xy);
-    let _e31 = local;
-    _fragColor = _e31;
+    let _e26 = gl_FragCoord_1;
+    let _e28 = _cn_u.resolution;
+    let _e30 = gl_FragCoord_1;
+    _fc = vec2<f32>(_e26.x, (_e28.y - _e30.y));
+    let _e36 = _fc;
+    mainImage((&local), _e36);
+    let _e39 = local;
+    _fragColor = _e39;
     return;
 }
 

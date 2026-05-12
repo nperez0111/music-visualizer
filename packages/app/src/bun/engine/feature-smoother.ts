@@ -63,7 +63,7 @@ export class FeatureSmoother {
 			const lo = Math.max(1, Math.floor(fLo / binHz));
 			const hi = Math.min(halfBins - 1, Math.max(lo, Math.ceil(fHi / binHz)));
 			let sum = 0;
-			for (let j = lo; j <= hi; j++) sum += mags[j]!;
+			for (let j = lo; j <= hi; j++) sum += mags[j];
 			// Average per band so high-freq bins (which cover many FFT bins on a
 			// log scale) don't get inflated relative to bass bins. Matches the
 			// per-band averaging already used by bandSum in analysis.ts.
@@ -87,7 +87,7 @@ export class FeatureSmoother {
 	private smoothSpectrumPass(): void {
 		const a = 0.35;
 		for (let i = 0; i < this.bins; i++) {
-			this.spectrum[i] = ema(this.spectrum[i]!, this.displaySpectrum[i]!, a);
+			this.spectrum[i] = ema(this.spectrum[i], this.displaySpectrum[i], a);
 		}
 	}
 }

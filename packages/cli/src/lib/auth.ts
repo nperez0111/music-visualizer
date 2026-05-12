@@ -14,7 +14,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync, unlinkSync, readdir
 import { join } from "path";
 import { homedir } from "os";
 
-import { OAuthClient, type StoredState } from "@atcute/oauth-node-client";
+import { OAuthClient } from "@atcute/oauth-node-client";
 import {
 	CompositeDidDocumentResolver,
 	CompositeHandleResolver,
@@ -33,6 +33,13 @@ export type StoredSession = {
 	handle: string;
 	/** The user's PDS service endpoint URL (e.g. https://bsky.social). */
 	service: string;
+	/**
+	 * The redirect URI used during login (e.g. `http://127.0.0.1:62682/callback`).
+	 * Must be preserved so the OAuthClient reconstructs the same `client_id`
+	 * when restoring the session — the PDS binds tokens to the full client_id
+	 * which includes the port number.
+	 */
+	redirectUri: string;
 };
 
 const CONFIG_DIR = join(homedir(), ".config", "catnip");
@@ -224,10 +231,15 @@ export function requireSession(): StoredSession {
  * Restore the OAuth session for the currently logged-in user and return
  * an authenticated XRPC `Client` instance. Tokens are automatically
  * refreshed if expired.
+ *
+ * Uses the stored `redirectUri` from login to reconstruct the OAuthClient
+ * with the same `client_id` that the PDS originally issued tokens for.
+ * Without this, token refresh fails because the PDS sees a client_id mismatch
+ * (the loopback client_id includes the port number from the redirect URI).
  */
 export async function getAuthenticatedClient(): Promise<Client> {
 	const session = requireSession();
-	const oauth = getOAuthClient();
+	const oauth = getOAuthClient(session.redirectUri);
 	const oauthSession = await oauth.restore(session.did as Did);
 	return new Client({ handler: oauthSession });
 }

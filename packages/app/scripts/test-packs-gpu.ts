@@ -42,7 +42,7 @@ const timeout = setTimeout(() => {
 	setTimeout(() => process.exit(2), 1000);
 }, TIMEOUT_MS);
 
-const reader = child.stdout!.getReader();
+const reader = child.stdout.getReader();
 let buf = "";
 while (true) {
 	const { value, done } = await reader.read();

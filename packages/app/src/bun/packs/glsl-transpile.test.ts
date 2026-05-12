@@ -27,7 +27,7 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 		expect(r.wgsl).toContain("fn fs_main");
 		expect(r.wgsl).toContain("@fragment");
 
-		// Should use `u.` for uniform access (not `global.`)
+		// Should use `_cn_u.` for uniform access (not `global.`)
 		expect(r.wgsl).not.toContain("global.");
 	});
 
@@ -45,8 +45,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 			return;
 		}
 
-		// Should reference u.bass, u.mid, etc. (Naga maps struct fields → u.field)
-		expect(r.wgsl).toContain("u.");
+		// Should reference _cn_u.bass, _cn_u.mid, etc. (Naga maps struct fields → _cn_u.field)
+		expect(r.wgsl).toContain("_cn_u.");
 	});
 
 	test.skipIf(!nagaAvailable)("transpiles shader with void main()", () => {
@@ -182,8 +182,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 		expect(r.wgsl).toContain("speed");
 		expect(r.wgsl).toContain("tint");
 
-		// Should use `p.` for parameter access (not `global_1.`)
-		expect(r.wgsl).toContain("p.");
+		// Should use `_cn_p.` for parameter access (not `global_1.`)
+		expect(r.wgsl).toContain("_cn_p.");
 		expect(r.wgsl).not.toContain("global_1.");
 
 		// Should have @group(1) binding
@@ -248,20 +248,63 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
 			return;
 		}
 
-		// Uniforms at @group(0) with `u.` access
+		// Uniforms at @group(0) with `_cn_u.` access
 		expect(r.wgsl).toContain("@group(0)");
-		expect(r.wgsl).toContain("u.");
+		expect(r.wgsl).toContain("_cn_u.");
 
-		// Params at @group(1) with `p.` access
+		// Params at @group(1) with `_cn_p.` access
 		expect(r.wgsl).toContain("@group(1)");
-		expect(r.wgsl).toContain("p.");
+		expect(r.wgsl).toContain("_cn_p.");
 
 		// Prev-frame at @group(2)
 		expect(r.wgsl).toContain("@group(2)");
 
 		// No stale Naga variable names
-		expect(r.wgsl).not.toContain("global.");
+		expect(r.wgsl).not.toMatch(/\bglobal\./);
 		expect(r.wgsl).not.toContain("global_1.");
+	});
+
+	// ---- Variable name collisions ----
+
+	test.skipIf(!nagaAvailable)("local `vec2 u` does not shadow uniform access", () => {
+		const glsl = `
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+  vec2 u = fragCoord.xy;
+  vec2 uv = u / iResolution.xy;
+  fragColor = vec4(uv, 0.5 + 0.5 * sin(iTime), 1.0);
+}`;
+		const r = transpileGlslToWgsl(glsl);
+		expect(r.ok).toBe(true);
+		if (!r.ok) {
+			console.error("Transpile error:", r.error, "stage:", r.stage);
+			return;
+		}
+
+		// Uniform access must use _cn_u (collision-safe), not bare `u`
+		expect(r.wgsl).toContain("_cn_u.");
+		// The local `u` variable should NOT be renamed
+		expect(r.wgsl).toContain("var u:");
+	});
+
+	test.skipIf(!nagaAvailable)("local `vec3 p` does not shadow param access", () => {
+		const glsl = `
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+  vec3 p = vec3(fragCoord, 0.0);
+  fragColor = vec4(p * speed.x, 1.0);
+}`;
+		const r = transpileGlslToWgsl(glsl, {
+			parameters: [{ name: "speed" }],
+		});
+		expect(r.ok).toBe(true);
+		if (!r.ok) {
+			console.error("Transpile error:", r.error, "stage:", r.stage);
+			return;
+		}
+
+		// Param access must use _cn_p (collision-safe), not bare `p`
+		expect(r.wgsl).toContain("_cn_p.");
+		// The local `p` variable should NOT be renamed
+		expect(r.wgsl).toContain("var p:");
 	});
 
 	// ---- Inter-pass ----
@@ -285,5 +328,128 @@ void main() {
 		expect(r.wgsl).toContain("@group(3)");
 		expect(r.wgsl).toContain("pass_sampler");
 		expect(r.wgsl).toContain("pass_tex");
+	});
+
+	// ---- Shadertoy compatibility: iGlobalTime ----
+
+	test.skipIf(!nagaAvailable)("transpiles shader using iGlobalTime (legacy alias)", () => {
+		const glsl = `
+void mainImage(out vec4 f, vec2 p) {
+  p /= iResolution.xy;
+  f = vec4(p, .5+.5*sin(iGlobalTime), 1);
+}`;
+		const r = transpileGlslToWgsl(glsl);
+		expect(r.ok).toBe(true);
+		if (!r.ok) {
+			console.error("Transpile error:", r.error, "stage:", r.stage);
+			return;
+		}
+
+		expect(r.wgsl).toContain("fn fs_main");
+		expect(r.wgsl).toContain("fn vs_main");
+	});
+
+	// ---- Shadertoy compatibility: mainImage without `in` keyword ----
+
+	test.skipIf(!nagaAvailable)("transpiles mainImage without `in` keyword", () => {
+		const glsl = `
+void mainImage(out vec4 fragColor, vec2 fragCoord) {
+  vec2 uv = fragCoord / iResolution.xy;
+  fragColor = vec4(uv, 0.5 + 0.5 * sin(iTime), 1.0);
+}`;
+		const r = transpileGlslToWgsl(glsl);
+		expect(r.ok).toBe(true);
+		if (!r.ok) {
+			console.error("Transpile error:", r.error, "stage:", r.stage);
+			return;
+		}
+
+		expect(r.wgsl).toContain("fn fs_main");
+		expect(r.wgsl).toContain("fn vs_main");
+	});
+
+	// ---- Shadertoy compatibility: iChannel texture stubs ----
+
+	test.skipIf(!nagaAvailable)("transpiles shader with iChannel0 texture calls (stubbed)", () => {
+		const glsl = `
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+  vec2 uv = fragCoord / iResolution.xy;
+  vec4 tex = texture(iChannel0, uv);
+  fragColor = tex + vec4(0.1);
+}`;
+		const r = transpileGlslToWgsl(glsl);
+		expect(r.ok).toBe(true);
+		if (!r.ok) {
+			console.error("Transpile error:", r.error, "stage:", r.stage);
+			return;
+		}
+
+		expect(r.wgsl).toContain("fn fs_main");
+		// iChannel0 references should be gone (stubbed to vec4(0.0))
+		expect(r.wgsl).not.toContain("iChannel");
+	});
+
+	test.skipIf(!nagaAvailable)("transpiles shader with texture2D + iChannel0 (legacy GLSL)", () => {
+		const glsl = `
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+  vec2 uv = fragCoord / iResolution.xy;
+  fragColor = texture2D(iChannel0, uv);
+}`;
+		const r = transpileGlslToWgsl(glsl);
+		expect(r.ok).toBe(true);
+		if (!r.ok) {
+			console.error("Transpile error:", r.error, "stage:", r.stage);
+			return;
+		}
+
+		expect(r.wgsl).toContain("fn fs_main");
+	});
+
+	// ---- Shadertoy compatibility: precision qualifiers ----
+
+	test.skipIf(!nagaAvailable)("transpiles shader with precision qualifiers", () => {
+		const glsl = `
+precision mediump float;
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+  vec2 uv = fragCoord / iResolution.xy;
+  fragColor = vec4(uv, 0.0, 1.0);
+}`;
+		const r = transpileGlslToWgsl(glsl);
+		expect(r.ok).toBe(true);
+		if (!r.ok) {
+			console.error("Transpile error:", r.error, "stage:", r.stage);
+			return;
+		}
+
+		expect(r.wgsl).toContain("fn fs_main");
+	});
+
+	// ---- Shadertoy compatibility: sampler2D function params with iChannel ----
+
+	test.skipIf(!nagaAvailable)("transpiles shader with sampler2D function params + iChannel (tri-planar texture)", () => {
+		const glsl = `
+vec3 tex3D(sampler2D tex, in vec3 p, in vec3 n) {
+  n = max((abs(n) - .2), .001);
+  n /= (n.x + n.y + n.z);
+  p = (texture(tex, p.yz)*n.x + texture(tex, p.zx)*n.y + texture(tex, p.xy)*n.z).xyz;
+  return p*p;
+}
+
+void mainImage(out vec4 fragColor, in vec2 fragCoord) {
+  vec2 uv = fragCoord / iResolution.xy;
+  vec3 col = tex3D(iChannel0, vec3(uv, 0.0), vec3(0.0, 0.0, 1.0));
+  fragColor = vec4(col, 1.0);
+}`;
+		const r = transpileGlslToWgsl(glsl);
+		expect(r.ok).toBe(true);
+		if (!r.ok) {
+			console.error("Transpile error:", r.error, "stage:", r.stage);
+			return;
+		}
+
+		expect(r.wgsl).toContain("fn fs_main");
+		expect(r.wgsl).toContain("fn vs_main");
+		// Should not contain any iChannel references
+		expect(r.wgsl).not.toContain("iChannel");
 	});
 });

@@ -33,6 +33,13 @@ docker-out/
 *.p12
 .env
 
+# TypeScript composite build outputs
+*.tsbuildinfo
+packages/shared/src/*.d.ts
+packages/shared/src/*.d.ts.map
+packages/lexicons/src/**/*.d.ts
+packages/lexicons/src/**/*.d.ts.map
+
 # Local agent state
 .claude/settings.local.json
 .opencode/

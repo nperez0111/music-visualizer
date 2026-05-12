@@ -525,7 +525,7 @@ export function makeRenderPassColorAttachment(
 	viewPtr: number,
 	clear: ClearColor = [0, 0, 0, 1],
 	loadOp: number = LoadOp_Clear,
-): Descriptor {
+): Descriptor & { view: DataView } {
 	const d = descriptor(72);
 	writePtr(d.view, 0, 0);
 	writePtr(d.view, 8, viewPtr);
@@ -539,6 +539,11 @@ export function makeRenderPassColorAttachment(
 	writeF64(d.view, 56, clear[2]);
 	writeF64(d.view, 64, clear[3]);
 	return d;
+}
+
+/** Update only the view pointer in a pre-allocated color attachment descriptor. */
+export function updateRenderPassColorAttachmentView(d: { view: DataView }, viewPtr: number): void {
+	writePtr(d.view, 8, viewPtr);
 }
 
 export function makeRenderPassDescriptor(colorAttachmentPtr: number): Descriptor {
@@ -565,6 +570,11 @@ export function makeCommandEncoderDescriptor(): Descriptor {
 export function makeCommandBufferArray(cmdPtr: number) {
 	const buffer = new BigUint64Array([BigInt(cmdPtr)]);
 	return { buffer, ptr: ptr(buffer) as number };
+}
+
+/** Update the command buffer pointer in a pre-allocated array. */
+export function updateCommandBufferArray(arr: { buffer: BigUint64Array }, cmdPtr: number): void {
+	arr.buffer[0] = BigInt(cmdPtr);
 }
 
 // ---------- Misc ----------

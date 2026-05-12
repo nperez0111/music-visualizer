@@ -5,6 +5,7 @@
 		"module": "ESNext",
 		"resolveJsonModule": true,
 		"allowJs": true,
+		"composite": true,
 		"isolatedModules": true,
 		"moduleDetection": "force",
 		"noEmit": true,
@@ -16,5 +17,8 @@
 		"skipLibCheck": true
 	},
 	"include": ["src"],
-	"exclude": ["node_modules", "dist", "build", "../../package/dist", "src/packs/*/pack.ts"]
+	"exclude": ["node_modules", "dist", "build", "../../package/dist", "src/packs/*/pack.ts"],
+	"references": [
+		{ "path": "../shared" }
+	]
 }

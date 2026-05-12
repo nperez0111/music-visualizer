@@ -3,7 +3,7 @@
  * Usage: bun scripts/stress-test-transpiler.ts
  */
 import { readFileSync, readdirSync, existsSync } from "fs";
-import { join, basename } from "path";
+import { join } from "path";
 import { transpileGlslToWgsl } from "../src/bun/packs/glsl-transpile";
 
 const DIRS = ["shaders", "test-shaders/glsl-edge-cases"];

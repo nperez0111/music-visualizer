@@ -18,7 +18,7 @@ let failed = 0;
 // ---------------------------------------------------------------------------
 
 const glslPacks = Array.from(new Glob("*/manifest.json").scanSync(PACKS_DIR))
-	.map((rel) => rel.split("/")[0]!)
+	.map((rel) => rel.split("/")[0])
 	.sort();
 
 let glslCount = 0;
@@ -33,7 +33,7 @@ for (const id of glslPacks) {
 		continue;
 	}
 
-	const mainIsGlsl = typeof manifest.shader === "string" && (manifest.shader as string).endsWith(".glsl");
+	const mainIsGlsl = typeof manifest.shader === "string" && manifest.shader.endsWith(".glsl");
 	const passShaders: string[] = [];
 	if (Array.isArray(manifest.passes)) {
 		for (const pass of manifest.passes as Array<Record<string, unknown>>) {
@@ -103,7 +103,7 @@ if (glslCount > 0) {
 // ---------------------------------------------------------------------------
 
 const tier2Packs = Array.from(new Glob("*/pack.ts").scanSync(PACKS_DIR))
-	.map((rel) => rel.split("/")[0]!)
+	.map((rel) => rel.split("/")[0])
 	.sort();
 
 if (tier2Packs.length === 0 && glslCount === 0) {

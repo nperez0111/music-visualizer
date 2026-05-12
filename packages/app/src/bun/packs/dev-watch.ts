@@ -49,8 +49,8 @@ export function watchPacksDir(opts: {
 			if (!filename) return;
 			const parts = filename.split(/[\\/]/);
 			if (parts.length < 2) return;
-			const dirName = parts[0]!;
-			const file = parts[parts.length - 1]!;
+			const dirName = parts[0];
+			const file = parts[parts.length - 1];
 			if (file !== "manifest.json" && !file.endsWith(".wgsl") && !file.endsWith(".wasm")) return;
 
 			let bucket = buckets.get(dirName);

@@ -160,7 +160,7 @@ export default defineHandler(async () => {
 			: ""
 	}
 	${
-		popularPacks.length > 0 && popularPacks.some((p) => p.install_count > 0)
+		popularPacks.some((p) => p.install_count > 0)
 			? `<section class="section">
 		<div class="section-header">
 			<h2>Most popular</h2>

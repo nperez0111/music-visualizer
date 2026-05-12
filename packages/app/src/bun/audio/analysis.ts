@@ -47,11 +47,11 @@ function fft(re: Float32Array, im: Float32Array, n: number) {
 		for (; j & bit; bit >>= 1) j ^= bit;
 		j ^= bit;
 		if (i < j) {
-			const tr = re[i]!;
-			re[i] = re[j]!;
+			const tr = re[i];
+			re[i] = re[j];
 			re[j] = tr;
-			const ti = im[i]!;
-			im[i] = im[j]!;
+			const ti = im[i];
+			im[i] = im[j];
 			im[j] = ti;
 		}
 	}
@@ -61,14 +61,14 @@ function fft(re: Float32Array, im: Float32Array, n: number) {
 		const step = n / size;
 		for (let i = 0; i < n; i += size) {
 			for (let j = i, k = 0; j < i + half; j++, k += step) {
-				const wr = cos[k]!;
-				const wi = sin[k]!;
-				const tr = wr * re[j + half]! - wi * im[j + half]!;
-				const ti = wr * im[j + half]! + wi * re[j + half]!;
-				re[j + half] = re[j]! - tr;
-				im[j + half] = im[j]! - ti;
-				re[j] = re[j]! + tr;
-				im[j] = im[j]! + ti;
+				const wr = cos[k];
+				const wi = sin[k];
+				const tr = wr * re[j + half] - wi * im[j + half];
+				const ti = wr * im[j + half] + wi * re[j + half];
+				re[j + half] = re[j] - tr;
+				im[j + half] = im[j] - ti;
+				re[j] = re[j] + tr;
+				im[j] = im[j] + ti;
 			}
 		}
 	}
@@ -117,6 +117,10 @@ export class AudioAnalyzer {
 	private frameDtMs = 16.7;
 	private prevComputeMs = 0;
 
+	/** Cached result from the last compute(); mutated in-place and re-returned when ring buffer hasn't changed. */
+	private cachedFeatures: AudioFeatures = { ...ZERO_FEATURES };
+	private lastBufferGen = -1;
+
 	constructor(
 		private readonly buffer: RingBuffer,
 		public sampleRate: number,
@@ -156,7 +160,7 @@ export class AudioAnalyzer {
 		const start = (this.onsetIdx - N + ring) % ring;
 		// Mean-subtract for cleaner autocorrelation peaks.
 		let mean = 0;
-		for (let i = 0; i < N; i++) mean += env[(start + i) % ring]!;
+		for (let i = 0; i < N; i++) mean += env[(start + i) % ring];
 		mean /= N;
 
 		let bestLag = -1;
@@ -165,8 +169,8 @@ export class AudioAnalyzer {
 			let sum = 0;
 			const end = N - lag;
 			for (let i = 0; i < end; i++) {
-				const a = env[(start + i) % ring]! - mean;
-				const b = env[(start + i + lag) % ring]! - mean;
+				const a = env[(start + i) % ring] - mean;
+				const b = env[(start + i + lag) % ring] - mean;
 				sum += a * b;
 			}
 			if (sum > bestVal) {
@@ -183,6 +187,12 @@ export class AudioAnalyzer {
 		if (!this.buffer.hasEnough(n / 4)) {
 			return ZERO_FEATURES;
 		}
+		// Skip the expensive FFT when no new audio data has arrived since the
+		// last compute(). The ring buffer's generation counter is bumped on
+		// every write; if it hasn't changed, the spectrum is identical.
+		const gen = this.buffer.generation;
+		if (gen === this.lastBufferGen) return { ...this.cachedFeatures };
+		this.lastBufferGen = gen;
 
 		// Track average frame interval for the autocorrelation lag↔ms conversion.
 		if (this.prevComputeMs > 0) {
@@ -197,7 +207,7 @@ export class AudioAnalyzer {
 		let sumSq = 0;
 		let peak = 0;
 		for (let i = 0; i < n; i++) {
-			const v = this.windowed[i]!;
+			const v = this.windowed[i];
 			sumSq += v * v;
 			const a = Math.abs(v);
 			if (a > peak) peak = a;
@@ -206,7 +216,7 @@ export class AudioAnalyzer {
 
 		// Apply Hann window into the FFT input.
 		for (let i = 0; i < n; i++) {
-			this.re[i] = this.windowed[i]! * this.hann[i]!;
+			this.re[i] = this.windowed[i] * this.hann[i];
 			this.im[i] = 0;
 		}
 		fft(this.re, this.im, n);
@@ -216,8 +226,8 @@ export class AudioAnalyzer {
 		// previous frame's spectrum.
 		let flux = 0;
 		for (let i = 0; i < half; i++) {
-			const m = Math.hypot(this.re[i]!, this.im[i]!) / n;
-			const d = m - this.prevBins[i]!;
+			const m = Math.hypot(this.re[i], this.im[i]) / n;
+			const d = m - this.prevBins[i];
 			if (d > 0) flux += d;
 			this.prevBins[i] = m;
 			this.bins[i] = m;
@@ -228,7 +238,7 @@ export class AudioAnalyzer {
 			const lo = Math.max(1, Math.floor(loHz / binHz));
 			const hi = Math.min(half - 1, Math.ceil(hiHz / binHz));
 			let sum = 0;
-			for (let i = lo; i <= hi; i++) sum += this.bins[i]!;
+			for (let i = lo; i <= hi; i++) sum += this.bins[i];
 			return sum / (hi - lo + 1);
 		};
 		const bass = Math.min(1, bandSum(20, 200) * 12);
@@ -243,7 +253,7 @@ export class AudioAnalyzer {
 		this.fluxHistory[this.fluxHistoryIdx] = flux;
 		this.fluxHistoryIdx = (this.fluxHistoryIdx + 1) % FLUX_HISTORY_LEN;
 		let fluxMean = 0;
-		for (let i = 0; i < FLUX_HISTORY_LEN; i++) fluxMean += this.fluxHistory[i]!;
+		for (let i = 0; i < FLUX_HISTORY_LEN; i++) fluxMean += this.fluxHistory[i];
 		fluxMean /= FLUX_HISTORY_LEN;
 
 		// Adaptive threshold; require both an absolute floor and a multiple of the
@@ -271,14 +281,14 @@ export class AudioAnalyzer {
 		const phaseRaw = (nowMs - this.lastBeatTime) / this.beatIntervalMs;
 		const phase = phaseRaw - Math.floor(phaseRaw);
 
-		return {
-			rms,
-			peak,
-			bass,
-			mid,
-			treble,
-			bpm,
-			beat_phase: Math.max(0, Math.min(1, phase)),
-		};
+		const c = this.cachedFeatures;
+		c.rms = rms;
+		c.peak = peak;
+		c.bass = bass;
+		c.mid = mid;
+		c.treble = treble;
+		c.bpm = bpm;
+		c.beat_phase = Math.max(0, Math.min(1, phase));
+		return { ...c };
 	}
 }

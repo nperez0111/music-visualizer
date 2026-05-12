@@ -31,7 +31,7 @@ export function getPref<T>(key: string, defaultValue: T): T {
 	}
 }
 
-export function setPref<T>(key: string, value: T): void {
+export function setPref(key: string, value: unknown): void {
 	upsertStmt.run(key, JSON.stringify(value));
 }
 

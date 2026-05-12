@@ -1,6 +1,6 @@
 import { defineHandler } from "nitro";
 import { useStorage } from "nitro/storage";
-import { createError, createEventStream } from "nitro/h3";
+import { createError, createEventStream, getHeader } from "nitro/h3";
 import { getDb, getVersionsWithPreview, clearVersionPreview, getVersionsMissingPreview } from "../../lib/db";
 import { backfillMissingVersions, refreshAllVersions } from "../../lib/backfill";
 import { renderVersionPreview } from "../../lib/preview";
@@ -24,7 +24,7 @@ import { renderVersionPreview } from "../../lib/preview";
 export default defineHandler(async (event) => {
 	const adminToken = process.env.ADMIN_TOKEN;
 	if (adminToken) {
-		const auth = event.request.headers.get("authorization");
+		const auth = getHeader(event, "authorization");
 		if (auth !== `Bearer ${adminToken}`) {
 			throw createError({
 				statusCode: 401,

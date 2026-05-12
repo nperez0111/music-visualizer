@@ -74,7 +74,7 @@ function flag(name: string): boolean {
 function option(name: string): string | undefined {
 	const idx = argv.indexOf(name);
 	if (idx === -1 || idx + 1 >= argv.length) return undefined;
-	const val = argv[idx + 1]!;
+	const val = argv[idx + 1];
 	argv.splice(idx, 2);
 	return val;
 }
@@ -88,7 +88,7 @@ const fileOpt = option("--file");
 
 const { loadPacksFromDir } = await import(resolve(REPO_ROOT, "src/bun/packs/loader.ts"));
 const { createHeadlessRenderer } = await import(resolve(REPO_ROOT, "src/bun/gpu/renderer.ts"));
-const { createPackPipeline, releasePackPipeline } = await import(resolve(REPO_ROOT, "src/bun/gpu/pipeline.ts"));
+const { createPackPipeline } = await import(resolve(REPO_ROOT, "src/bun/gpu/pipeline.ts"));
 const { parameterBufferSize } = await import(resolve(REPO_ROOT, "src/bun/packs/parameters.ts"));
 
 // ---------------------------------------------------------------------------
@@ -170,7 +170,7 @@ if (fileOpt) {
 // Compile check — uses wgpu error scopes to detect validation errors
 // ---------------------------------------------------------------------------
 
-import { JSCallback, FFIType, ptr } from "bun:ffi";
+import { JSCallback, FFIType } from "bun:ffi";
 
 console.log(`[check-shader] checking: ${target.label}`);
 const t0 = performance.now();
@@ -198,7 +198,7 @@ async function withValidationScope(fn: () => void): Promise<string | null> {
 
 	fn();
 
-	return new Promise<string | null>((resolve) => {
+	return new Promise<string | null>((resolvePromise) => {
 		let errorMsg: string | null = null;
 		const cb = new JSCallback(
 			(status: number, errorType: number, msgData: number, msgLen: number | bigint) => {
@@ -223,14 +223,13 @@ async function withValidationScope(fn: () => void): Promise<string | null> {
 		const cbInfo = makeRequestCallbackInfo(Number(cb.ptr));
 		native.symbols.wgpuDevicePopErrorScope(asPtr(renderer.device), asPtr(cbInfo.ptr));
 
-		let done = false;
 		const poll = () => {
 			for (let i = 0; i < 500; i++) {
 				native.symbols.wgpuInstanceProcessEvents(asPtr(renderer.instance));
 			}
 			// The callback should have fired by now
 			cb.close();
-			resolve(errorMsg);
+			resolvePromise(errorMsg);
 		};
 		// Give the event loop a tick to process
 		setTimeout(poll, 1);
