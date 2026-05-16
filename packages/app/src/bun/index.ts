@@ -28,6 +28,7 @@ import { FeatureSmoother } from "./engine/feature-smoother";
 import { UniformWriter } from "./engine/uniform-writer";
 import { createRenderDriver } from "./engine/render-frame";
 import { loadWindowPrefs, WindowPrefsManager } from "./window-prefs";
+import { preventSleep, allowSleep } from "./power";
 import type { AudioSource, AutoSettings, ControlsRPC } from "../shared/rpc-types";
 
 if (!existsSync(USER_PACKS_DIR)) mkdirSync(USER_PACKS_DIR, { recursive: true });
@@ -531,6 +532,7 @@ async function initEngine(wgpuViewId: number): Promise<void> {
 	console.log("[visualizer] pipeline ready, surfaceFormat=" + renderer.surfaceFormat);
 	void capture.start(savedAudioSource);
 	transitions.rescheduleAutoTimer();
+	preventSleep();
 
 	const smoother = new FeatureSmoother(audioAnalyzer, SPECTRUM_BINS);
 	const uniforms = new UniformWriter({
@@ -609,6 +611,7 @@ win.on("close", () => {
 	stopRenderLoop = true;
 	transitions.stop();
 	capture.stop();
+	allowSleep();
 	try { GlobalShortcut.unregisterAll(); } catch {}
 });
 
